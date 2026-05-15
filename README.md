@@ -295,7 +295,7 @@ Documentación interactiva en `/docs` con la API en ejecución.
 
 ## Licencia
 
-Proyecto privado — **Miatech / Yoredstorm**. Consultar al propietario del repositorio antes de redistribuir o usar en producción sin autorización.
+Proyecto privado — **Miatech / Pablo Pimentel**. Consultar al propietario del repositorio antes de redistribuir o usar en producción sin autorización.
 
 ---
 
