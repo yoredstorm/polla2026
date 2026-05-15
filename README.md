@@ -1,0 +1,304 @@
+# Polla Deportiva 2026
+
+Plataforma fullstack para **pollas de pronósticos deportivos**: los participantes predicen marcadores, compiten en rankings y gestionan apuestas con montos, premios y flujos de aprobación administrativa. Pensada para grupos reales (oficina, amigos, ligas internas) con panel de administración, perfiles públicos y notificaciones en tiempo real.
+
+**Repositorio:** [github.com/yoredstorm/polla2026-miatech](https://github.com/yoredstorm/polla2026-miatech)
+
+---
+
+## Características principales
+
+### Para jugadores
+
+| Funcionalidad | Descripción |
+|---------------|-------------|
+| **Pronósticos por partido** | Marcador local/visitante; una predicción gratuita por partido y apuestas extra opcionales según la polla activa. |
+| **Bloqueo automático** | Los partidos se bloquean ~1 hora antes del inicio; el admin puede abrir/cerrar apuestas manualmente. |
+| **Puntuación automática** | Al finalizar un partido, el sistema calcula puntos y actualiza rankings. |
+| **Mis apuestas** | Historial, estado de solicitudes de cambio y acciones sobre apuestas propias. |
+| **Solicitudes de cambio** | Pedir modificar o eliminar una apuesta; el admin aprueba o rechaza (con motivo). |
+| **Perfil público** (`/u/{username}`) | Ver apuestas de otros usuarios según privacidad (público o solo con código de invitación). |
+| **Copiar apuestas** | Copia masiva desde un perfil público o copia individual del mismo partido con marcador editable. |
+| **Ranking global y semanal** | Clasificación por puntos, precisión o cantidad de apuestas; filtros configurables. |
+| **Dashboard** | Resumen de polla activa, partidos próximos y estado de la cuenta. |
+
+### Para administradores
+
+| Funcionalidad | Descripción |
+|---------------|-------------|
+| **Gestión de pollas** | Crear polla activa, cuota de entrada, moneda, modo de monto (`single_entry` / `per_bet`) y monto fijo por apuesta. |
+| **Miembros** | Confirmar entrada, listar pendientes, agregar o quitar participantes. |
+| **Partidos** | Sincronizar desde API-Football, editar equipos/logos/fecha/estadio, resultados y estado. |
+| **Apuestas extra** | Confirmar pagos pendientes antes de sumar al pozo de premios. |
+| **Solicitudes** | Bandeja central de cambios de apuesta (aprobar / rechazar con notas). |
+| **Auditoría** | Registro de acciones (`bulk_copy`, cambios, altas, etc.) con filtros en panel de actividad. |
+| **Usuarios** | Listado, activar/desactivar cuentas y rol administrador. |
+
+### Notificaciones en tiempo real
+
+- **WebSocket** autenticado por cookie (`/api/v1/ws/notifications`).
+- **Redis pub/sub** para entregar eventos entre procesos.
+- **Campana en la barra** con badge de no leídas, historial paginado y toasts.
+- **Admins:** alertas de solicitudes de cambio, apuestas extra pendientes y entradas por confirmar; acciones inline (aprobar, rechazar, confirmar pago, confirmar entrada).
+- **Usuarios:** aviso cuando se resuelve una solicitud (aprobada/rechazada, con motivo si aplica).
+- **Respaldo:** polling del contador cada 30 s si el WebSocket no está conectado.
+
+### Seguridad y UX
+
+- JWT en **cookies httpOnly** (access + refresh), rotación y logout con invalidación.
+- **bcrypt** para contraseñas, rate limiting en login y API, bloqueo tras intentos fallidos.
+- CORS restringido, headers de seguridad, validación **Pydantic**, solo ORM (sin SQL crudo).
+- Cierre de sesión por **inactividad** configurable en el cliente.
+- UI moderna: **Next.js 14**, Tailwind, animaciones, sistema de **toasts** (Zustand).
+
+---
+
+## Sistema de puntuación
+
+| Resultado | Puntos |
+|-----------|--------|
+| Marcador exacto | **2** |
+| Ganador correcto (local / visitante / empate) | **1** |
+| Incorrecto | **0** |
+
+Los puntos se asignan automáticamente al marcar un partido como finalizado con resultado cargado.
+
+---
+
+## Distribución de premios (polla)
+
+Configuración típica del pozo acumulado:
+
+| Puesto | Porcentaje del prize pool |
+|--------|---------------------------|
+| 1.º | 60 % |
+| 2.º | 30 % |
+| 3.º | 10 % |
+
+---
+
+## Stack tecnológico
+
+| Capa | Tecnología |
+|------|------------|
+| Backend | Python 3.12, **FastAPI**, SQLAlchemy 2 (async), Alembic |
+| Frontend | **Next.js 14** (App Router), TypeScript, TanStack Query, Zustand |
+| Base de datos | **PostgreSQL 16** |
+| Caché / pub-sub | **Redis 7** |
+| Proxy | **Nginx** (API + frontend + WebSocket upgrade) |
+| Datos deportivos | **API-Football** (RapidAPI) |
+| Contenedores | **Docker Compose** |
+
+---
+
+## Arquitectura (resumen)
+
+```mermaid
+flowchart LR
+  subgraph client [Cliente]
+    UI[Next.js]
+    WS[WebSocket]
+  end
+  subgraph server [Servidor]
+    NGX[Nginx]
+    API[FastAPI]
+    WSM[WS Manager]
+  end
+  subgraph data [Datos]
+    PG[(PostgreSQL)]
+    RD[(Redis)]
+  end
+  UI --> NGX
+  WS --> NGX
+  NGX --> API
+  API --> PG
+  API --> RD
+  RD --> WSM
+  WSM --> WS
+```
+
+---
+
+## Requisitos previos
+
+- [Docker](https://www.docker.com/) y Docker Compose v2
+- Clave de [API-Football en RapidAPI](https://rapidapi.com/api-sports/api/api-football) (para sincronizar partidos)
+- (Opcional) Node.js 20+ y Python 3.12+ para desarrollo local sin Docker
+
+---
+
+## Instalación rápida (Docker)
+
+### 1. Clonar el repositorio
+
+```bash
+git clone https://github.com/yoredstorm/polla2026-miatech.git
+cd polla2026-miatech
+```
+
+### 2. Variables de entorno
+
+```bash
+cp .env.example .env
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+Editar al menos:
+
+| Archivo | Variables clave |
+|---------|-----------------|
+| `.env` | `POSTGRES_PASSWORD`, `REDIS_PASSWORD` |
+| `backend/.env` | `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET`, `FOOTBALL_API_KEY` |
+| `frontend/.env` | Opcional: `NEXT_PUBLIC_API_URL` (si no usas el puerto 8000 del host) |
+
+Genera secretos JWT de **mínimo 32 caracteres** aleatorios en producción.
+
+### 3. Levantar servicios
+
+```bash
+docker compose up -d --build
+```
+
+### 4. Migraciones
+
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+### 5. Acceder
+
+| Servicio | URL |
+|----------|-----|
+| Frontend (directo) | http://localhost:3000 |
+| API | http://localhost:8000 |
+| Entrada unificada (Nginx) | http://localhost |
+| Swagger | http://localhost:8000/docs |
+| ReDoc | http://localhost:8000/redoc |
+
+> **Windows:** si `localhost` no responde, prueba `http://127.0.0.1:3000` o `:8000` (resolución IPv6).
+
+---
+
+## Desarrollo local (sin Docker)
+
+### Backend
+
+```bash
+cd backend
+python -m venv venv
+# Windows: venv\Scripts\activate
+# Linux/macOS: source venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+alembic upgrade head
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+### Tests
+
+```bash
+cd backend
+pip install aiosqlite
+pytest --cov=app --cov-report=term-missing
+```
+
+---
+
+## Ligas soportadas (API-Football)
+
+| Liga | ID |
+|------|-----|
+| Premier League | 39 |
+| LaLiga | 140 |
+| UEFA Champions League | 2 |
+| Copa Libertadores | 13 |
+| Liga MX | 262 |
+
+El administrador puede sincronizar fixtures desde el panel o vía API de seed.
+
+---
+
+## Estructura del proyecto
+
+```
+polla2026-miatech/
+├── backend/
+│   ├── app/
+│   │   ├── api/v1/          # auth, fixtures, bets, groups, users, leaderboard, admin, notifications, ws
+│   │   ├── core/            # config, security, rate limiting, middlewares
+│   │   ├── db/migrations/   # Alembic (0012+ notifications, change requests, audit…)
+│   │   ├── models/
+│   │   ├── schemas/
+│   │   └── services/        # bets, groups, notifications, ws_manager…
+│   └── tests/
+├── frontend/
+│   ├── app/                 # App Router (dashboard, admin, perfiles públicos…)
+│   ├── components/
+│   ├── hooks/
+│   └── lib/
+├── docker-compose.yml
+├── nginx.conf
+└── README.md
+```
+
+---
+
+## API relevante (referencia)
+
+| Área | Endpoints (prefijo `/api/v1`) |
+|------|-------------------------------|
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout` |
+| Partidos | `GET /fixtures`, `GET /fixtures/live`, `GET /fixtures/{id}` |
+| Apuestas | `POST /bets`, `GET /bets/my`, `POST /bets/bulk-copy`, `POST /bets/{id}/change-request` |
+| Polla | `GET /groups/active-polla`, miembros, leaderboard de grupo |
+| Ranking | `GET /leaderboard`, `GET /leaderboard/weekly` |
+| Notificaciones | `GET /notifications`, `PATCH /notifications/{id}/read`, WebSocket `/ws/notifications` |
+| Admin | fixtures, usuarios, grupos, extras, solicitudes, auditoría |
+
+Documentación interactiva en `/docs` con la API en ejecución.
+
+---
+
+## Seguridad (OWASP Top 10 — resumen)
+
+| Riesgo | Medida implementada |
+|--------|---------------------|
+| Control de acceso | JWT por endpoint, roles admin, membresía de polla |
+| Criptografía | bcrypt, JWT HS256, refresh tokens hasheados |
+| Inyección | ORM + validación Pydantic |
+| Diseño inseguro | Rate limits globales y en login |
+| Configuración | CORS whitelist, headers de seguridad |
+| Autenticación | Tokens cortos, logout invalida refresh |
+| Registro | structlog JSON, Sentry opcional, sin datos sensibles en logs |
+| SSRF | Whitelist de hosts externos (API-Football) |
+
+---
+
+## Roadmap / mejoras posibles
+
+- Página dedicada `/notifications` con historial completo
+- Soporte multi-worker con balanceo y sticky sessions para WebSocket
+- Notificaciones por correo o push móvil
+- Más ligas y deportes
+
+---
+
+## Licencia
+
+Proyecto privado — **Miatech / Yoredstorm**. Consultar al propietario del repositorio antes de redistribuir o usar en producción sin autorización.
+
+---
+
+## Créditos
+
+Desarrollado como **Polla Deportiva 2026** — pronósticos, competencia y gestión de grupo en una sola plataforma.

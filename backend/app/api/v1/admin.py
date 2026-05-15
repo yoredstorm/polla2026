@@ -1,0 +1,1031 @@
+"""
+Admin endpoints — all protected by CurrentAdmin dependency.
+"""
+import uuid
+from decimal import Decimal
+from typing import Literal, Optional
+
+from fastapi import APIRouter, HTTPException, Query, Request, status
+from pydantic import BaseModel
+from sqlalchemy import select, func, and_
+
+from app.api.deps import CurrentAdmin, DBSession, RedisClient
+from app.core.rate_limiter import limiter
+from app.models.bet import Bet
+from app.models.bet_change_request import BetChangeRequest
+from app.models.fixture import Fixture
+from app.models.group import Group, GroupMember
+from app.models.user import User
+from app.services.bet_service import settle_fixture_bets
+from app.services.audit import log_action
+from app.services.notification_service import (
+    create_notification,
+    build_change_request_resolved,
+)
+import structlog
+
+logger = structlog.get_logger(__name__)
+
+router = APIRouter(prefix="/admin", tags=["admin"])
+
+ADMIN_RATE = "30/minute"
+
+
+# ── Schemas ──────────────────────────────────────────────────────────
+
+class FixtureResultIn(BaseModel):
+    home_score: int
+    away_score: int
+    status: Literal["finished"] = "finished"
+
+
+class FixtureStatusIn(BaseModel):
+    status: Literal["scheduled", "live", "finished", "cancelled"]
+
+
+class SettleResponse(BaseModel):
+    settled_count: int
+    fixture_id: str
+    home_score: int
+    away_score: int
+    status: str
+
+
+class AdminStatsOut(BaseModel):
+    total_users: int
+    total_bets: int
+    pending_bets: int
+    finished_fixtures: int
+    total_prize_pools: str
+
+
+class AdminUserPatch(BaseModel):
+    is_active: Optional[bool] = None
+    is_admin: Optional[bool] = None
+
+
+class AdminGroupPatch(BaseModel):
+    entry_fee: Optional[Decimal] = None
+    currency: Optional[str] = None
+    bet_amount_mode: Optional[Literal["single_entry", "per_bet"]] = None
+    fixed_bet_amount: Optional[Decimal] = None
+    is_active: Optional[bool] = None
+
+
+# ── Fixtures ─────────────────────────────────────────────────────────
+
+@router.get("/fixtures")
+@limiter.limit(ADMIN_RATE)
+async def list_fixtures(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    status_filter: Optional[str] = Query(None, alias="status"),
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+):
+    base = select(Fixture)
+    if status_filter:
+        base = base.where(Fixture.status == status_filter)
+    base = base.order_by(Fixture.match_date.desc())
+
+    total_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(total_q)).scalar() or 0
+
+    rows = (await db.execute(base.offset((page - 1) * limit).limit(limit))).scalars().all()
+
+    fixture_ids = [f.id for f in rows]
+    bet_counts: dict[uuid.UUID, int] = {}
+    if fixture_ids:
+        bc_q = (
+            select(Bet.fixture_id, func.count(Bet.id))
+            .where(Bet.fixture_id.in_(fixture_ids))
+            .group_by(Bet.fixture_id)
+        )
+        for fid, cnt in await db.execute(bc_q):
+            bet_counts[fid] = cnt
+
+    return {
+        "data": [
+            {
+                "id": str(f.id),
+                "external_id": f.external_id,
+                "home_team": f.home_team,
+                "away_team": f.away_team,
+                "home_logo_url": f.home_logo_url,
+                "away_logo_url": f.away_logo_url,
+                "league_name": f.league_name,
+                "match_date": f.match_date.isoformat(),
+                "status": f.status,
+                "home_score": f.home_score,
+                "away_score": f.away_score,
+                "round": f.round,
+                "group_name": f.group_name,
+                "venue": f.venue,
+                "is_locked": f.is_locked,
+                "betting_open": f.betting_open,
+                "bet_count": bet_counts.get(f.id, 0),
+            }
+            for f in rows
+        ],
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
+    }
+
+
+@router.patch("/fixtures/{fixture_id}/result")
+@limiter.limit(ADMIN_RATE)
+async def update_fixture_result(
+    request: Request,
+    fixture_id: uuid.UUID,
+    body: FixtureResultIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    result = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
+    fixture = result.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+
+    fixture.home_score = body.home_score
+    fixture.away_score = body.away_score
+    fixture.status = body.status
+    fixture.is_locked = True
+    await db.flush()
+
+    settled = await settle_fixture_bets(db, fixture)
+    await log_action(db, user_id=admin.id, action="admin_settle", detail={
+        "fixture_id": str(fixture_id), "home_score": body.home_score, "away_score": body.away_score,
+        "status": body.status, "settled_count": settled,
+    }, ip=request.client.host if request.client else None)
+    await db.commit()
+
+    logger.info("admin_fixture_settled", fixture_id=str(fixture_id), admin=str(admin.id), settled=settled)
+    return SettleResponse(
+        settled_count=settled,
+        fixture_id=str(fixture.id),
+        home_score=fixture.home_score,
+        away_score=fixture.away_score,
+        status=fixture.status,
+    )
+
+
+@router.patch("/fixtures/{fixture_id}/status")
+@limiter.limit(ADMIN_RATE)
+async def update_fixture_status(
+    request: Request,
+    fixture_id: uuid.UUID,
+    body: FixtureStatusIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    result = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
+    fixture = result.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    fixture.status = body.status
+    if body.status in ("live", "finished", "cancelled"):
+        fixture.is_locked = True
+    await db.commit()
+    return {"ok": True, "status": fixture.status}
+
+
+# ── Fixture editing ──────────────────────────────────────────────────
+
+class FixtureEditIn(BaseModel):
+    home_team: Optional[str] = None
+    away_team: Optional[str] = None
+    home_logo_url: Optional[str] = None
+    away_logo_url: Optional[str] = None
+    betting_open: Optional[bool] = None
+    venue: Optional[str] = None
+    match_date: Optional[str] = None  # ISO-8601 string
+
+
+@router.get("/fixtures/known-teams")
+@limiter.limit(ADMIN_RATE)
+async def known_teams(request: Request, admin: CurrentAdmin):
+    """Return all 48 World Cup teams with their flag URLs for the frontend autocomplete."""
+    from app.services.worldcup_loader import _FLAG_ISO2
+    teams = [
+        {"name": name, "flag_url": f"https://flagcdn.com/w40/{iso2}.png"}
+        for name, iso2 in sorted(_FLAG_ISO2.items())
+    ]
+    return teams
+
+
+@router.patch("/fixtures/{fixture_id}/edit")
+@limiter.limit(ADMIN_RATE)
+async def edit_fixture(
+    request: Request,
+    fixture_id: uuid.UUID,
+    body: FixtureEditIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    """Edit fixture metadata: teams, flags, betting gate, venue, date."""
+    from app.services.worldcup_loader import _FLAG_ISO2
+
+    result = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
+    fixture = result.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+
+    if body.home_team is not None:
+        fixture.home_team = body.home_team
+        # Auto-set flag URL if not explicitly provided and team is known
+        if body.home_logo_url is None and body.home_team in _FLAG_ISO2:
+            fixture.home_logo_url = f"https://flagcdn.com/w40/{_FLAG_ISO2[body.home_team]}.png"
+
+    if body.away_team is not None:
+        fixture.away_team = body.away_team
+        if body.away_logo_url is None and body.away_team in _FLAG_ISO2:
+            fixture.away_logo_url = f"https://flagcdn.com/w40/{_FLAG_ISO2[body.away_team]}.png"
+
+    if body.home_logo_url is not None:
+        fixture.home_logo_url = body.home_logo_url
+
+    if body.away_logo_url is not None:
+        fixture.away_logo_url = body.away_logo_url
+
+    if body.betting_open is not None:
+        fixture.betting_open = body.betting_open
+
+    if body.venue is not None:
+        fixture.venue = body.venue
+
+    if body.match_date is not None:
+        from datetime import datetime, timezone
+        fixture.match_date = datetime.fromisoformat(body.match_date).replace(tzinfo=timezone.utc)
+
+    await log_action(db, user_id=admin.id, action="admin_edit_fixture", detail={
+        "fixture_id": str(fixture_id), "changes": body.model_dump(exclude_none=True),
+    }, ip=request.client.host if request.client else None)
+    await db.commit()
+    await db.refresh(fixture)
+    logger.info("admin_fixture_edited", fixture_id=str(fixture_id), admin=str(admin.id))
+    from app.schemas.fixture import FixtureOut
+    return FixtureOut.model_validate(fixture)
+
+
+# ── Stats / Dashboard ───────────────────────────────────────────────
+
+@router.get("/stats", response_model=AdminStatsOut)
+@limiter.limit(ADMIN_RATE)
+async def admin_stats(request: Request, admin: CurrentAdmin, db: DBSession):
+    total_users = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
+    total_bets = (await db.execute(select(func.count()).select_from(Bet))).scalar() or 0
+    pending_bets = (
+        await db.execute(select(func.count()).select_from(Bet).where(Bet.points_earned == None))  # noqa
+    ).scalar() or 0
+    finished_fixtures = (
+        await db.execute(select(func.count()).select_from(Fixture).where(Fixture.status == "finished"))
+    ).scalar() or 0
+    pools = (await db.execute(select(func.coalesce(func.sum(Group.prize_pool), 0)))).scalar()
+
+    return AdminStatsOut(
+        total_users=total_users,
+        total_bets=total_bets,
+        pending_bets=pending_bets,
+        finished_fixtures=finished_fixtures,
+        total_prize_pools=str(pools),
+    )
+
+
+@router.get("/top-winners")
+@limiter.limit(ADMIN_RATE)
+async def top_winners(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    limit: int = Query(10, ge=1, le=50),
+):
+    q = (
+        select(
+            User.id,
+            User.username,
+            func.coalesce(func.sum(Bet.points_earned), 0).label("total_points"),
+            func.count(Bet.id).label("total_bets"),
+            func.count(Bet.id).filter(Bet.points_earned > 0).label("correct"),
+            func.count(Bet.id).filter(and_(Bet.points_earned != None, Bet.points_earned == 0)).label("wrong"),  # noqa
+        )
+        .join(Bet, Bet.user_id == User.id)
+        .group_by(User.id, User.username)
+        .order_by(func.coalesce(func.sum(Bet.points_earned), 0).desc())
+        .limit(limit)
+    )
+    rows = (await db.execute(q)).all()
+    return [
+        {
+            "user_id": str(r.id),
+            "username": r.username,
+            "total_points": int(r.total_points),
+            "total_bets": int(r.total_bets),
+            "correct": int(r.correct),
+            "wrong": int(r.wrong),
+        }
+        for r in rows
+    ]
+
+
+# ── Users ────────────────────────────────────────────────────────────
+
+@router.get("/users")
+@limiter.limit(ADMIN_RATE)
+async def list_users(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+):
+    base = select(User).order_by(User.created_at.desc())
+    total = (await db.execute(select(func.count()).select_from(User))).scalar() or 0
+    rows = (await db.execute(base.offset((page - 1) * limit).limit(limit))).scalars().all()
+
+    user_ids = [u.id for u in rows]
+    bet_stats: dict[uuid.UUID, dict] = {}
+    if user_ids:
+        bs_q = (
+            select(
+                Bet.user_id,
+                func.count(Bet.id).label("total_bets"),
+                func.coalesce(func.sum(Bet.points_earned), 0).label("total_points"),
+            )
+            .where(Bet.user_id.in_(user_ids))
+            .group_by(Bet.user_id)
+        )
+        for row in await db.execute(bs_q):
+            bet_stats[row.user_id] = {"total_bets": int(row.total_bets), "total_points": int(row.total_points)}
+
+    return {
+        "data": [
+            {
+                "id": str(u.id),
+                "username": u.username,
+                "is_active": u.is_active,
+                "is_admin": u.is_admin,
+                "total_bets": bet_stats.get(u.id, {}).get("total_bets", 0),
+                "total_points": bet_stats.get(u.id, {}).get("total_points", 0),
+                "created_at": u.created_at.isoformat(),
+            }
+            for u in rows
+        ],
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
+    }
+
+
+@router.patch("/users/{user_id}")
+@limiter.limit(ADMIN_RATE)
+async def patch_user(
+    request: Request,
+    user_id: uuid.UUID,
+    body: AdminUserPatch,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if body.is_active is not None:
+        user.is_active = body.is_active
+    if body.is_admin is not None:
+        user.is_admin = body.is_admin
+    await db.commit()
+    await db.refresh(user)
+    return {
+        "id": str(user.id),
+        "username": user.username,
+        "is_active": user.is_active,
+        "is_admin": user.is_admin,
+    }
+
+
+# ── Groups ───────────────────────────────────────────────────────────
+
+class CreatePollaIn(BaseModel):
+    name: str
+    entry_fee: Decimal = Decimal("0")
+    currency: str = "PEN"
+    per_match_amount: Decimal | None = None
+
+
+@router.post("/groups", status_code=201)
+@limiter.limit(ADMIN_RATE)
+async def create_polla(
+    request: Request,
+    body: CreatePollaIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    """Create the global polla. Admin becomes the owner."""
+    from app.models.group import Group
+    from app.core.security import generate_invite_code
+    group = Group(
+        name=body.name,
+        owner_id=admin.id,
+        entry_fee=body.entry_fee,
+        currency=body.currency,
+        bet_amount_mode="single_entry",
+        fixed_bet_amount=body.per_match_amount if body.per_match_amount and body.per_match_amount > 0 else None,
+        is_active=True,
+        prize_pool=Decimal("0"),
+    )
+    db.add(group)
+    await db.commit()
+    await db.refresh(group)
+    logger.info("polla_created", group_id=str(group.id), admin=str(admin.id))
+    return {
+        "id": str(group.id),
+        "name": group.name,
+        "entry_fee": str(group.entry_fee),
+        "currency": group.currency,
+        "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
+        "is_active": group.is_active,
+    }
+
+
+@router.get("/groups")
+@limiter.limit(ADMIN_RATE)
+async def list_groups(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+):
+    base = select(Group).order_by(Group.created_at.desc())
+    total = (await db.execute(select(func.count()).select_from(Group))).scalar() or 0
+    rows = (await db.execute(base.offset((page - 1) * limit).limit(limit))).scalars().all()
+
+    group_ids = [g.id for g in rows]
+    member_counts: dict[uuid.UUID, int] = {}
+    if group_ids:
+        mc_q = (
+            select(GroupMember.group_id, func.count(GroupMember.user_id))
+            .where(GroupMember.group_id.in_(group_ids))
+            .group_by(GroupMember.group_id)
+        )
+        for gid, cnt in await db.execute(mc_q):
+            member_counts[gid] = cnt
+
+    return {
+        "data": [
+            {
+                "id": str(g.id),
+                "name": g.name,
+                "owner_id": str(g.owner_id),
+                "entry_fee": str(g.entry_fee),
+                "prize_pool": str(g.prize_pool),
+                "bet_amount_mode": g.bet_amount_mode,
+                "fixed_bet_amount": str(g.fixed_bet_amount) if g.fixed_bet_amount is not None else None,
+                "is_active": g.is_active,
+                "member_count": member_counts.get(g.id, 0),
+                "created_at": g.created_at.isoformat(),
+            }
+            for g in rows
+        ],
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
+    }
+
+
+@router.patch("/groups/{group_id}")
+@limiter.limit(ADMIN_RATE)
+async def patch_group(
+    request: Request,
+    group_id: uuid.UUID,
+    body: AdminGroupPatch,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    if body.entry_fee is not None:
+        group.entry_fee = body.entry_fee
+    if body.currency is not None:
+        group.currency = body.currency
+    if body.bet_amount_mode is not None:
+        group.bet_amount_mode = body.bet_amount_mode
+    if body.fixed_bet_amount is not None:
+        group.fixed_bet_amount = body.fixed_bet_amount if body.fixed_bet_amount > 0 else None
+    if body.is_active is not None:
+        group.is_active = body.is_active
+    await db.commit()
+    await db.refresh(group)
+    return {
+        "id": str(group.id),
+        "name": group.name,
+        "entry_fee": str(group.entry_fee),
+        "bet_amount_mode": group.bet_amount_mode,
+        "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
+        "is_active": group.is_active,
+    }
+
+
+class AddMemberIn(BaseModel):
+    user_id: uuid.UUID
+
+
+@router.get("/groups/{group_id}/members")
+@limiter.limit(ADMIN_RATE)
+async def list_group_members(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    q = (
+        select(User.id, User.username, GroupMember.joined_at, GroupMember.total_points, GroupMember.total_amount_bet)
+        .join(GroupMember, GroupMember.user_id == User.id)
+        .where(GroupMember.group_id == group_id)
+        .order_by(GroupMember.joined_at.asc())
+    )
+    rows = (await db.execute(q)).all()
+    return [
+        {
+            "user_id": str(r.id),
+            "username": r.username,
+            "joined_at": r.joined_at.isoformat(),
+            "total_points": r.total_points,
+            "total_amount_bet": str(r.total_amount_bet),
+        }
+        for r in rows
+    ]
+
+
+@router.post("/groups/{group_id}/members", status_code=201)
+@limiter.limit(ADMIN_RATE)
+async def add_group_member(
+    request: Request,
+    group_id: uuid.UUID,
+    body: AddMemberIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    group_res = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_res.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    user_res = await db.execute(select(User).where(User.id == body.user_id))
+    user = user_res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    existing = await db.execute(
+        select(GroupMember).where(
+            and_(GroupMember.group_id == group_id, GroupMember.user_id == body.user_id)
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="User is already a member")
+
+    member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=group.entry_fee)
+    db.add(member)
+    group.prize_pool += group.entry_fee
+    await log_action(db, user_id=admin.id, action="admin_confirm_entry", detail={
+        "group_id": str(group_id), "member_user_id": str(body.user_id), "entry_fee": str(group.entry_fee),
+    }, ip=request.client.host if request.client else None)
+    await db.commit()
+    logger.info("admin_member_added", group_id=str(group_id), user_id=str(body.user_id), admin=str(admin.id))
+    return {"ok": True, "username": user.username, "prize_pool": str(group.prize_pool)}
+
+
+@router.delete("/groups/{group_id}/members/{user_id}", status_code=200)
+@limiter.limit(ADMIN_RATE)
+async def remove_group_member(
+    request: Request,
+    group_id: uuid.UUID,
+    user_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    group_res = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_res.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    member_res = await db.execute(
+        select(GroupMember).where(
+            and_(GroupMember.group_id == group_id, GroupMember.user_id == user_id)
+        )
+    )
+    member = member_res.scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=404, detail="Member not found")
+
+    await db.delete(member)
+    group.prize_pool = max(Decimal("0"), group.prize_pool - group.entry_fee)
+    await db.commit()
+    logger.info("admin_member_removed", group_id=str(group_id), user_id=str(user_id), admin=str(admin.id))
+    return {"ok": True, "prize_pool": str(group.prize_pool)}
+
+
+@router.get("/groups/{group_id}/non-members")
+@limiter.limit(ADMIN_RATE)
+async def list_non_members(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    """Users registered but NOT yet members of this group (pending entry confirmation)."""
+    member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+    q = (
+        select(User.id, User.username, User.created_at)
+        .where(User.is_active == True, User.id.not_in(member_ids_q))
+        .order_by(User.created_at.desc())
+    )
+    rows = (await db.execute(q)).all()
+    return [
+        {"user_id": str(r.id), "username": r.username, "registered_at": r.created_at.isoformat()}
+        for r in rows
+    ]
+
+
+@router.get("/groups/{group_id}/pending-extras")
+@limiter.limit(ADMIN_RATE)
+async def list_pending_extras(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    """Bets with extra amounts not yet confirmed by admin."""
+    q = (
+        select(
+            Bet.id, Bet.user_id, Bet.fixture_id, Bet.amount, Bet.created_at,
+            Bet.predicted_home_score, Bet.predicted_away_score,
+            User.username,
+        )
+        .join(User, Bet.user_id == User.id)
+        .where(
+            and_(
+                Bet.group_id == group_id,
+                Bet.amount > 0,
+                Bet.amount_confirmed == False,  # noqa
+            )
+        )
+        .order_by(Bet.created_at.desc())
+    )
+    rows = (await db.execute(q)).all()
+    return [
+        {
+            "bet_id": str(r.id),
+            "user_id": str(r.user_id),
+            "username": r.username,
+            "fixture_id": str(r.fixture_id),
+            "amount": str(r.amount),
+            "predicted_home_score": r.predicted_home_score,
+            "predicted_away_score": r.predicted_away_score,
+            "created_at": r.created_at.isoformat(),
+        }
+        for r in rows
+    ]
+
+
+@router.post("/groups/{group_id}/confirm-extra/{bet_id}")
+@limiter.limit(ADMIN_RATE)
+async def confirm_extra_bet(
+    request: Request,
+    group_id: uuid.UUID,
+    bet_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    """Confirm that user paid the extra for this bet → adds amount to prize_pool."""
+    group_res = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_res.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+
+    bet_res = await db.execute(
+        select(Bet).where(and_(Bet.id == bet_id, Bet.group_id == group_id))
+    )
+    bet = bet_res.scalar_one_or_none()
+    if not bet:
+        raise HTTPException(status_code=404, detail="Bet not found in this group")
+    if bet.amount_confirmed:
+        raise HTTPException(status_code=409, detail="Already confirmed")
+
+    bet.amount_confirmed = True
+    group.prize_pool += bet.amount
+
+    # Also update member total_amount_bet
+    member_res = await db.execute(
+        select(GroupMember).where(
+            and_(GroupMember.group_id == group_id, GroupMember.user_id == bet.user_id)
+        )
+    )
+    member = member_res.scalar_one_or_none()
+    if member:
+        member.total_amount_bet += bet.amount
+
+    await log_action(db, user_id=admin.id, action="admin_confirm_extra", detail={
+        "bet_id": str(bet_id), "group_id": str(group_id), "bet_user_id": str(bet.user_id), "amount": str(bet.amount),
+    }, ip=request.client.host if request.client else None)
+    await db.commit()
+    logger.info("extra_confirmed", bet_id=str(bet_id), amount=str(bet.amount), admin=str(admin.id))
+    return {"ok": True, "amount": str(bet.amount), "prize_pool": str(group.prize_pool)}
+
+
+# ── Audit Log ─────────────────────────────────────────────────────────
+
+class AuditLogOut(BaseModel):
+    id: str
+    user_id: str | None
+    username: str | None
+    action: str
+    detail: str | None
+    ip_address: str | None
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/audit-log")
+@limiter.limit(ADMIN_RATE)
+async def list_audit_logs(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+    action: Optional[str] = Query(None),
+):
+    from app.models.audit_log import AuditLog
+    from sqlalchemy import outerjoin
+
+    base = (
+        select(
+            AuditLog.id,
+            AuditLog.user_id,
+            User.username.label("username"),
+            AuditLog.action,
+            AuditLog.detail,
+            AuditLog.ip_address,
+            AuditLog.created_at,
+        )
+        .select_from(AuditLog)
+        .outerjoin(User, AuditLog.user_id == User.id)
+    )
+
+    if action:
+        base = base.where(AuditLog.action == action)
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    rows = (
+        await db.execute(
+            base.order_by(AuditLog.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+
+    return {
+        "data": [
+            AuditLogOut(
+                id=str(r.id),
+                user_id=str(r.user_id) if r.user_id else None,
+                username=r.username,
+                action=r.action,
+                detail=r.detail,
+                ip_address=r.ip_address,
+                created_at=r.created_at.isoformat(),
+            )
+            for r in rows
+        ],
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": -(-total // limit)},
+    }
+
+
+# ── Bet Change Requests ──────────────────────────────────────────────
+
+@router.get("/bet-change-requests")
+@limiter.limit(ADMIN_RATE)
+async def list_change_requests(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    status_filter: Optional[str] = Query(None, alias="status"),
+):
+    base = (
+        select(
+            BetChangeRequest.id,
+            BetChangeRequest.user_id,
+            BetChangeRequest.bet_id,
+            BetChangeRequest.request_type,
+            BetChangeRequest.new_predicted_home_score,
+            BetChangeRequest.new_predicted_away_score,
+            BetChangeRequest.reason,
+            BetChangeRequest.status,
+            BetChangeRequest.admin_notes,
+            BetChangeRequest.created_at,
+            BetChangeRequest.resolved_at,
+            User.username.label("username"),
+            Bet.predicted_home_score.label("original_home"),
+            Bet.predicted_away_score.label("original_away"),
+            Bet.fixture_id,
+            Bet.amount,
+            Bet.group_id,
+            Fixture.home_team,
+            Fixture.away_team,
+            Fixture.home_logo_url,
+            Fixture.away_logo_url,
+        )
+        .join(User, BetChangeRequest.user_id == User.id)
+        .join(Bet, BetChangeRequest.bet_id == Bet.id)
+        .join(Fixture, Bet.fixture_id == Fixture.id)
+    )
+
+    if status_filter:
+        base = base.where(BetChangeRequest.status == status_filter)
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    rows = (
+        await db.execute(
+            base.order_by(BetChangeRequest.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+
+    return {
+        "data": [
+            {
+                "id": str(r.id),
+                "user_id": str(r.user_id),
+                "username": r.username,
+                "bet_id": str(r.bet_id),
+                "request_type": r.request_type,
+                "new_predicted_home_score": r.new_predicted_home_score,
+                "new_predicted_away_score": r.new_predicted_away_score,
+                "original_home": r.original_home,
+                "original_away": r.original_away,
+                "fixture_id": str(r.fixture_id),
+                "home_team": r.home_team,
+                "away_team": r.away_team,
+                "home_logo_url": r.home_logo_url,
+                "away_logo_url": r.away_logo_url,
+                "amount": str(r.amount),
+                "group_id": str(r.group_id) if r.group_id else None,
+                "reason": r.reason,
+                "status": r.status,
+                "admin_notes": r.admin_notes,
+                "created_at": r.created_at.isoformat(),
+                "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+            }
+            for r in rows
+        ],
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
+    }
+
+
+@router.get("/bet-change-requests/pending-count")
+@limiter.limit(ADMIN_RATE)
+async def pending_change_request_count(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    total = (
+        await db.execute(
+            select(func.count()).select_from(BetChangeRequest).where(BetChangeRequest.status == "pending")
+        )
+    ).scalar() or 0
+    return {"count": total}
+
+
+class ApproveRejectIn(BaseModel):
+    admin_notes: Optional[str] = None
+
+
+@router.post("/bet-change-requests/{request_id}/approve")
+@limiter.limit(ADMIN_RATE)
+async def approve_change_request(
+    request: Request,
+    request_id: uuid.UUID,
+    body: ApproveRejectIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+    redis: RedisClient,
+):
+    from datetime import datetime, timezone
+
+    cr_res = await db.execute(select(BetChangeRequest).where(BetChangeRequest.id == request_id))
+    cr = cr_res.scalar_one_or_none()
+    if not cr:
+        raise HTTPException(status_code=404, detail="Change request not found")
+    if cr.status != "pending":
+        raise HTTPException(status_code=409, detail="Request is already resolved")
+
+    bet_res = await db.execute(select(Bet).where(Bet.id == cr.bet_id))
+    bet = bet_res.scalar_one_or_none()
+    if not bet:
+        raise HTTPException(status_code=404, detail="Associated bet not found")
+
+    if cr.request_type == "modify":
+        bet.predicted_home_score = cr.new_predicted_home_score
+        bet.predicted_away_score = cr.new_predicted_away_score
+    elif cr.request_type == "delete":
+        if bet.group_id and bet.amount_confirmed and bet.amount > 0:
+            group_res = await db.execute(select(Group).where(Group.id == bet.group_id))
+            group = group_res.scalar_one_or_none()
+            if group:
+                group.prize_pool = max(Decimal("0"), group.prize_pool - bet.amount)
+                member_res = await db.execute(
+                    select(GroupMember).where(
+                        and_(GroupMember.group_id == bet.group_id, GroupMember.user_id == bet.user_id)
+                    )
+                )
+                member = member_res.scalar_one_or_none()
+                if member:
+                    member.total_amount_bet = max(Decimal("0"), member.total_amount_bet - bet.amount)
+        await db.delete(bet)
+
+    cr.status = "approved"
+    cr.admin_notes = body.admin_notes
+    cr.resolved_by = admin.id
+    cr.resolved_at = datetime.now(timezone.utc)
+
+    title, notif_body, payload = build_change_request_resolved(
+        status="approved",
+        request_type=cr.request_type,
+        admin_notes=body.admin_notes,
+        request_id=str(request_id),
+        bet_id=str(cr.bet_id),
+    )
+    await create_notification(
+        db, redis,
+        user_id=cr.user_id,
+        type="change_request_resolved",
+        title=title,
+        body=notif_body,
+        payload=payload,
+    )
+
+    await log_action(db, user_id=admin.id, action="admin_approve_change_request", detail={
+        "request_id": str(request_id), "bet_id": str(cr.bet_id), "type": cr.request_type,
+        "user_id": str(cr.user_id),
+    }, ip=request.client.host if request.client else None)
+    await db.commit()
+    logger.info("change_request_approved", request_id=str(request_id), admin=str(admin.id))
+    return {"ok": True, "status": "approved"}
+
+
+@router.post("/bet-change-requests/{request_id}/reject")
+@limiter.limit(ADMIN_RATE)
+async def reject_change_request(
+    request: Request,
+    request_id: uuid.UUID,
+    body: ApproveRejectIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+    redis: RedisClient,
+):
+    from datetime import datetime, timezone
+
+    cr_res = await db.execute(select(BetChangeRequest).where(BetChangeRequest.id == request_id))
+    cr = cr_res.scalar_one_or_none()
+    if not cr:
+        raise HTTPException(status_code=404, detail="Change request not found")
+    if cr.status != "pending":
+        raise HTTPException(status_code=409, detail="Request is already resolved")
+
+    cr.status = "rejected"
+    cr.admin_notes = body.admin_notes
+    cr.resolved_by = admin.id
+    cr.resolved_at = datetime.now(timezone.utc)
+
+    title, notif_body, payload = build_change_request_resolved(
+        status="rejected",
+        request_type=cr.request_type,
+        admin_notes=body.admin_notes,
+        request_id=str(request_id),
+        bet_id=str(cr.bet_id),
+    )
+    await create_notification(
+        db, redis,
+        user_id=cr.user_id,
+        type="change_request_resolved",
+        title=title,
+        body=notif_body,
+        payload=payload,
+    )
+
+    await log_action(db, user_id=admin.id, action="admin_reject_change_request", detail={
+        "request_id": str(request_id), "bet_id": str(cr.bet_id), "type": cr.request_type,
+        "user_id": str(cr.user_id), "notes": body.admin_notes,
+    }, ip=request.client.host if request.client else None)
+    await db.commit()
+    logger.info("change_request_rejected", request_id=str(request_id), admin=str(admin.id))
+    return {"ok": True, "status": "rejected"}

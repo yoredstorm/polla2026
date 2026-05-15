@@ -1,0 +1,15 @@
+[run]
+omit =
+    # Dead code — FootballAPI service replaced by local JSON loader
+    app/services/football_api.py
+    # Alembic migration env — not unit-testable in standard pytest suite
+    app/db/migrations/env.py
+    # Test files themselves
+    tests/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if TYPE_CHECKING:
