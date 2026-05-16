@@ -21,6 +21,8 @@ from app.services.audit import log_action
 from app.services.notification_service import (
     create_notification,
     build_change_request_resolved,
+    build_fixture_finished,
+    notify_all_active_users,
 )
 import structlog
 
@@ -140,6 +142,7 @@ async def update_fixture_result(
     body: FixtureResultIn,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     result = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
     fixture = result.scalar_one_or_none()
@@ -153,9 +156,20 @@ async def update_fixture_result(
     await db.flush()
 
     settled = await settle_fixture_bets(db, fixture)
+    nt, nb, np = build_fixture_finished(
+        fixture_id=str(fixture_id),
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+        home_score=body.home_score,
+        away_score=body.away_score,
+    )
+    notified = await notify_all_active_users(
+        db, redis, type="fixture_finished", title=nt, body=nb, payload=np,
+    )
     await log_action(db, user_id=admin.id, action="admin_settle", detail={
         "fixture_id": str(fixture_id), "home_score": body.home_score, "away_score": body.away_score,
         "status": body.status, "settled_count": settled,
+        "notified_users_count": len(notified),
     }, ip=request.client.host if request.client else None)
     await db.commit()
 

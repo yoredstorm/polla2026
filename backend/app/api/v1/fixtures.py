@@ -6,7 +6,7 @@ from datetime import datetime
 import uuid
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, CurrentAdmin, DBSession
@@ -64,6 +64,7 @@ async def list_fixtures(
     date_from: Optional[datetime] = Query(None),
     date_to: Optional[datetime] = Query(None),
     fixture_status: Optional[str] = Query(None, alias="status"),
+    exclude_finished: Optional[bool] = Query(None, description="If true, omit fixtures with status finished"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=200),
 ):
@@ -79,13 +80,19 @@ async def list_fixtures(
         filters.append(Fixture.match_date <= date_to)
     if fixture_status:
         filters.append(Fixture.status == fixture_status)
+    if exclude_finished:
+        filters.append(Fixture.status != "finished")
     if filters:
         query = query.where(and_(*filters))
 
     count_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = count_result.scalar()
 
-    query = query.order_by(Fixture.match_date).offset((page - 1) * limit).limit(limit)
+    if fixture_status == "finished":
+        query = query.order_by(desc(Fixture.match_date))
+    else:
+        query = query.order_by(Fixture.match_date)
+    query = query.offset((page - 1) * limit).limit(limit)
     result = await db.execute(query)
     fixtures = result.scalars().all()
 

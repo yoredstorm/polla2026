@@ -247,6 +247,19 @@ export function NotificationBell() {
                         </button>
                       )}
 
+                      {n.type === "fixture_finished" && (
+                        <Link
+                          href="/fixtures#culminados"
+                          onClick={() => {
+                            if (!n.read_at) markRead.mutate(n.id);
+                            setOpen(false);
+                          }}
+                          className="inline-block text-xs text-accent hover:underline"
+                        >
+                          Ver resultado
+                        </Link>
+                      )}
+
                       {n.type === "change_request_resolved" && (
                         <Link
                           href="/my-bets"
@@ -257,7 +270,10 @@ export function NotificationBell() {
                         </Link>
                       )}
 
-                      {!isAdminActionable && n.type !== "change_request_resolved" && !n.read_at && (
+                      {!isAdminActionable &&
+                        n.type !== "change_request_resolved" &&
+                        n.type !== "fixture_finished" &&
+                        !n.read_at && (
                         <button
                           type="button"
                           onClick={() => markRead.mutate(n.id)}

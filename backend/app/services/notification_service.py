@@ -91,6 +91,26 @@ async def notify_admins(
     return created
 
 
+async def notify_all_active_users(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    type: str,
+    title: str,
+    body: str,
+    payload: dict[str, Any] | None = None,
+) -> list[Notification]:
+    result = await db.execute(select(User.id).where(User.is_active == True))
+    user_ids = [row[0] for row in result.all()]
+    created: list[Notification] = []
+    for uid in user_ids:
+        n = await create_notification(
+            db, redis, user_id=uid, type=type, title=title, body=body, payload=payload,
+        )
+        created.append(n)
+    return created
+
+
 async def get_unread_count(db: AsyncSession, user_id: uuid.UUID) -> int:
     q = select(func.count()).select_from(Notification).where(
         Notification.user_id == user_id,
@@ -229,5 +249,25 @@ def build_entry_pending(
         "user_id": user_id,
         "group_id": group_id,
         "username": username,
+    }
+    return title, body, payload
+
+
+def build_fixture_finished(
+    *,
+    fixture_id: str,
+    home_team: str,
+    away_team: str,
+    home_score: int,
+    away_score: int,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"Partido finalizado: {home_team} vs {away_team}"
+    body = f"Resultado final: {home_score}-{away_score}. Revisa tus puntos."
+    payload = {
+        "fixture_id": fixture_id,
+        "home_team": home_team,
+        "away_team": away_team,
+        "home_score": home_score,
+        "away_score": away_score,
     }
     return title, body, payload

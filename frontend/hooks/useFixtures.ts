@@ -11,6 +11,7 @@ export function useFixtures(filters: FixtureFilter = {}) {
       date_from: filters.date_from,
       date_to: filters.date_to,
       status: filters.status,
+      exclude_finished: filters.exclude_finished,
       page: filters.page || 1,
       limit: filters.limit || 20,
     }),

@@ -59,6 +59,7 @@ export function connectNotificationsWs(
         } else if (msg.type === "notification") {
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
           queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
+          queryClient.invalidateQueries({ queryKey: ["fixtures"] });
           showToast(msg.data.title, "info");
         }
       } catch {

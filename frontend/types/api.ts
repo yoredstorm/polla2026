@@ -197,6 +197,7 @@ export interface FixtureFilter {
   date_from?: string;
   date_to?: string;
   status?: FixtureStatus;
+  exclude_finished?: boolean;
   page?: number;
   limit?: number;
 }
@@ -205,7 +206,8 @@ export type NotificationType =
   | "change_request_resolved"
   | "change_request_pending"
   | "extra_bet_pending"
-  | "entry_pending";
+  | "entry_pending"
+  | "fixture_finished";
 
 export interface NotificationPayload {
   request_id?: string;
@@ -218,6 +220,10 @@ export interface NotificationPayload {
   request_type?: string;
   admin_notes?: string | null;
   amount?: string;
+  home_team?: string;
+  away_team?: string;
+  home_score?: number;
+  away_score?: number;
 }
 
 export interface Notification {

@@ -9,9 +9,11 @@ import { cn, formatMatchDate, formatCountdown, isWithin24Hours, getStatusLabel }
 interface MatchCardProps {
   fixture: Fixture;
   index?: number;
+  /** Destaca tarjetas en la sección de partidos culminados */
+  highlightFinished?: boolean;
 }
 
-export function MatchCard({ fixture, index = 0 }: MatchCardProps) {
+export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardProps) {
   const isLive = fixture.status === "live";
   const isFinished = fixture.status === "finished";
   const isLocked = fixture.is_locked;
@@ -25,9 +27,15 @@ export function MatchCard({ fixture, index = 0 }: MatchCardProps) {
       className={cn(
         "relative rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-4",
         "hover:border-white/20 transition-all duration-200",
-        isLive && "border-danger/50 shadow-lg shadow-danger/10"
+        isLive && "border-danger/50 shadow-lg shadow-danger/10",
+        highlightFinished && isFinished && "border-emerald-500/30 ring-1 ring-emerald-500/20"
       )}
     >
+      {highlightFinished && isFinished && (
+        <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wide text-emerald-400/90 bg-emerald-500/15 px-2 py-0.5 rounded-full">
+          Final
+        </span>
+      )}
       {/* Match context header */}
       <div className="flex items-center gap-2 mb-3 text-muted text-xs">
         {fixture.league_logo_url && (
