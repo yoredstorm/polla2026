@@ -79,9 +79,12 @@ async def notify_admins(
     title: str,
     body: str,
     payload: dict[str, Any] | None = None,
+    exclude_user_id: uuid.UUID | None = None,
 ) -> list[Notification]:
     result = await db.execute(select(User.id).where(User.is_admin == True, User.is_active == True))
     admin_ids = [row[0] for row in result.all()]
+    if exclude_user_id is not None:
+        admin_ids = [aid for aid in admin_ids if aid != exclude_user_id]
     created: list[Notification] = []
     for admin_id in admin_ids:
         n = await create_notification(

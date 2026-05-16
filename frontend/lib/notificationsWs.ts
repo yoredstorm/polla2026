@@ -17,6 +17,31 @@ type WsMessage =
   | { type: "unread_count"; count: number }
   | { type: "notification"; data: { title: string; body: string; type: string } };
 
+/** Admin inbox items — update the bell badge, no popup toast (avoids duplicate with form success). */
+const SILENT_NOTIFICATION_TYPES = new Set([
+  "extra_bet_pending",
+  "entry_pending",
+  "change_request_pending",
+  "change_request_expired_batch",
+]);
+
+const recentToastKeys = new Map<string, number>();
+const TOAST_DEDUPE_MS = 4000;
+
+function shouldShowNotificationToast(notificationType: string, title: string): boolean {
+  if (SILENT_NOTIFICATION_TYPES.has(notificationType)) {
+    return false;
+  }
+  const key = `${notificationType}:${title}`;
+  const now = Date.now();
+  const last = recentToastKeys.get(key);
+  if (last != null && now - last < TOAST_DEDUPE_MS) {
+    return false;
+  }
+  recentToastKeys.set(key, now);
+  return true;
+}
+
 let socket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 1000;
@@ -60,7 +85,9 @@ export function connectNotificationsWs(
           queryClient.invalidateQueries({ queryKey: ["notifications"] });
           queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
           queryClient.invalidateQueries({ queryKey: ["fixtures"] });
-          showToast(msg.data.title, "info");
+          if (shouldShowNotificationToast(msg.data.type, msg.data.title)) {
+            showToast(msg.data.title, "info");
+          }
         }
       } catch {
         // ignore malformed messages

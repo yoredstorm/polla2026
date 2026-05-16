@@ -414,6 +414,32 @@ async def patch_user(
     if body.is_active is not None:
         user.is_active = body.is_active
     if body.is_admin is not None:
+        if body.is_admin is False and user.is_admin:
+            admin_count = (
+                await db.execute(
+                    select(func.count()).select_from(User).where(User.is_admin == True)  # noqa: E712
+                )
+            ).scalar() or 0
+            if admin_count <= 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "error": {
+                            "code": "LAST_ADMIN",
+                            "message": "No se puede quitar el rol admin al único administrador.",
+                        }
+                    },
+                )
+            if user.id == admin.id:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "error": {
+                            "code": "SELF_DEMOTION",
+                            "message": "No puedes quitarte el rol admin a ti mismo.",
+                        }
+                    },
+                )
         user.is_admin = body.is_admin
     await db.commit()
     await db.refresh(user)
@@ -762,7 +788,9 @@ class AuditLogOut(BaseModel):
     user_id: str | None
     username: str | None
     action: str
+    action_label: str
     detail: str | None
+    detail_summary: str
     ip_address: str | None
     created_at: str
 
@@ -811,6 +839,10 @@ async def list_audit_logs(
         )
     ).all()
 
+    from app.services.audit_formatter import enrich_audit_rows
+
+    enriched = await enrich_audit_rows(db, rows)
+
     return {
         "data": [
             AuditLogOut(
@@ -818,11 +850,13 @@ async def list_audit_logs(
                 user_id=str(r.user_id) if r.user_id else None,
                 username=r.username,
                 action=r.action,
+                action_label=label,
                 detail=r.detail,
+                detail_summary=summary,
                 ip_address=r.ip_address,
                 created_at=r.created_at.isoformat(),
             )
-            for r in rows
+            for r, (label, summary) in zip(rows, enriched)
         ],
         "pagination": {"total": total, "page": page, "limit": limit, "total_pages": -(-total // limit)},
     }

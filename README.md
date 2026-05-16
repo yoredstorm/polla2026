@@ -148,11 +148,18 @@ Editar al menos:
 
 | Archivo | Variables clave |
 |---------|-----------------|
-| `.env` | `POSTGRES_PASSWORD`, `REDIS_PASSWORD` |
-| `backend/.env` | `DATABASE_URL`, `REDIS_URL`, `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET`, `FOOTBALL_API_KEY` |
+| `.env` (raíz) | `POSTGRES_PASSWORD`, `REDIS_PASSWORD` — **fuente única** para Docker |
+| `backend/.env` | `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET`, `FOOTBALL_API_KEY`, etc. |
 | `frontend/.env` | Opcional: `NEXT_PUBLIC_API_URL` (si no usas el puerto 8000 del host) |
 
-Genera secretos JWT de **mínimo 32 caracteres** aleatorios en producción.
+Con Docker, `docker-compose.yml` inyecta `DATABASE_URL` y `REDIS_URL` en el backend usando las contraseñas del `.env` raíz; no hace falta duplicarlas en `backend/.env` (si las pones ahí, deben coincidir).
+
+Genera secretos JWT con `python backend/scripts/generate_secrets.py` (mínimo 32 caracteres en producción).
+
+**Error `password authentication failed for user polla_user`:** suele ser contraseña distinta entre `.env` raíz y la que quedó guardada en el volumen de Postgres la primera vez que levantaste Docker. Opciones:
+
+1. Alinear `.env` raíz con la contraseña original del volumen, o  
+2. Recrear la base (borra datos): `docker compose down -v` y luego `docker compose up -d --build` y `alembic upgrade head`.
 
 ### 3. Levantar servicios
 
@@ -265,7 +272,7 @@ polla2026-miatech/
 | Notificaciones | `GET /notifications`, `PATCH /notifications/{id}/read`, WebSocket `/ws/notifications` |
 | Admin | fixtures, usuarios, grupos, extras, solicitudes, auditoría |
 
-Documentación interactiva en `/docs` con la API en ejecución.
+Documentación interactiva en `/docs` con la API en ejecución (deshabilitada cuando `APP_ENV=production`).
 
 ---
 
@@ -273,14 +280,31 @@ Documentación interactiva en `/docs` con la API en ejecución.
 
 | Riesgo | Medida implementada |
 |--------|---------------------|
-| Control de acceso | JWT por endpoint, roles admin, membresía de polla |
-| Criptografía | bcrypt, JWT HS256, refresh tokens hasheados |
+| Control de acceso | JWT en cookies httpOnly; rol `is_admin` solo en BD (no en el JWT); `CurrentAdmin` en todos los endpoints `/admin` |
+| Criptografía | bcrypt; JWT HS256 con `kid` y rotación semanal en producción; refresh hasheado (SHA-256) en BD |
 | Inyección | ORM + validación Pydantic |
-| Diseño inseguro | Rate limits globales y en login |
-| Configuración | CORS whitelist, headers de seguridad |
-| Autenticación | Tokens cortos, logout invalida refresh |
-| Registro | structlog JSON, Sentry opcional, sin datos sensibles en logs |
+| Diseño inseguro | Rate limits (login, refresh, change-password) con SlowAPI + Redis |
+| Configuración | CORS whitelist, CSP/HSTS en producción, OpenAPI off en producción |
+| Autenticación | Access 15 min; refresh rotado en cada `/auth/refresh`; detección de reutilización; una sesión activa por login |
+| Secretos | `python backend/scripts/generate_secrets.py` — nunca commitear `.env` |
+| Registro | structlog sin cookies; Sentry con scrub de tokens/cookies |
 | SSRF | Whitelist de hosts externos (API-Football) |
+
+### Generar llaves (obligatorio en producción)
+
+```bash
+cd backend
+python scripts/generate_secrets.py
+```
+
+Copia la salida a `backend/.env` en el servidor. En producción `JWT_SECRET_KEY` y `JWT_REFRESH_SECRET` deben estar definidos en el entorno (mín. ~43 caracteres).
+
+### Checklist manual post-despliegue
+
+- [ ] Login: JSON sin `access_token` / `refresh_token`; cookies `HttpOnly` + `Secure` (HTTPS).
+- [ ] Usuario no admin: `GET /api/v1/admin/stats` → **403**.
+- [ ] `APP_ENV=production`: `/docs` no disponible; HSTS presente.
+- [ ] Tras `/auth/refresh`, la cookie `refresh_token` cambia; la anterior no sirve.
 
 ---
 

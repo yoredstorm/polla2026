@@ -14,11 +14,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
     },
   }));
 
+  const showDevtools = process.env.NODE_ENV === "development";
+
   return (
     <QueryClientProvider client={queryClient}>
       {children}
       <ToastContainer />
-      <ReactQueryDevtools initialIsOpen={false} />
+      {showDevtools && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
 }

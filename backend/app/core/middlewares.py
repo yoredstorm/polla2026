@@ -9,6 +9,8 @@ from starlette.requests import Request
 from starlette.responses import Response
 import structlog
 
+from app.core.config import settings
+
 logger = structlog.get_logger(__name__)
 
 
@@ -28,6 +30,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "script-src 'self'; "
             "style-src 'self' 'unsafe-inline';"
         )
+        if settings.APP_ENV == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         # Remove server identification
         if "server" in response.headers:
             del response.headers["server"]

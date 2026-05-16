@@ -17,18 +17,59 @@ interface Props {
 }
 
 interface BulkItem {
+  source_bet_id: string;
   fixture_id: string;
   predicted_home_score: number;
   predicted_away_score: number;
-  add_extra: boolean;
-  is_extra_only: boolean;
+  mode: "free" | "extra";
+  source_is_extra: boolean;
+  also_add_extra?: boolean;
   fixture?: Fixture;
+}
+
+interface BulkCopyPayloadItem {
+  fixture_id: string;
+  predicted_home_score: number;
+  predicted_away_score: number;
+  mode: "free" | "extra";
 }
 
 interface BulkCopyResult {
   created: number;
   skipped: number;
   errors: string[];
+}
+
+type Step = "review" | "confirm";
+
+function buildPayloadItems(items: BulkItem[]): BulkCopyPayloadItem[] {
+  const out: BulkCopyPayloadItem[] = [];
+  for (const it of items) {
+    out.push({
+      fixture_id: it.fixture_id,
+      predicted_home_score: it.predicted_home_score,
+      predicted_away_score: it.predicted_away_score,
+      mode: it.mode,
+    });
+    if (it.mode === "free" && it.also_add_extra) {
+      out.push({
+        fixture_id: it.fixture_id,
+        predicted_home_score: it.predicted_home_score,
+        predicted_away_score: it.predicted_away_score,
+        mode: "extra",
+      });
+    }
+  }
+  return out;
+}
+
+function effectiveExtrasCount(items: BulkItem[]): number {
+  return items.filter((i) => i.mode === "extra").length +
+    items.filter((i) => i.mode === "free" && i.also_add_extra).length;
+}
+
+function effectiveFreeCount(items: BulkItem[]): number {
+  return items.filter((i) => i.mode === "free").length;
 }
 
 export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: Props) {
@@ -38,7 +79,7 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
   const { data: myBetsPage, isLoading: myBetsLoading } = useMyBets(1, 200);
 
   const bulkCopy = useMutation({
-    mutationFn: (body: { bets: { fixture_id: string; predicted_home_score: number; predicted_away_score: number; add_extra: boolean }[] }) =>
+    mutationFn: (body: { bets: BulkCopyPayloadItem[] }) =>
       api.post<BulkCopyResult>("/bets/bulk-copy", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-bets"] });
@@ -48,8 +89,7 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
   });
 
   const [items, setItems] = useState<BulkItem[]>([]);
-  const [step, setStep] = useState<"review" | "done">("review");
-  const [result, setResult] = useState<BulkCopyResult | null>(null);
+  const [step, setStep] = useState<Step>("review");
 
   const myFreeFixtureIds = useMemo(() => {
     const s = new Set<string>();
@@ -76,42 +116,54 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
 
   const eligibleBets = useMemo(() => {
     if (!fixturesPage?.data) return [];
-    const seen = new Set<string>();
-    const result: Array<Bet & { _isExtraOnly: boolean }> = [];
+    const result: BulkItem[] = [];
     for (const b of sourceBets) {
       if (!openFixtureIds.has(b.fixture_id)) continue;
-      if (seen.has(b.fixture_id)) continue;
-      seen.add(b.fixture_id);
-      const alreadyHasFree = myFreeFixtureIds.has(b.fixture_id);
-      result.push({ ...b, _isExtraOnly: alreadyHasFree });
+      const sourceIsExtra = !!b.group_id;
+      const viewerHasFree = myFreeFixtureIds.has(b.fixture_id);
+      let mode: "free" | "extra";
+      if (sourceIsExtra) {
+        mode = "extra";
+      } else if (viewerHasFree) {
+        mode = "extra";
+      } else {
+        mode = "free";
+      }
+      result.push({
+        source_bet_id: b.id,
+        fixture_id: b.fixture_id,
+        predicted_home_score: b.predicted_home_score,
+        predicted_away_score: b.predicted_away_score,
+        mode,
+        source_is_extra: sourceIsExtra,
+        also_add_extra: false,
+        fixture: fixtureMap.get(b.fixture_id),
+      });
     }
     return result;
-  }, [sourceBets, fixturesPage, openFixtureIds, myFreeFixtureIds]);
+  }, [sourceBets, fixturesPage, openFixtureIds, myFreeFixtureIds, fixtureMap]);
 
   useEffect(() => {
     if (open) {
-      setItems(
-        eligibleBets.map((b) => ({
-          fixture_id: b.fixture_id,
-          predicted_home_score: b.predicted_home_score,
-          predicted_away_score: b.predicted_away_score,
-          add_extra: b._isExtraOnly,
-          is_extra_only: b._isExtraOnly,
-          fixture: fixtureMap.get(b.fixture_id),
-        })),
-      );
+      setItems(eligibleBets);
       setStep("review");
-      setResult(null);
       bulkCopy.reset();
     }
-  }, [open, eligibleBets, fixtureMap]);
+  }, [open, eligibleBets]);
 
   const perMatchAmount = polla?.per_match_amount ? parseFloat(polla.per_match_amount) : 0;
   const currency = polla?.currency ?? "USD";
-  const extrasCount = items.filter((i) => i.add_extra).length;
-  const freeCount = items.filter((i) => !i.add_extra).length;
+  const payloadPreview = useMemo(() => buildPayloadItems(items), [items]);
+  const extrasCount = effectiveExtrasCount(items);
+  const freeCount = effectiveFreeCount(items);
   const totalExtraCost = extrasCount * perMatchAmount;
   const isDataLoading = pollaLoading || fixturesLoading || myBetsLoading;
+
+  function hasExtraRowForFixture(fixtureId: string, excludeIdx?: number) {
+    return items.some(
+      (it, i) => i !== excludeIdx && it.fixture_id === fixtureId && it.mode === "extra",
+    );
+  }
 
   function updateItem(idx: number, patch: Partial<BulkItem>) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -123,24 +175,62 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
 
   const toast = useToast((s) => s.add);
 
-  async function handleConfirm() {
-    if (items.length === 0) return;
+  function itemLabel(item: BulkItem): string {
+    if (item.mode === "extra") {
+      if (item.source_is_extra) return "Extra (del perfil)";
+      return "Extra (ya tienes gratis en este partido)";
+    }
+    return "Gratis (del perfil)";
+  }
+
+  function targetLabel(mode: "free" | "extra"): string {
+    return mode === "free" ? "Apuesta gratis" : "Apuesta extra";
+  }
+
+  async function handleCopy() {
+    const payload = buildPayloadItems(items);
+    if (payload.length === 0) return;
     try {
-      const res = await bulkCopy.mutateAsync({
-        bets: items.map((it) => ({
-          fixture_id: it.fixture_id,
-          predicted_home_score: it.predicted_home_score,
-          predicted_away_score: it.predicted_away_score,
-          add_extra: it.add_extra,
-        })),
-      });
-      setResult(res);
-      setStep("done");
-      if (res.created > 0) {
-        toast(`${res.created} apuesta${res.created !== 1 ? "s" : ""} copiada${res.created !== 1 ? "s" : ""} correctamente`, "success");
+      const res = await bulkCopy.mutateAsync({ bets: payload });
+      const total = payload.length;
+
+      if (res.created > 0 && res.errors.length === 0) {
+        if (res.skipped > 0) {
+          toast(
+            `Se copiaron ${res.created} de ${total} apuesta${total !== 1 ? "s" : ""} (${res.skipped} omitida${res.skipped !== 1 ? "s" : ""}).`,
+            "success",
+          );
+        } else {
+          toast(
+            total === 1
+              ? "La apuesta se copió correctamente."
+              : `Todas las apuestas se copiaron correctamente (${res.created}).`,
+            "success",
+          );
+        }
+        onClose();
+        return;
       }
+
+      if (res.created > 0 && res.errors.length > 0) {
+        toast(
+          `Se copiaron ${res.created} apuesta${res.created !== 1 ? "s" : ""}, con ${res.errors.length} error${res.errors.length !== 1 ? "es" : ""}.`,
+          "success",
+        );
+        toast(res.errors[0] ?? "Error al copiar algunas apuestas", "error");
+        onClose();
+        return;
+      }
+
       if (res.errors.length > 0) {
-        toast(`${res.errors.length} error${res.errors.length !== 1 ? "es" : ""} al copiar`, "error");
+        toast(res.errors[0] ?? "No se pudieron copiar las apuestas", "error");
+      } else if (res.skipped > 0) {
+        toast(
+          `No se crearon apuestas nuevas (${res.skipped} omitida${res.skipped !== 1 ? "s" : ""}, quizá ya las tenías).`,
+          "error",
+        );
+      } else {
+        toast("No se pudieron copiar las apuestas", "error");
       }
     } catch {
       toast("Error al copiar apuestas", "error");
@@ -155,8 +245,13 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
         <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
           <h3 className="font-display text-lg text-white">
             Copiar apuestas de @{sourceUsername}
+            {step === "confirm" && (
+              <span className="block text-xs text-muted font-sans mt-0.5">Confirmación final</span>
+            )}
           </h3>
-          <button onClick={onClose} className="text-muted hover:text-white text-xl">&times;</button>
+          <button type="button" onClick={onClose} className="text-muted hover:text-white text-xl">
+            &times;
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
@@ -172,51 +267,61 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
                 </p>
               ) : items.length === 0 ? (
                 <p className="text-muted text-sm text-center py-8">
-                  No hay apuestas copiables (todos los partidos estan cerrados o ya culminaron)
+                  No hay apuestas copiables (todos los partidos están cerrados o ya culminaron)
                 </p>
               ) : (
                 <>
                   <p className="text-muted text-sm">
-                    {items.length} partido{items.length !== 1 && "s"} seleccionado{items.length !== 1 && "s"}.
-                    {freeCount > 0 && ` ${freeCount} gratis.`}
-                    {extrasCount > 0 && ` ${extrasCount} extra${extrasCount !== 1 ? "s" : ""} (${formatAmount(String(totalExtraCost), currency)}).`}
+                    {items.length} apuesta{items.length !== 1 && "s"} del perfil · Se crearán{" "}
+                    {payloadPreview.length} en tu cuenta
+                    {freeCount > 0 && ` (${freeCount} gratis)`}
+                    {extrasCount > 0 &&
+                      ` (${extrasCount} extra${extrasCount !== 1 ? "s" : ""}, ${formatAmount(String(totalExtraCost), currency)})`}
+                    . Puedes editar o quitar filas antes de continuar.
                   </p>
 
                   <div className="space-y-3">
                     {items.map((item, idx) => {
                       const fx = item.fixture;
+                      const isExtraRow = item.mode === "extra";
+                      const showAlsoExtra =
+                        item.mode === "free" &&
+                        perMatchAmount > 0 &&
+                        !hasExtraRowForFixture(item.fixture_id, idx);
+
                       return (
                         <div
-                          key={item.fixture_id}
+                          key={item.source_bet_id}
                           className={cn(
                             "rounded-xl border p-4 space-y-3",
-                            item.is_extra_only
+                            isExtraRow
                               ? "border-amber-500/30 bg-amber-500/5"
                               : "border-white/10 bg-white/5",
                           )}
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-sm">
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-3 text-sm min-w-0">
                               {fx?.home_logo_url && (
-                                <img src={fx.home_logo_url} alt="" className="w-5 h-5 object-contain" />
+                                <img src={fx.home_logo_url} alt="" className="w-5 h-5 object-contain shrink-0" />
                               )}
-                              <span className="text-white font-medium">
+                              <span className="text-white font-medium truncate">
                                 {fx?.home_team ?? "?"} vs {fx?.away_team ?? "?"}
                               </span>
                               {fx?.away_logo_url && (
-                                <img src={fx.away_logo_url} alt="" className="w-5 h-5 object-contain" />
+                                <img src={fx.away_logo_url} alt="" className="w-5 h-5 object-contain shrink-0" />
                               )}
                             </div>
-                            <div className="flex items-center gap-2">
-                              {item.is_extra_only ? (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-medium">
-                                  Extra (+{formatAmount(String(perMatchAmount), currency)})
-                                </span>
-                              ) : (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-300 font-medium">
-                                  Nueva
-                                </span>
-                              )}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span
+                                className={cn(
+                                  "text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap",
+                                  isExtraRow
+                                    ? "bg-amber-500/20 text-amber-300"
+                                    : "bg-green-500/20 text-green-300",
+                                )}
+                              >
+                                {itemLabel(item)}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => removeItem(idx)}
@@ -228,14 +333,20 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
                             </div>
                           </div>
 
+                          <p className="text-xs text-muted">
+                            Se copiará como: <span className="text-white">{targetLabel(item.mode)}</span>
+                          </p>
+
                           <div className="flex items-center gap-3">
-                            <label className="text-xs text-muted">Score:</label>
+                            <label className="text-xs text-muted">Marcador:</label>
                             <input
                               type="number"
                               min={0}
                               max={20}
                               value={item.predicted_home_score}
-                              onChange={(e) => updateItem(idx, { predicted_home_score: parseInt(e.target.value) || 0 })}
+                              onChange={(e) =>
+                                updateItem(idx, { predicted_home_score: parseInt(e.target.value) || 0 })
+                              }
                               className="w-14 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-center text-sm"
                             />
                             <span className="text-muted">-</span>
@@ -244,28 +355,31 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
                               min={0}
                               max={20}
                               value={item.predicted_away_score}
-                              onChange={(e) => updateItem(idx, { predicted_away_score: parseInt(e.target.value) || 0 })}
+                              onChange={(e) =>
+                                updateItem(idx, { predicted_away_score: parseInt(e.target.value) || 0 })
+                              }
                               className="w-14 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-center text-sm"
                             />
                           </div>
 
-                          {!item.is_extra_only && perMatchAmount > 0 && (
+                          {showAlsoExtra && (
                             <label className="flex items-center gap-2 text-sm cursor-pointer">
                               <input
                                 type="checkbox"
-                                checked={item.add_extra}
-                                onChange={(e) => updateItem(idx, { add_extra: e.target.checked })}
+                                checked={!!item.also_add_extra}
+                                onChange={(e) => updateItem(idx, { also_add_extra: e.target.checked })}
                                 className="accent-accent w-4 h-4"
                               />
                               <span className="text-muted">
-                                Tambien agregar como extra ({formatAmount(String(perMatchAmount), currency)})
+                                También agregar como extra ({formatAmount(String(perMatchAmount), currency)})
                               </span>
                             </label>
                           )}
 
-                          {item.is_extra_only && (
+                          {isExtraRow && perMatchAmount > 0 && (
                             <p className="text-xs text-amber-200/70">
-                              Ya tienes una prediccion gratuita para este partido. Esta copia sera una apuesta extra.
+                              Monto: {formatAmount(String(perMatchAmount), currency)} · pendiente confirmación del
+                              admin
                             </p>
                           )}
                         </div>
@@ -275,14 +389,11 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
 
                   {totalExtraCost > 0 && (
                     <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm">
-                      <p className="text-yellow-300 font-medium">Costo adicional</p>
+                      <p className="text-yellow-300 font-medium">Costo adicional estimado</p>
                       <p className="text-yellow-200 mt-1">
-                        {extrasCount} extra{extrasCount !== 1 && "s"} x{" "}
+                        {extrasCount} extra{extrasCount !== 1 && "s"} ×{" "}
                         {formatAmount(String(perMatchAmount), currency)} ={" "}
                         <strong>{formatAmount(String(totalExtraCost), currency)}</strong>
-                      </p>
-                      <p className="text-yellow-200/70 text-xs mt-1">
-                        El admin debe confirmar el pago de cada extra antes de que sumen al pozo.
                       </p>
                     </div>
                   )}
@@ -291,39 +402,104 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
             </>
           )}
 
-          {step === "done" && result && (
-            <div className="py-8 text-center space-y-3">
-              <p className="text-2xl">✓</p>
-              <p className="text-white font-medium">Apuestas copiadas</p>
+          {step === "confirm" && (
+            <>
               <p className="text-muted text-sm">
-                Creadas: {result.created} · Omitidas: {result.skipped}
+                Revisa el resumen. Al confirmar se crearán {payloadPreview.length} apuesta
+                {payloadPreview.length !== 1 && "s"} en tu cuenta.
               </p>
-              {result.errors.length > 0 && (
-                <div className="text-left rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-xs text-red-300">
-                  {result.errors.map((e, i) => (
-                    <p key={i}>{e}</p>
-                  ))}
-                </div>
-              )}
-            </div>
+              <ul className="space-y-2">
+                {payloadPreview.map((row, i) => {
+                  const fx = fixtureMap.get(row.fixture_id);
+                  return (
+                    <li
+                      key={`${row.fixture_id}-${row.mode}-${i}`}
+                      className="rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm flex flex-wrap items-center justify-between gap-2"
+                    >
+                      <span className="text-white font-medium">
+                        {fx?.home_team ?? "?"} vs {fx?.away_team ?? "?"}
+                      </span>
+                      <span className="text-muted">
+                        {row.predicted_home_score}-{row.predicted_away_score}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-xs px-2 py-0.5 rounded-full",
+                          row.mode === "extra"
+                            ? "bg-amber-500/20 text-amber-300"
+                            : "bg-green-500/20 text-green-300",
+                        )}
+                      >
+                        {targetLabel(row.mode)}
+                        {row.mode === "extra" && perMatchAmount > 0 && (
+                          <> · {formatAmount(String(perMatchAmount), currency)}</>
+                        )}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 text-sm space-y-1">
+                <p className="text-white font-medium">Resumen</p>
+                <p className="text-muted">
+                  {freeCount} gratis · {extrasCount} extra{extrasCount !== 1 && "s"}
+                  {totalExtraCost > 0 && (
+                    <>
+                      {" "}
+                      · Total extras:{" "}
+                      <strong className="text-white">
+                        {formatAmount(String(totalExtraCost), currency)}
+                      </strong>
+                    </>
+                  )}
+                </p>
+                {extrasCount > 0 && (
+                  <p className="text-xs text-muted">
+                    Cada extra quedará pendiente hasta que el admin confirme el pago.
+                  </p>
+                )}
+              </div>
+            </>
           )}
+
         </div>
 
         <div className="px-6 py-4 border-t border-white/10 flex justify-end gap-3">
-          {step === "review" && items.length > 0 && polla?.is_member && (
+          {step === "review" && items.length > 0 && polla?.is_member && !isDataLoading && (
             <button
-              onClick={handleConfirm}
-              disabled={bulkCopy.isPending}
-              className="px-5 py-2 rounded-xl bg-accent text-background font-bold text-sm hover:bg-accent-dim transition-colors disabled:opacity-50"
+              type="button"
+              onClick={() => setStep("confirm")}
+              className="px-5 py-2 rounded-xl bg-accent text-background font-bold text-sm hover:bg-accent-dim transition-colors"
             >
-              {bulkCopy.isPending ? "Copiando..." : `Confirmar ${items.length} apuesta${items.length !== 1 ? "s" : ""}`}
+              Continuar ({payloadPreview.length} apuesta{payloadPreview.length !== 1 && "s"})
             </button>
           )}
+          {step === "confirm" && (
+            <>
+              <button
+                type="button"
+                onClick={() => setStep("review")}
+                disabled={bulkCopy.isPending}
+                className="px-5 py-2 rounded-xl bg-white/10 text-muted font-medium text-sm hover:bg-white/20 transition-colors disabled:opacity-50"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                onClick={handleCopy}
+                disabled={bulkCopy.isPending}
+                className="px-5 py-2 rounded-xl bg-accent text-background font-bold text-sm hover:bg-accent-dim transition-colors disabled:opacity-50"
+              >
+                {bulkCopy.isPending ? "Copiando..." : "Copiar ahora"}
+              </button>
+            </>
+          )}
           <button
+            type="button"
             onClick={onClose}
             className="px-5 py-2 rounded-xl bg-white/10 text-muted font-medium text-sm hover:bg-white/20 transition-colors"
           >
-            {step === "done" ? "Cerrar" : "Cancelar"}
+            Cancelar
           </button>
         </div>
       </div>

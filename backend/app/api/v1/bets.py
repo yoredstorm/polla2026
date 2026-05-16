@@ -56,7 +56,13 @@ async def create_bet(
                 predicted_away=bet.predicted_away_score,
             )
             await notify_admins(
-                db, redis, type="extra_bet_pending", title=title, body=body, payload=payload,
+                db,
+                redis,
+                type="extra_bet_pending",
+                title=title,
+                body=body,
+                payload=payload,
+                exclude_user_id=current_user.id,
             )
         return BetOut.model_validate(bet)
     except ValueError as e:
@@ -155,7 +161,8 @@ class BulkBetItem(BaseModel):
     fixture_id: uuid.UUID
     predicted_home_score: int
     predicted_away_score: int
-    add_extra: bool = False
+    mode: Literal["free", "extra"] = "free"
+    add_extra: bool = False  # legacy; ignored when mode is set explicitly by client
 
 
 class BulkCopyIn(BaseModel):
@@ -182,8 +189,13 @@ async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: Curre
     skipped = 0
     errors: list[str] = []
 
+    extra_amount = Decimal("1")
+    if active_polla and active_polla.fixed_bet_amount and active_polla.fixed_bet_amount > 0:
+        extra_amount = active_polla.fixed_bet_amount
+
     for item in body.bets:
-        # Check if user already has a free bet on this fixture
+        copy_mode = item.mode
+
         existing_free = await db.execute(
             select(Bet).where(
                 and_(Bet.user_id == current_user.id, Bet.fixture_id == item.fixture_id, Bet.group_id == None)
@@ -191,8 +203,10 @@ async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: Curre
         )
         has_free = existing_free.scalar_one_or_none() is not None
 
-        if not has_free:
-            # No free bet yet — create one
+        if copy_mode == "free":
+            if has_free:
+                skipped += 1
+                continue
             try:
                 free_data = BetCreate(
                     fixture_id=item.fixture_id,
@@ -209,22 +223,19 @@ async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: Curre
                     skipped += 1
                 else:
                     errors.append(f"{item.fixture_id}: {code}")
-                continue
-        else:
-            # Already has free bet — only option is extra
-            if not item.add_extra:
-                skipped += 1
-                continue
+            continue
 
-        # Create extra if requested (either user opted in, or forced because they already have free)
-        if item.add_extra and active_polla:
+        if copy_mode == "extra":
+            if not active_polla:
+                errors.append(f"{item.fixture_id} extra: NO_ACTIVE_POLLA")
+                continue
             try:
                 extra_data = BetCreate(
                     fixture_id=item.fixture_id,
                     predicted_home_score=item.predicted_home_score,
                     predicted_away_score=item.predicted_away_score,
                     group_id=active_polla.id,
-                    amount=Decimal("1"),
+                    amount=extra_amount,
                 )
                 await svc_create_bet(db, current_user.id, extra_data)
                 created += 1

@@ -101,31 +101,49 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.error("fixture_seed_failed", error=str(exc))
 
+    try:
+        from app.services.jwt_key_service import (
+            bootstrap_signing_keys,
+            reload_signing_keys_cache,
+            rotate_signing_keys_if_due,
+            jwt_key_rotation_loop,
+        )
+        from app.db.session import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            await bootstrap_signing_keys(db)
+            redis = await get_redis()
+            await rotate_signing_keys_if_due(db, redis)
+            await reload_signing_keys_cache(db)
+            await db.commit()
+    except Exception as exc:
+        logger.error("jwt_keys_bootstrap_failed", error=str(exc))
+
     listener_task = asyncio.create_task(_redis_notification_listener())
     expiry_task = asyncio.create_task(_change_request_expiry_loop())
+    jwt_rotation_task = asyncio.create_task(jwt_key_rotation_loop())
     yield
+    jwt_rotation_task.cancel()
     expiry_task.cancel()
     listener_task.cancel()
-    try:
-        await expiry_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await listener_task
-    except asyncio.CancelledError:
-        pass
+    for task in (jwt_rotation_task, expiry_task, listener_task):
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
     logger.info("app_stopping")
 
 
+_is_prod = settings.APP_ENV == "production"
 app = FastAPI(
     title="Polla de Apuestas API",
     description="Sports betting pool API — OWASP Top 10 compliant",
     version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    openapi_url="/openapi.json",
+    docs_url=None if _is_prod else "/docs",
+    redoc_url=None if _is_prod else "/redoc",
+    openapi_url=None if _is_prod else "/openapi.json",
     lifespan=lifespan,
-    debug=False,  # A05: Never enable debug in production
+    debug=False,
 )
 
 # Rate limiter state
@@ -153,7 +171,9 @@ if settings.SENTRY_DSN:
         traces_sample_rate=0.1,
         environment=settings.APP_ENV,
         # A09: Never send sensitive data
-        before_send=lambda event, hint: event,
+        before_send=lambda event, hint: __import__(
+            "app.core.sentry_scrub", fromlist=["scrub_sentry_event"]
+        ).scrub_sentry_event(event, hint),
     )
 
 # Rate limit exceeded handler

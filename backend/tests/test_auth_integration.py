@@ -86,9 +86,11 @@ async def test_logout_clears_cookies(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_logout_without_auth_returns_401(client: AsyncClient):
+async def test_logout_without_auth_still_succeeds(client: AsyncClient):
+    """Logout clears cookies even without a session (stale client cleanup)."""
     resp = await client.post("/api/v1/auth/logout")
-    assert resp.status_code == 401
+    assert resp.status_code == 200
+    assert resp.json()["message"] == "Logged out successfully"
 
 
 # ─── refresh ─────────────────────────────────────────────────────────────────
@@ -106,6 +108,8 @@ async def test_refresh_returns_new_access_token(client: AsyncClient):
     assert refresh_resp.status_code == 200
     assert refresh_resp.json()["message"] == "Token refreshed"
     assert "access_token" in refresh_resp.cookies
+    assert "refresh_token" in refresh_resp.cookies
+    assert refresh_resp.cookies.get("refresh_token") != login_resp.cookies.get("refresh_token")
 
 
 @pytest.mark.asyncio

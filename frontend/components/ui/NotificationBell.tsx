@@ -55,18 +55,21 @@ export function NotificationBell() {
   const unread = unreadData?.count ?? 0;
   const notifications = notifPage?.data ?? [];
 
+  const toastRef = useRef(toast);
+  toastRef.current = toast;
+
   useEffect(() => {
     if (!user) return;
     setNotificationWsCallbacks({
       onConnected: () => setWsConnected(true),
       onDisconnected: () => setWsConnected(false),
     });
-    const disconnect = connectNotificationsWs(qc, (msg, type) => toast(msg, type));
+    const disconnect = connectNotificationsWs(qc, (msg, type) => toastRef.current(msg, type));
     return () => {
       disconnect();
       setNotificationWsCallbacks({});
     };
-  }, [user, qc, toast]);
+  }, [user, qc]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {

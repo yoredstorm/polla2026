@@ -11,8 +11,8 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 
 from app.core.config import settings
+from app.services import jwt_key_service
 
-# A02: bcrypt with cost factor 12
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 
@@ -25,39 +25,71 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+    kid, secret = jwt_key_service.get_current_signing_key("access")
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire, "type": "access"})
-    return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
+    return jwt.encode(
+        to_encode,
+        secret,
+        algorithm=settings.JWT_ALGORITHM,
+        headers={"kid": kid},
+    )
 
 
 def create_refresh_token(data: dict) -> str:
+    kid, secret = jwt_key_service.get_current_signing_key("refresh")
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    return jwt.encode(to_encode, settings.JWT_REFRESH_SECRET, algorithm=settings.JWT_ALGORITHM)
+    to_encode.update({
+        "exp": expire,
+        "type": "refresh",
+        "jti": secrets.token_urlsafe(16),
+    })
+    return jwt.encode(
+        to_encode,
+        secret,
+        algorithm=settings.JWT_ALGORITHM,
+        headers={"kid": kid},
+    )
+
+
+def _decode_with_keys(token: str, purpose: str, expected_type: str) -> Optional[dict]:
+    keys = jwt_key_service.get_signing_keys_for_purpose(purpose)  # type: ignore[arg-type]
+    header_kid = None
+    try:
+        header_kid = jwt.get_unverified_header(token).get("kid")
+    except JWTError:
+        pass
+
+    ordered: list[tuple[str, str]] = []
+    if header_kid:
+        match = next((k for k in keys if k[0] == header_kid), None)
+        if match:
+            ordered.append(match)
+        ordered.extend(k for k in keys if k[0] != header_kid)
+    else:
+        ordered = list(keys)
+
+    for _kid, secret in ordered:
+        try:
+            payload = jwt.decode(token, secret, algorithms=[settings.JWT_ALGORITHM])
+            if payload.get("type") != expected_type:
+                return None
+            return payload
+        except JWTError:
+            continue
+    return None
 
 
 def decode_access_token(token: str) -> Optional[dict]:
-    try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
-        if payload.get("type") != "access":
-            return None
-        return payload
-    except JWTError:
-        return None
+    return _decode_with_keys(token, "access", "access")
 
 
 def decode_refresh_token(token: str) -> Optional[dict]:
-    try:
-        payload = jwt.decode(token, settings.JWT_REFRESH_SECRET, algorithms=[settings.JWT_ALGORITHM])
-        if payload.get("type") != "refresh":
-            return None
-        return payload
-    except JWTError:
-        return None
+    return _decode_with_keys(token, "refresh", "refresh")
 
 
 def hash_token(token: str) -> str:
@@ -66,10 +98,8 @@ def hash_token(token: str) -> str:
 
 
 def generate_invite_code() -> str:
-    """Generate a secure random invite code for groups."""
     return secrets.token_urlsafe(12)
 
 
 def generate_profile_bets_invite_code() -> str:
-    """Alphanumeric code for viewing another user's bet profile (stored as hash only)."""
     return secrets.token_urlsafe(12)[:18]

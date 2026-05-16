@@ -257,7 +257,9 @@ export interface AuditEntry {
   user_id: string | null;
   username: string | null;
   action: string;
+  action_label: string;
   detail: string | null;
+  detail_summary: string;
   ip_address: string | null;
   created_at: string;
 }

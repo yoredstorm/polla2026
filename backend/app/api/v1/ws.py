@@ -1,6 +1,7 @@
 """WebSocket endpoint for real-time notifications."""
 import json
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
@@ -28,6 +29,8 @@ async def _user_from_cookie(access_token: str | None):
         user = result.scalar_one_or_none()
         if not user or not user.is_active:
             return None
+        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+            return None
         return user
 
 
@@ -47,7 +50,6 @@ async def notifications_ws(websocket: WebSocket):
 
     try:
         while True:
-            # Keep connection alive; client may send ping messages
             await websocket.receive_text()
     except WebSocketDisconnect:
         pass

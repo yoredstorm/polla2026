@@ -1,16 +1,21 @@
 """
 Rate limiting — OWASP A04: Insecure Design prevention.
-Uses SlowAPI (Starlette middleware) backed by Redis.
+SlowAPI with Redis storage when REDIS_URL is configured.
 """
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
+from app.core.config import settings
 
-# Limits defined per endpoint via decorator:
-# @limiter.limit("5/minute") for login
-# @limiter.limit("100/minute") for global
+_storage = settings.REDIS_URL if settings.REDIS_URL else None
+limiter = Limiter(
+    key_func=get_remote_address,
+    storage_uri=_storage,
+    storage_options={"socket_connect_timeout": 2} if _storage else None,
+)
 
 GLOBAL_RATE_LIMIT = "100/minute"
 AUTH_LOGIN_RATE_LIMIT = "5/minute"
 REGISTER_RATE_LIMIT = "10/minute"
+AUTH_REFRESH_RATE_LIMIT = "30/minute"
+CHANGE_PASSWORD_RATE_LIMIT = "10/minute"

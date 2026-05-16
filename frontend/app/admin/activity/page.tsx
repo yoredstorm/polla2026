@@ -6,18 +6,19 @@ import { cn } from "@/lib/utils";
 const ACTION_FILTERS: { value: string | undefined; label: string }[] = [
   { value: undefined, label: "Todos" },
   { value: "register", label: "Registro" },
-  { value: "login", label: "Login" },
-  { value: "logout", label: "Logout" },
+  { value: "login", label: "Inicio de sesión" },
+  { value: "logout", label: "Cierre de sesión" },
   { value: "change_password", label: "Contraseña" },
-  { value: "bet_create", label: "Apuestas" },
+  { value: "bet_create", label: "Nueva apuesta" },
   { value: "bulk_copy", label: "Copia masiva" },
-  { value: "bet_change_request", label: "Solicitud cambio" },
+  { value: "bet_change_request", label: "Solicitud de cambio" },
   { value: "admin_confirm_entry", label: "Confirmar entrada" },
   { value: "admin_confirm_extra", label: "Confirmar extra" },
   { value: "admin_approve_change_request", label: "Aprobar solicitud" },
-  { value: "change_request_auto_expired", label: "Solicitudes caducadas (auto)" },
+  { value: "admin_reject_change_request", label: "Rechazar solicitud" },
+  { value: "change_request_auto_expired", label: "Solicitudes caducadas" },
   { value: "admin_edit_fixture", label: "Editar partido" },
-  { value: "admin_settle", label: "Liquidar" },
+  { value: "admin_settle", label: "Liquidar partido" },
 ];
 
 const ACTION_COLORS: Record<string, string> = {
@@ -40,22 +41,27 @@ const ACTION_COLORS: Record<string, string> = {
 
 function formatDate(iso: string) {
   const d = new Date(iso);
-  return d.toLocaleString("es-PE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return d.toLocaleString("es-PE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
-function DetailSnippet({ detail }: { detail: string | null }) {
-  if (!detail) return <span className="text-muted">—</span>;
-  try {
-    const obj = JSON.parse(detail);
-    const entries = Object.entries(obj).slice(0, 4);
-    return (
-      <span className="text-xs text-muted break-all">
-        {entries.map(([k, v]) => `${k}: ${v}`).join(" · ")}
-      </span>
-    );
-  } catch {
-    return <span className="text-xs text-muted break-all">{detail.slice(0, 120)}</span>;
+function DetailCell({ entry }: { entry: AuditEntry }) {
+  const summary = entry.detail_summary?.trim();
+  if (summary) {
+    return <p className="text-xs text-muted leading-relaxed">{summary}</p>;
   }
+  if (!entry.detail) return <span className="text-muted">—</span>;
+  return (
+    <p className="text-xs text-muted/70 break-all font-mono line-clamp-2" title={entry.detail}>
+      {entry.detail}
+    </p>
+  );
 }
 
 export default function ActivityPage() {
@@ -74,7 +80,10 @@ export default function ActivityPage() {
         {ACTION_FILTERS.map((f) => (
           <button
             key={f.value ?? "all"}
-            onClick={() => { setActionFilter(f.value); setPage(1); }}
+            onClick={() => {
+              setActionFilter(f.value);
+              setPage(1);
+            }}
             className={cn(
               "px-3 py-1.5 rounded-full text-xs font-medium border transition-colors",
               actionFilter === f.value
@@ -99,33 +108,35 @@ export default function ActivityPage() {
                 <th className="px-4 py-3 font-medium">Fecha</th>
                 <th className="px-4 py-3 font-medium">Usuario</th>
                 <th className="px-4 py-3 font-medium">Acción</th>
-                <th className="px-4 py-3 font-medium">Detalle</th>
+                <th className="px-4 py-3 font-medium min-w-[280px]">Detalle</th>
                 <th className="px-4 py-3 font-medium">IP</th>
               </tr>
             </thead>
             <tbody>
               {logs.map((entry: AuditEntry) => (
-                <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5">
+                <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5 align-top">
                   <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
                     {formatDate(entry.created_at)}
                   </td>
-                  <td className="px-4 py-3 font-medium text-white">
+                  <td className="px-4 py-3 font-medium text-white whitespace-nowrap">
                     {entry.username ?? "Sistema"}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 whitespace-nowrap">
                     <span
                       className={cn(
-                        "px-2 py-0.5 rounded-full text-xs font-medium",
+                        "px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap",
                         ACTION_COLORS[entry.action] ?? "bg-white/10 text-white",
                       )}
                     >
-                      {entry.action}
+                      {entry.action_label ?? entry.action}
                     </span>
                   </td>
-                  <td className="px-4 py-3 max-w-xs">
-                    <DetailSnippet detail={entry.detail} />
+                  <td className="px-4 py-3 max-w-md">
+                    <DetailCell entry={entry} />
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted">{entry.ip_address ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
+                    {entry.ip_address ?? "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>

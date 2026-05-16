@@ -5,8 +5,9 @@ from app.models.group import Group, GroupMember
 from app.models.audit_log import AuditLog
 from app.models.bet_change_request import BetChangeRequest
 from app.models.notification import Notification
+from app.models.jwt_signing_key import JwtSigningKey
 
 __all__ = [
     "User", "RefreshToken", "Fixture", "Bet", "Group", "GroupMember",
-    "AuditLog", "BetChangeRequest", "Notification",
+    "AuditLog", "BetChangeRequest", "Notification", "JwtSigningKey",
 ]

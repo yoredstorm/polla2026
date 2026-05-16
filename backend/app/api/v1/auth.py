@@ -1,8 +1,9 @@
 """
 Auth router — OWASP A07: Authentication Failures prevention.
 """
+import uuid
 from datetime import datetime, timedelta, timezone
-from fastapi import APIRouter, HTTPException, Response, Request, status, Depends
+from fastapi import APIRouter, HTTPException, Response, Request, status
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,9 +13,15 @@ from app.core.security import (
     create_refresh_token, decode_refresh_token, hash_token,
 )
 from app.core.config import settings
-from app.core.rate_limiter import limiter, AUTH_LOGIN_RATE_LIMIT, REGISTER_RATE_LIMIT
+from app.core.rate_limiter import (
+    limiter,
+    AUTH_LOGIN_RATE_LIMIT,
+    REGISTER_RATE_LIMIT,
+    AUTH_REFRESH_RATE_LIMIT,
+    CHANGE_PASSWORD_RATE_LIMIT,
+)
 from app.models.user import User, RefreshToken
-from app.schemas.user import UserRegister, UserLogin, UserOut, TokenResponse, ChangePassword, RefreshRequest
+from app.schemas.user import UserRegister, UserLogin, UserOut, ChangePassword
 from app.services.audit import log_action
 from app.services.notification_service import notify_admins, build_entry_pending
 from app.models.group import Group, GroupMember
@@ -25,7 +32,6 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 BLOCK_DURATION = timedelta(seconds=settings.LOGIN_BLOCK_DURATION_SECONDS)
 MAX_FAILED_ATTEMPTS = 5
-# Secure cookies require HTTPS; in development we use HTTP on localhost / 127.0.0.1.
 _COOKIE_SECURE = settings.APP_ENV == "production"
 
 
@@ -34,6 +40,42 @@ def _auth_error_response(code: str, message: str, detail: str | None = None):
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail={"error": {"code": code, "message": message, "detail": detail}},
     )
+
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    response.set_cookie(
+        "access_token",
+        access_token,
+        httponly=True,
+        samesite="strict",
+        secure=_COOKIE_SECURE,
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        "refresh_token",
+        refresh_token,
+        httponly=True,
+        samesite="strict",
+        secure=_COOKIE_SECURE,
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        path="/",
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie("access_token", path="/", httponly=True, samesite="strict", secure=_COOKIE_SECURE)
+    response.delete_cookie("refresh_token", path="/", httponly=True, samesite="strict", secure=_COOKIE_SECURE)
+
+
+async def _revoke_all_user_refresh_tokens(db: AsyncSession, user_id: uuid.UUID) -> None:
+    result = await db.execute(
+        select(RefreshToken).where(
+            and_(RefreshToken.user_id == user_id, RefreshToken.revoked == False)  # noqa: E712
+        )
+    )
+    for rt in result.scalars().all():
+        rt.revoked = True
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -58,7 +100,7 @@ async def register(request: Request, data: UserRegister, db: DBSession, redis: R
     await log_action(db, user_id=user.id, action="register", ip=request.client.host if request.client else None)
 
     polla_res = await db.execute(
-        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)
+        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
     )
     active_polla = polla_res.scalar_one_or_none()
     if active_polla:
@@ -90,10 +132,9 @@ async def login(request: Request, data: UserLogin, response: Response, db: DBSes
     generic_error = _auth_error_response("INVALID_CREDENTIALS", "Invalid username or password")
 
     if not user:
-        logger.warning("login_failed_no_user", username=data.username)
+        logger.warning("login_failed")
         raise generic_error
 
-    # Check account lock (A04)
     if user.locked_until and user.locked_until > datetime.now(timezone.utc):
         logger.warning("login_attempted_locked_account", user_id=str(user.id))
         raise HTTPException(
@@ -110,14 +151,14 @@ async def login(request: Request, data: UserLogin, response: Response, db: DBSes
         await db.flush()
         raise generic_error
 
-    # Reset failed attempts on success
     user.failed_login_attempts = 0
     user.locked_until = None
+
+    await _revoke_all_user_refresh_tokens(db, user.id)
 
     access_token = create_access_token({"sub": str(user.id)})
     refresh_token = create_refresh_token({"sub": str(user.id)})
 
-    # Store hashed refresh token in DB (A02)
     rt = RefreshToken(
         user_id=user.id,
         token_hash=hash_token(refresh_token),
@@ -126,23 +167,7 @@ async def login(request: Request, data: UserLogin, response: Response, db: DBSes
     db.add(rt)
     await db.flush()
 
-    # Set httpOnly cookies (frontend security)
-    response.set_cookie(
-        "access_token",
-        access_token,
-        httponly=True,
-        samesite="strict",
-        secure=_COOKIE_SECURE,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-    )
-    response.set_cookie(
-        "refresh_token",
-        refresh_token,
-        httponly=True,
-        samesite="strict",
-        secure=_COOKIE_SECURE,
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
-    )
+    _set_auth_cookies(response, access_token, refresh_token)
 
     await log_action(db, user_id=user.id, action="login", ip=request.client.host if request.client else None)
     logger.info("user_logged_in", user_id=str(user.id))
@@ -150,6 +175,7 @@ async def login(request: Request, data: UserLogin, response: Response, db: DBSes
 
 
 @router.post("/refresh")
+@limiter.limit(AUTH_REFRESH_RATE_LIMIT)
 async def refresh_token(request: Request, response: Response, db: DBSession):
     refresh_token_cookie = request.cookies.get("refresh_token")
     if not refresh_token_cookie:
@@ -159,37 +185,43 @@ async def refresh_token(request: Request, response: Response, db: DBSession):
     if not payload:
         raise _auth_error_response("INVALID_REFRESH_TOKEN", "Invalid or expired refresh token")
 
+    user_id = uuid.UUID(payload["sub"])
     token_hash = hash_token(refresh_token_cookie)
-    result = await db.execute(
-        select(RefreshToken).where(
-            and_(RefreshToken.token_hash == token_hash, RefreshToken.revoked == False)
-        )
-    )
+    result = await db.execute(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
     stored_token = result.scalar_one_or_none()
+
+    if stored_token and stored_token.revoked:
+        await _revoke_all_user_refresh_tokens(db, user_id)
+        await db.flush()
+        logger.warning("refresh_token_reuse_detected", user_id=str(user_id))
+        _clear_auth_cookies(response)
+        raise _auth_error_response("INVALID_REFRESH_TOKEN", "Refresh token invalid or expired")
+
     if not stored_token:
         raise _auth_error_response("INVALID_REFRESH_TOKEN", "Refresh token invalid or expired")
-    # Normalize to UTC-aware for comparison (SQLite returns naive datetimes)
+
     expires_at = stored_token.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if stored_token.revoked or expires_at < datetime.now(timezone.utc):
+    if expires_at < datetime.now(timezone.utc):
         raise _auth_error_response("INVALID_REFRESH_TOKEN", "Refresh token invalid or expired")
 
     new_access = create_access_token({"sub": payload["sub"]})
-    response.set_cookie(
-        "access_token",
-        new_access,
-        httponly=True,
-        samesite="strict",
-        secure=_COOKIE_SECURE,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    new_refresh = create_refresh_token({"sub": payload["sub"]})
+    stored_token.token_hash = hash_token(new_refresh)
+    stored_token.expires_at = datetime.now(timezone.utc) + timedelta(
+        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
+    stored_token.revoked = False
+    await db.flush()
+
+    _set_auth_cookies(response, new_access, new_refresh)
     return {"message": "Token refreshed"}
 
 
 @router.post("/logout")
 async def logout(request: Request, response: Response, db: DBSession):
-    """Clears auth cookies unconditionally. No auth required so stale sessions can always log out."""
+    """Clears auth cookies. No auth required so stale sessions can always log out."""
     refresh_token_cookie = request.cookies.get("refresh_token")
     if refresh_token_cookie:
         try:
@@ -200,27 +232,29 @@ async def logout(request: Request, response: Response, db: DBSession):
                 stored.revoked = True
                 await db.commit()
         except Exception:
-            pass
+            logger.exception("logout_revoke_failed")
 
-    response.delete_cookie("access_token", path="/", httponly=True, samesite="strict", secure=_COOKIE_SECURE)
-    response.delete_cookie("refresh_token", path="/", httponly=True, samesite="strict", secure=_COOKIE_SECURE)
+    _clear_auth_cookies(response)
     await log_action(db, user_id=None, action="logout", ip=request.client.host if request.client else None)
     logger.info("user_logged_out")
     return {"message": "Logged out successfully"}
 
 
 @router.post("/change-password")
-async def change_password(data: ChangePassword, current_user: CurrentUser, db: DBSession):
+@limiter.limit(CHANGE_PASSWORD_RATE_LIMIT)
+async def change_password(
+    request: Request,
+    data: ChangePassword,
+    current_user: CurrentUser,
+    db: DBSession,
+):
     if not verify_password(data.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"error": {"code": "WRONG_PASSWORD", "message": "Current password is incorrect"}},
         )
     current_user.hashed_password = hash_password(data.new_password)
-    # Revoke all refresh tokens (A07)
-    result = await db.execute(select(RefreshToken).where(RefreshToken.user_id == current_user.id))
-    for rt in result.scalars().all():
-        rt.revoked = True
+    await _revoke_all_user_refresh_tokens(db, current_user.id)
     await log_action(db, user_id=current_user.id, action="change_password", ip=None)
     logger.info("password_changed", user_id=str(current_user.id))
     return {"message": "Password changed successfully"}
