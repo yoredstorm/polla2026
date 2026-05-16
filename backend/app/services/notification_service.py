@@ -253,6 +253,41 @@ def build_entry_pending(
     return title, body, payload
 
 
+def build_change_request_auto_expired_user(
+    *,
+    request_id: str,
+    bet_id: str,
+    fixture_id: str,
+    home_team: str,
+    away_team: str,
+) -> tuple[str, str, dict[str, Any]]:
+    title = "Solicitud cancelada automaticamente"
+    body = (
+        f"Tu solicitud de cambio sobre {home_team} vs {away_team} caduco: "
+        "menos de 1 hora para el inicio del partido."
+    )
+    payload = {
+        "request_id": request_id,
+        "bet_id": bet_id,
+        "fixture_id": fixture_id,
+    }
+    return title, body, payload
+
+
+def build_change_request_auto_expired_admins_batch(
+    *,
+    count: int,
+    request_ids: list[str],
+) -> tuple[str, str, dict[str, Any]]:
+    title = "Solicitudes canceladas por plazo"
+    body = (
+        f"Se cancelaron automaticamente {count} solicitud(es) de cambio de apuesta "
+        "al entrar en la ventana de 1 hora antes del partido."
+    )
+    payload = {"count": count, "request_ids": request_ids}
+    return title, body, payload
+
+
 def build_fixture_finished(
     *,
     fixture_id: str,

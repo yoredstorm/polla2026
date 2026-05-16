@@ -53,6 +53,30 @@ async def _redis_notification_listener() -> None:
         raise
 
 
+async def _change_request_expiry_loop() -> None:
+    from app.db.session import AsyncSessionLocal
+    from app.services.change_request_expiry import expire_pending_change_requests
+
+    while True:
+        try:
+            redis = await get_redis()
+            async with AsyncSessionLocal() as db:
+                try:
+                    await expire_pending_change_requests(db, redis)
+                    await db.commit()
+                except Exception:
+                    await db.rollback()
+                    logger.exception("change_request_expiry_tick_failed")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("change_request_expiry_loop_failed")
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("app_starting", env=settings.APP_ENV)
@@ -78,8 +102,14 @@ async def lifespan(app: FastAPI):
         logger.error("fixture_seed_failed", error=str(exc))
 
     listener_task = asyncio.create_task(_redis_notification_listener())
+    expiry_task = asyncio.create_task(_change_request_expiry_loop())
     yield
+    expiry_task.cancel()
     listener_task.cancel()
+    try:
+        await expiry_task
+    except asyncio.CancelledError:
+        pass
     try:
         await listener_task
     except asyncio.CancelledError:

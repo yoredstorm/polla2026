@@ -16,7 +16,7 @@ from app.models.bet_change_request import BetChangeRequest
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember
 from app.models.user import User
-from app.services.bet_service import settle_fixture_bets
+from app.services.bet_service import settle_fixture_bets, can_resolve_change_request_for_fixture
 from app.services.audit import log_action
 from app.services.notification_service import (
     create_notification,
@@ -153,6 +153,7 @@ async def update_fixture_result(
     fixture.away_score = body.away_score
     fixture.status = body.status
     fixture.is_locked = True
+    fixture.betting_open = False
     await db.flush()
 
     settled = await settle_fixture_bets(db, fixture)
@@ -199,6 +200,7 @@ async def update_fixture_status(
     fixture.status = body.status
     if body.status in ("live", "finished", "cancelled"):
         fixture.is_locked = True
+        fixture.betting_open = False
     await db.commit()
     return {"ok": True, "status": fixture.status}
 
@@ -269,7 +271,15 @@ async def edit_fixture(
 
     if body.match_date is not None:
         from datetime import datetime, timezone
-        fixture.match_date = datetime.fromisoformat(body.match_date).replace(tzinfo=timezone.utc)
+
+        s = body.match_date.strip()
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        parsed = datetime.fromisoformat(s)
+        if parsed.tzinfo is None:
+            fixture.match_date = parsed.replace(tzinfo=timezone.utc)
+        else:
+            fixture.match_date = parsed.astimezone(timezone.utc)
 
     await log_action(db, user_id=admin.id, action="admin_edit_fixture", detail={
         "fixture_id": str(fixture_id), "changes": body.model_dump(exclude_none=True),
@@ -853,6 +863,8 @@ async def list_change_requests(
             Fixture.away_team,
             Fixture.home_logo_url,
             Fixture.away_logo_url,
+            Fixture.match_date.label("fixture_match_date"),
+            Fixture.status.label("fixture_status"),
         )
         .join(User, BetChangeRequest.user_id == User.id)
         .join(Bet, BetChangeRequest.bet_id == Bet.id)
@@ -897,6 +909,8 @@ async def list_change_requests(
                 "admin_notes": r.admin_notes,
                 "created_at": r.created_at.isoformat(),
                 "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+                "match_date": r.fixture_match_date.isoformat(),
+                "fixture_status": r.fixture_status,
             }
             for r in rows
         ],
@@ -946,6 +960,21 @@ async def approve_change_request(
     bet = bet_res.scalar_one_or_none()
     if not bet:
         raise HTTPException(status_code=404, detail="Associated bet not found")
+
+    fx_res = await db.execute(select(Fixture).where(Fixture.id == bet.fixture_id))
+    fixture = fx_res.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    if not can_resolve_change_request_for_fixture(fixture):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "CHANGE_REQUEST_WINDOW_CLOSED",
+                    "message": "Fuera de plazo: no se puede resolver la solicitud (ventana de 1h antes del partido o partido no programado).",
+                }
+            },
+        )
 
     if cr.request_type == "modify":
         bet.predicted_home_score = cr.new_predicted_home_score
@@ -1014,6 +1043,26 @@ async def reject_change_request(
         raise HTTPException(status_code=404, detail="Change request not found")
     if cr.status != "pending":
         raise HTTPException(status_code=409, detail="Request is already resolved")
+
+    bet_res = await db.execute(select(Bet).where(Bet.id == cr.bet_id))
+    bet = bet_res.scalar_one_or_none()
+    if not bet:
+        raise HTTPException(status_code=404, detail="Associated bet not found")
+
+    fx_res = await db.execute(select(Fixture).where(Fixture.id == bet.fixture_id))
+    fixture = fx_res.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    if not can_resolve_change_request_for_fixture(fixture):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "CHANGE_REQUEST_WINDOW_CLOSED",
+                    "message": "Fuera de plazo: no se puede resolver la solicitud (ventana de 1h antes del partido o partido no programado).",
+                }
+            },
+        )
 
     cr.status = "rejected"
     cr.admin_notes = body.admin_notes

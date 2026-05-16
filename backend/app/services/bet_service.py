@@ -56,6 +56,29 @@ def should_lock_fixture(fixture: Fixture) -> bool:
     return fixture.match_date - timedelta(hours=1) <= now
 
 
+def is_change_request_cutoff_passed(fixture: Fixture, *, now: datetime | None = None) -> bool:
+    """
+    True when change requests must be blocked: same instant as locking bets
+    (from 1 hour before kickoff onward).
+    """
+    t = now if now is not None else datetime.now(timezone.utc)
+    return fixture.match_date - timedelta(hours=1) <= t
+
+
+def can_resolve_change_request_for_fixture(fixture: Fixture, *, now: datetime | None = None) -> bool:
+    """Admin may approve/reject only for scheduled fixtures before the 1h cutoff."""
+    if fixture.status != "scheduled":
+        return False
+    return not is_change_request_cutoff_passed(fixture, now=now)
+
+
+def can_create_change_request_for_fixture(fixture: Fixture, *, now: datetime | None = None) -> bool:
+    """User may submit modify/delete request only for scheduled fixtures before the 1h cutoff."""
+    if fixture.status != "scheduled":
+        return False
+    return not is_change_request_cutoff_passed(fixture, now=now)
+
+
 async def create_bet(
     db: AsyncSession,
     user_id: uuid.UUID,

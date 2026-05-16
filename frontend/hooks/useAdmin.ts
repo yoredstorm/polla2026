@@ -298,6 +298,8 @@ export interface AdminChangeRequest {
   admin_notes: string | null;
   created_at: string;
   resolved_at: string | null;
+  match_date: string;
+  fixture_status: string;
 }
 
 export function useAdminChangeRequests(page = 1, limit = 20, statusFilter?: string) {

@@ -75,6 +75,24 @@ function SettleModal({
   );
 }
 
+/** API ISO string → value for `input type="datetime-local"` (browser local wall time). */
+function isoToDatetimeLocalValue(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** `datetime-local` string (local) → ISO-8601 UTC for the API. */
+function datetimeLocalToUtcIso(local: string): string | null {
+  const v = local.trim();
+  if (!v) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString();
+}
+
 // ── Edit Modal ──────────────────────────────────────────────────────────────
 function EditModal({
   fixture,
@@ -92,6 +110,11 @@ function EditModal({
   const [awayLogoUrl, setAwayLogoUrl] = useState(fixture.away_logo_url ?? "");
   const [bettingOpen, setBettingOpen] = useState<boolean>(fixture.betting_open ?? false);
   const [venue, setVenue] = useState(fixture.venue ?? "");
+  const [matchDateLocal, setMatchDateLocal] = useState(() =>
+    isoToDatetimeLocalValue(
+      typeof fixture.match_date === "string" ? fixture.match_date : "",
+    ),
+  );
   const [homeQuery, setHomeQuery] = useState("");
   const [awayQuery, setAwayQuery] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
@@ -117,6 +140,7 @@ function EditModal({
 
   function handleSave() {
     setMsg(null);
+    const matchIso = datetimeLocalToUtcIso(matchDateLocal);
     editFixture.mutate(
       {
         fixtureId: fixture.id,
@@ -127,6 +151,7 @@ function EditModal({
           away_logo_url: awayLogoUrl || undefined,
           betting_open: bettingOpen,
           venue: venue || undefined,
+          ...(matchIso ? { match_date: matchIso } : {}),
         },
       },
       {
@@ -226,6 +251,20 @@ function EditModal({
             placeholder="Ej: Los Angeles (Inglewood)"
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent"
           />
+        </div>
+
+        {/* Match date/time (local UI → UTC in API) */}
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted uppercase tracking-wide">Fecha y hora del partido</label>
+          <input
+            type="datetime-local"
+            value={matchDateLocal}
+            onChange={(e) => setMatchDateLocal(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent [color-scheme:dark]"
+          />
+          <p className="text-[11px] text-muted leading-snug">
+            Se muestra en la zona horaria del navegador; al guardar se envía en UTC al servidor.
+          </p>
         </div>
 
         {/* Betting toggle */}

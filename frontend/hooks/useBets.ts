@@ -37,13 +37,14 @@ export interface ChangeRequest {
   new_predicted_home_score: number | null;
   new_predicted_away_score: number | null;
   reason: string | null;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "approved" | "rejected" | "expired";
   admin_notes: string | null;
   created_at: string;
   resolved_at: string | null;
   predicted_home_score: number | null;
   predicted_away_score: number | null;
   fixture_id: string | null;
+  fixture_match_date?: string | null;
 }
 
 export function useCreateChangeRequest() {

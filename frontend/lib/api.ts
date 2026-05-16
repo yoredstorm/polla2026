@@ -51,6 +51,34 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+/** FastAPI returns HTTPException bodies as `{ detail: ... }`. Normalize so callers can use `err.error.message`. */
+function throwNormalizedApiError(body: unknown): never {
+  if (body && typeof body === "object") {
+    const b = body as Record<string, unknown>;
+    if (b.error && typeof b.error === "object") {
+      throw body;
+    }
+    const detail = b.detail;
+    if (detail && typeof detail === "object" && !Array.isArray(detail)) {
+      const d = detail as Record<string, unknown>;
+      if (d.error && typeof d.error === "object") {
+        throw { error: d.error };
+      }
+    }
+    if (typeof detail === "string") {
+      throw { error: { code: "HTTP_ERROR", message: detail } };
+    }
+    if (Array.isArray(detail)) {
+      const msgs = detail
+        .map((item: { msg?: string }) => (typeof item?.msg === "string" ? item.msg : null))
+        .filter(Boolean) as string[];
+      const message = msgs.length > 0 ? msgs.join("; ") : "Error de validacion";
+      throw { error: { code: "VALIDATION_ERROR", message } };
+    }
+  }
+  throw { error: { code: "UNKNOWN_ERROR", message: "An error occurred" } };
+}
+
 async function apiRequest<T>(
   endpoint: string,
   options: RequestOptions = {}
@@ -94,8 +122,8 @@ async function apiRequest<T>(
         headers: { "Content-Type": "application/json", ...fetchOptions.headers },
       });
       if (!retryResponse.ok) {
-        const error = await retryResponse.json().catch(() => ({}));
-        throw error;
+        const errorBody = await retryResponse.json().catch(() => ({}));
+        throwNormalizedApiError(errorBody);
       }
       return retryResponse.json();
     } else {
@@ -105,10 +133,8 @@ async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const error = await response.json().catch(() => ({
-      error: { code: "UNKNOWN_ERROR", message: "An error occurred" },
-    }));
-    throw error;
+    const errorBody = await response.json().catch(() => ({}));
+    throwNormalizedApiError(errorBody);
   }
 
   if (response.status === 204) return undefined as T;

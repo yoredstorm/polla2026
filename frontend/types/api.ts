@@ -74,6 +74,11 @@ export interface Bet {
   points_earned: number | null;
   is_locked: boolean;
   created_at: string;
+  /** Present on GET /bets/my-bets (joined fixture metadata). */
+  fixture_match_date?: string;
+  fixture_home_team?: string;
+  fixture_away_team?: string;
+  fixture_status?: FixtureStatus | string;
 }
 
 /** Group bet list includes username from API */
@@ -207,7 +212,9 @@ export type NotificationType =
   | "change_request_pending"
   | "extra_bet_pending"
   | "entry_pending"
-  | "fixture_finished";
+  | "fixture_finished"
+  | "change_request_expired"
+  | "change_request_expired_batch";
 
 export interface NotificationPayload {
   request_id?: string;

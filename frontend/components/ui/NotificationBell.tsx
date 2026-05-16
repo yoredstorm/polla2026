@@ -247,6 +247,32 @@ export function NotificationBell() {
                         </button>
                       )}
 
+                      {n.type === "change_request_expired" && (
+                        <Link
+                          href="/my-bets"
+                          onClick={() => {
+                            if (!n.read_at) markRead.mutate(n.id);
+                            setOpen(false);
+                          }}
+                          className="inline-block text-xs text-accent hover:underline"
+                        >
+                          Ver mis apuestas
+                        </Link>
+                      )}
+
+                      {n.type === "change_request_expired_batch" && user.is_admin && (
+                        <Link
+                          href="/admin/requests"
+                          onClick={() => {
+                            if (!n.read_at) markRead.mutate(n.id);
+                            setOpen(false);
+                          }}
+                          className="inline-block text-xs text-accent hover:underline"
+                        >
+                          Ver solicitudes
+                        </Link>
+                      )}
+
                       {n.type === "fixture_finished" && (
                         <Link
                           href="/fixtures#culminados"
@@ -272,6 +298,8 @@ export function NotificationBell() {
 
                       {!isAdminActionable &&
                         n.type !== "change_request_resolved" &&
+                        n.type !== "change_request_expired" &&
+                        n.type !== "change_request_expired_batch" &&
                         n.type !== "fixture_finished" &&
                         !n.read_at && (
                         <button

@@ -14,9 +14,11 @@ from app.api.deps import CurrentUser, DBSession, RedisClient
 from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
 from app.models.bet import Bet
 from app.models.bet_change_request import BetChangeRequest
-from app.schemas.bet import BetCreate, BetOut
+from app.models.fixture import Fixture
+from app.schemas.bet import BetCreate, BetOut, BetWithFixtureSummaryOut
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.services.bet_service import create_bet as svc_create_bet
+from app.services.bet_service import can_create_change_request_for_fixture
 from app.services.audit import log_action
 from app.services.notification_service import (
     notify_admins,
@@ -60,13 +62,13 @@ async def create_bet(
     except ValueError as e:
         error_code = str(e)
         messages = {
-            "FIXTURE_NOT_FOUND": "Fixture not found",
-            "BET_LOCKED": "This fixture is no longer accepting bets",
-            "BET_ALREADY_EXISTS": "You already have a bet for this fixture",
-            "BET_ALREADY_EXISTS_IN_GROUP": "You already have a bet for this fixture",
-            "NOT_GROUP_MEMBER": "You are not a member of this group",
-            "NOT_POLLA_MEMBER": "Your entry payment has not been confirmed yet",
-            "NO_ACTIVE_POLLA": "No active polla configured. Contact the admin.",
+            "FIXTURE_NOT_FOUND": "Partido no encontrado",
+            "BET_LOCKED": "Este partido ya no acepta apuestas (cerró una hora antes del inicio o el partido no está programado).",
+            "BET_ALREADY_EXISTS": "Ya tienes una apuesta para este partido",
+            "BET_ALREADY_EXISTS_IN_GROUP": "Ya tienes una apuesta para este partido",
+            "NOT_GROUP_MEMBER": "No eres miembro de este grupo",
+            "NOT_POLLA_MEMBER": "Tu pago de entrada aún no ha sido confirmado",
+            "NO_ACTIVE_POLLA": "No hay polla activa. Contacta al administrador.",
         }
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -76,7 +78,7 @@ async def create_bet(
 
 
 
-@router.get("/my-bets", response_model=PaginatedResponse[BetOut])
+@router.get("/my-bets", response_model=PaginatedResponse[BetWithFixtureSummaryOut])
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def my_bets(
     request: Request,
@@ -85,16 +87,35 @@ async def my_bets(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=200),
 ):
-    # A01: Only return current user's bets
-    base = select(Bet).where(Bet.user_id == current_user.id)
-    count_result = await db.execute(select(func.count()).select_from(base.subquery()))
+    count_base = (
+        select(Bet.id)
+        .join(Fixture, Bet.fixture_id == Fixture.id)
+        .where(Bet.user_id == current_user.id)
+    )
+    count_result = await db.execute(select(func.count()).select_from(count_base.subquery()))
     total = count_result.scalar()
 
-    result = await db.execute(base.order_by(Bet.created_at.desc()).offset((page - 1) * limit).limit(limit))
-    bets = result.scalars().all()
+    base = (
+        select(Bet, Fixture)
+        .join(Fixture, Bet.fixture_id == Fixture.id)
+        .where(Bet.user_id == current_user.id)
+    )
+    result = await db.execute(
+        base.order_by(Bet.created_at.desc()).offset((page - 1) * limit).limit(limit)
+    )
+    rows = result.all()
+
+    out: list[BetWithFixtureSummaryOut] = []
+    for bet, fx in rows:
+        d = BetOut.model_validate(bet).model_dump()
+        d["fixture_match_date"] = fx.match_date
+        d["fixture_home_team"] = fx.home_team
+        d["fixture_away_team"] = fx.away_team
+        d["fixture_status"] = fx.status
+        out.append(BetWithFixtureSummaryOut(**d))
 
     return PaginatedResponse(
-        data=[BetOut.model_validate(b) for b in bets],
+        data=out,
         pagination=PaginationMeta(total=total, page=page, limit=limit, total_pages=-(-total // limit)),
     )
 
@@ -242,6 +263,7 @@ class ChangeRequestOut(BaseModel):
     predicted_home_score: int | None = None
     predicted_away_score: int | None = None
     fixture_id: str | None = None
+    fixture_match_date: str | None = None
 
 
 @router.post("/{bet_id}/change-request", status_code=status.HTTP_201_CREATED)
@@ -272,6 +294,34 @@ async def create_change_request(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Ya tienes una solicitud pendiente para esta apuesta")
+
+    fx_res = await db.execute(select(Fixture).where(Fixture.id == bet.fixture_id))
+    fixture = fx_res.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "FIXTURE_NOT_FOUND", "message": "Partido no encontrado"}},
+        )
+    if not can_create_change_request_for_fixture(fixture):
+        if fixture.status != "scheduled":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": {
+                        "code": "CHANGE_REQUEST_NOT_ALLOWED",
+                        "message": "No se pueden solicitar cambios para este partido.",
+                    }
+                },
+            )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": {
+                    "code": "CHANGE_REQUEST_WINDOW_CLOSED",
+                    "message": "No se aceptan solicitudes en la ultima hora antes del partido.",
+                }
+            },
+        )
 
     if body.request_type == "modify":
         if body.new_predicted_home_score is None or body.new_predicted_away_score is None:
@@ -327,6 +377,7 @@ async def create_change_request(
         predicted_home_score=bet.predicted_home_score,
         predicted_away_score=bet.predicted_away_score,
         fixture_id=str(bet.fixture_id),
+        fixture_match_date=fixture.match_date.isoformat(),
     )
 
 
@@ -347,8 +398,10 @@ async def my_change_requests(
             Bet.predicted_home_score,
             Bet.predicted_away_score,
             Bet.fixture_id,
+            Fixture.match_date,
         )
         .join(Bet, BetChangeRequest.bet_id == Bet.id)
+        .join(Fixture, Bet.fixture_id == Fixture.id)
         .where(BetChangeRequest.user_id == current_user.id)
     )
 
@@ -379,8 +432,9 @@ async def my_change_requests(
                 predicted_home_score=home,
                 predicted_away_score=away,
                 fixture_id=str(fid),
+                fixture_match_date=fmd.isoformat(),
             )
-            for cr, home, away, fid in rows
+            for cr, home, away, fid, fmd in rows
         ],
         "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
     }

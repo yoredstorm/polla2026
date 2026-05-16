@@ -43,6 +43,15 @@ class BetOut(BaseModel):
     created_at: datetime
 
 
+class BetWithFixtureSummaryOut(BetOut):
+    """My bets list: fixture metadata for client-side change-request window UX."""
+
+    fixture_match_date: datetime
+    fixture_home_team: str
+    fixture_away_team: str
+    fixture_status: str
+
+
 class BetWithFixture(BetOut):
     fixture: Optional[dict] = None
 

@@ -4,7 +4,7 @@ import type { Bet, Fixture } from "@/types/api";
 import { CopyBetModal } from "./CopyBetModal";
 import { useCreateChangeRequest, type ChangeRequest } from "@/hooks/useBets";
 import { useToast } from "@/components/ui/Toast";
-import { getPointsColor, formatAmount, cn } from "@/lib/utils";
+import { getPointsColor, formatAmount, cn, isChangeRequestWindowOpen } from "@/lib/utils";
 
 interface BettingSlipProps {
   bet: Bet;
@@ -26,6 +26,28 @@ export function BettingSlip({
   const [modifyOpen, setModifyOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
+  const betFixtureForWindow =
+    bet.fixture_match_date && bet.fixture_home_team && bet.fixture_away_team && bet.fixture_status
+      ? {
+          match_date: bet.fixture_match_date,
+          status: bet.fixture_status,
+          home_team: bet.fixture_home_team,
+          away_team: bet.fixture_away_team,
+        }
+      : null;
+  const changeWindowOpen = !betFixtureForWindow || isChangeRequestWindowOpen(betFixtureForWindow);
+
+  const headerFixture = fixture
+    ? fixture
+    : betFixtureForWindow
+      ? ({
+          league_name: "Partido",
+          home_team: betFixtureForWindow.home_team,
+          away_team: betFixtureForWindow.away_team,
+          match_date: betFixtureForWindow.match_date,
+        } as Pick<Fixture, "league_name" | "home_team" | "away_team" | "match_date">)
+      : null;
+
   return (
     <>
       <div
@@ -35,9 +57,11 @@ export function BettingSlip({
           isSettled && bet.points_earned === 0 && "border-danger/20",
         )}
       >
-        {fixture && (
+        {headerFixture && (
           <div className="mb-2 text-xs text-muted">
-            {fixture.league_name} · {fixture.home_team} vs {fixture.away_team}
+            {headerFixture.league_name}
+            {headerFixture.league_name ? " · " : ""}
+            {headerFixture.home_team} vs {headerFixture.away_team}
           </div>
         )}
         <div className="flex items-center justify-between">
@@ -111,8 +135,15 @@ export function BettingSlip({
           </div>
         )}
 
+        {showChangeRequest && !isSettled && !pendingRequest && !changeWindowOpen && betFixtureForWindow && (
+          <p className="mt-3 pt-2 border-t border-white/5 text-xs text-amber-300/90">
+            Ya no puedes solicitar cambios ni eliminacion: queda menos de 1 hora para el inicio del partido
+            (o el partido ya no esta programado).
+          </p>
+        )}
+
         {/* Change request buttons */}
-        {showChangeRequest && !isSettled && !pendingRequest && (
+        {showChangeRequest && !isSettled && !pendingRequest && changeWindowOpen && (
           <div className="mt-3 flex gap-2 pt-2 border-t border-white/5">
             <button
               onClick={() => setModifyOpen(true)}
@@ -165,8 +196,12 @@ function ModifyRequestModal({ bet, onClose }: { bet: Bet; onClose: () => void })
       });
       toast("Solicitud de modificacion enviada", "success");
       onClose();
-    } catch (e: any) {
-      toast(e?.detail || "Error al enviar solicitud", "error");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "error" in e
+          ? String((e as { error?: { message?: string } }).error?.message ?? "")
+          : "";
+      toast(msg || "Error al enviar solicitud", "error");
     }
   }
 
@@ -249,8 +284,12 @@ function DeleteRequestModal({ bet, onClose }: { bet: Bet; onClose: () => void })
       });
       toast("Solicitud de eliminacion enviada", "success");
       onClose();
-    } catch (e: any) {
-      toast(e?.detail || "Error al enviar solicitud", "error");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "error" in e
+          ? String((e as { error?: { message?: string } }).error?.message ?? "")
+          : "";
+      toast(msg || "Error al enviar solicitud", "error");
     }
   }
 

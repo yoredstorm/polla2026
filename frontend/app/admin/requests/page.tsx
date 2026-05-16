@@ -7,13 +7,14 @@ import {
   type AdminChangeRequest,
 } from "@/hooks/useAdmin";
 import { useToast } from "@/components/ui/Toast";
-import { cn } from "@/lib/utils";
+import { cn, isChangeRequestWindowOpen } from "@/lib/utils";
 
 const STATUS_FILTERS: { value: string | undefined; label: string }[] = [
   { value: undefined, label: "Todos" },
   { value: "pending", label: "Pendientes" },
   { value: "approved", label: "Aprobadas" },
   { value: "rejected", label: "Rechazadas" },
+  { value: "expired", label: "Caducadas" },
 ];
 
 function formatDate(iso: string) {
@@ -46,8 +47,12 @@ export default function AdminRequestsPage() {
           : "Apuesta eliminada correctamente",
         "success",
       );
-    } catch {
-      toast("Error al aprobar solicitud", "error");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "error" in e
+          ? String((e as { error?: { message?: string } }).error?.message ?? "")
+          : "";
+      toast(msg || "Error al aprobar solicitud", "error");
     }
   }
 
@@ -61,8 +66,12 @@ export default function AdminRequestsPage() {
       toast("Solicitud rechazada", "info");
       setRejectModal(null);
       setRejectNotes("");
-    } catch {
-      toast("Error al rechazar solicitud", "error");
+    } catch (e: unknown) {
+      const msg =
+        e && typeof e === "object" && "error" in e
+          ? String((e as { error?: { message?: string } }).error?.message ?? "")
+          : "";
+      toast(msg || "Error al rechazar solicitud", "error");
     }
   }
 
@@ -104,7 +113,13 @@ export default function AdminRequestsPage() {
         <p className="text-muted py-8 text-center">Sin solicitudes</p>
       ) : (
         <div className="space-y-3">
-          {rows.map((req) => (
+          {rows.map((req) => {
+            const canAct =
+              req.status === "pending" &&
+              isChangeRequestWindowOpen({ match_date: req.match_date, status: req.fixture_status });
+            const pendingButLocked = req.status === "pending" && !canAct;
+
+            return (
             <div
               key={req.id}
               className={cn(
@@ -113,7 +128,9 @@ export default function AdminRequestsPage() {
                   ? "border-amber-500/30 bg-amber-500/5"
                   : req.status === "approved"
                     ? "border-emerald-500/20 bg-emerald-500/5"
-                    : "border-red-500/20 bg-red-500/5",
+                    : req.status === "expired"
+                      ? "border-zinc-500/25 bg-zinc-500/5"
+                      : "border-red-500/20 bg-red-500/5",
               )}
             >
               <div className="flex items-start justify-between gap-3 flex-wrap">
@@ -156,21 +173,26 @@ export default function AdminRequestsPage() {
                         ? "bg-amber-500/20 text-amber-300"
                         : req.status === "approved"
                           ? "bg-emerald-500/20 text-emerald-300"
-                          : "bg-red-500/20 text-red-300",
+                          : req.status === "expired"
+                            ? "bg-zinc-500/25 text-zinc-300"
+                            : "bg-red-500/20 text-red-300",
                     )}
                   >
                     {req.status === "pending"
                       ? "Pendiente"
                       : req.status === "approved"
                         ? "Aprobada"
-                        : "Rechazada"}
+                        : req.status === "expired"
+                          ? "Caducada"
+                          : "Rechazada"}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-4 text-sm flex-wrap">
                 <span className="text-muted">@{req.username}</span>
                 <span className="text-muted text-xs">{formatDate(req.created_at)}</span>
+                <span className="text-muted text-xs">Partido: {formatDate(req.match_date)}</span>
               </div>
 
               <div className="flex items-center gap-6 text-sm">
@@ -211,12 +233,19 @@ export default function AdminRequestsPage() {
                 </p>
               )}
 
+              {pendingButLocked && (
+                <p className="text-xs text-amber-300/90 border border-amber-500/20 rounded-lg px-3 py-2 bg-amber-500/5">
+                  Fuera de plazo: no se puede aprobar ni rechazar en la ultima hora antes del partido.
+                  La solicitud pasara a caducada automaticamente en breve.
+                </p>
+              )}
+
               {req.status === "pending" && (
                 <div className="flex gap-2 pt-1">
                   <button
                     onClick={() => handleApprove(req)}
-                    disabled={approve.isPending}
-                    className="text-xs px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors font-medium"
+                    disabled={approve.isPending || !canAct}
+                    className="text-xs px-4 py-2 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors font-medium disabled:opacity-40 disabled:pointer-events-none"
                   >
                     {approve.isPending ? "..." : "Aprobar"}
                   </button>
@@ -225,15 +254,16 @@ export default function AdminRequestsPage() {
                       setRejectModal(req);
                       setRejectNotes("");
                     }}
-                    disabled={reject.isPending}
-                    className="text-xs px-4 py-2 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors font-medium"
+                    disabled={reject.isPending || !canAct}
+                    className="text-xs px-4 py-2 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 transition-colors font-medium disabled:opacity-40 disabled:pointer-events-none"
                   >
                     Rechazar
                   </button>
                 </div>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

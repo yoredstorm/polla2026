@@ -15,7 +15,7 @@ const ACTION_FILTERS: { value: string | undefined; label: string }[] = [
   { value: "admin_confirm_entry", label: "Confirmar entrada" },
   { value: "admin_confirm_extra", label: "Confirmar extra" },
   { value: "admin_approve_change_request", label: "Aprobar solicitud" },
-  { value: "admin_reject_change_request", label: "Rechazar solicitud" },
+  { value: "change_request_auto_expired", label: "Solicitudes caducadas (auto)" },
   { value: "admin_edit_fixture", label: "Editar partido" },
   { value: "admin_settle", label: "Liquidar" },
 ];
@@ -33,6 +33,7 @@ const ACTION_COLORS: Record<string, string> = {
   admin_confirm_extra: "bg-emerald-500/20 text-emerald-400",
   admin_approve_change_request: "bg-emerald-500/20 text-emerald-400",
   admin_reject_change_request: "bg-red-500/20 text-red-400",
+  change_request_auto_expired: "bg-zinc-500/20 text-zinc-300",
   admin_edit_fixture: "bg-orange-500/20 text-orange-400",
   admin_settle: "bg-red-500/20 text-red-400",
 };

@@ -79,7 +79,19 @@ export function BetForm({ fixture }: BetFormProps) {
 
   const currency = polla?.currency ?? "USD";
   const extraAmount = polla?.per_match_amount ? parseFloat(polla.per_match_amount) : 0;
-  const fixtureOpen = !fixture.is_locked && fixture.status === "scheduled";
+
+  /** Same rule as backend `should_lock_fixture`: no new bets from 1h before kickoff. */
+  const bettingCutoffReached = (() => {
+    if (!fixture.match_date) return false;
+    const kickoff = new Date(fixture.match_date).getTime();
+    if (Number.isNaN(kickoff)) return false;
+    return kickoff - 60 * 60 * 1000 <= Date.now();
+  })();
+
+  const fixtureOpen =
+    !fixture.is_locked &&
+    !bettingCutoffReached &&
+    fixture.status === "scheduled";
 
   const canAddExtra =
     !!polla &&
@@ -157,7 +169,7 @@ export function BetForm({ fixture }: BetFormProps) {
     );
   }
 
-  // ── Locked fixture (auto-locked 1h before kickoff or finished) ───
+  // ── Locked fixture (finished / live / cancelled — server flag) ───
   if (fixture.is_locked) {
     return (
       <div className="rounded-xl border border-warning/30 bg-warning/5 p-4 text-center">
@@ -292,33 +304,42 @@ export function BetForm({ fixture }: BetFormProps) {
 
       {/* ── Main bet form (shown only when no free bet yet) ── */}
       {!freeBet && (
-        <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-6">
-          <h3 className="font-display text-xl mb-4 text-white">Realizar Apuesta</h3>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div className="flex items-center justify-center gap-8">
-              <ScoreInput
-                label={fixture.home_team}
-                value={homeScore}
-                onChange={(v) => setValue("predicted_home_score", v)}
-              />
-              <span className="font-display text-2xl text-muted">–</span>
-              <ScoreInput
-                label={fixture.away_team}
-                value={awayScore}
-                onChange={(v) => setValue("predicted_away_score", v)}
-              />
-            </div>
-            <p className="text-xs text-muted text-center">
-              Exacto (goles + ganador) = 2pts · Solo ganador = 1pt · Fallo = 0pts
+        bettingCutoffReached ? (
+          <div className="rounded-xl border border-warning/30 bg-warning/5 p-5 text-center space-y-2">
+            <p className="text-warning font-medium">Este partido ya no acepta nuevas apuestas</p>
+            <p className="text-xs text-muted">
+              Las apuestas cerraron una hora antes del inicio del partido.
             </p>
-            <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim transition-colors"
-            >
-              Apostar
-            </button>
-          </form>
-        </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-6">
+            <h3 className="font-display text-xl mb-4 text-white">Realizar Apuesta</h3>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+              <div className="flex items-center justify-center gap-8">
+                <ScoreInput
+                  label={fixture.home_team}
+                  value={homeScore}
+                  onChange={(v) => setValue("predicted_home_score", v)}
+                />
+                <span className="font-display text-2xl text-muted">–</span>
+                <ScoreInput
+                  label={fixture.away_team}
+                  value={awayScore}
+                  onChange={(v) => setValue("predicted_away_score", v)}
+                />
+              </div>
+              <p className="text-xs text-muted text-center">
+                Exacto (goles + ganador) = 2pts · Solo ganador = 1pt · Fallo = 0pts
+              </p>
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim transition-colors"
+              >
+                Apostar
+              </button>
+            </form>
+          </div>
+        )
       )}
 
       {/* ── Main bet confirm modal ── */}

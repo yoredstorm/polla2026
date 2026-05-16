@@ -49,3 +49,11 @@ export function getPointsColor(points: number | null): string {
 export function formatAmount(amount: string | number, currency = "USD"): string {
   return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(Number(amount));
 }
+
+/** Same 1h-before-kickoff rule as the backend (scheduled fixtures only). */
+export function isChangeRequestWindowOpen(fixture: { match_date: string; status: string }): boolean {
+  if (fixture.status !== "scheduled") return false;
+  const kickoff = new Date(fixture.match_date).getTime();
+  const cutoffMs = 60 * 60 * 1000;
+  return Date.now() < kickoff - cutoffMs;
+}
