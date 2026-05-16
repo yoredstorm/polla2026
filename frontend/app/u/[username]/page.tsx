@@ -258,6 +258,7 @@ export default function UserPublicProfilePage() {
             open={copyModalOpen}
             onClose={() => setCopyModalOpen(false)}
             sourceBets={allBetsPage?.data ?? []}
+            sourceUserId={summary.user_id}
             sourceUsername={summary?.username ?? username}
           />
         )}

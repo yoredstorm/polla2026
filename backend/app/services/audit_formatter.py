@@ -98,7 +98,7 @@ def _collect_ids(details: list[str | None]) -> tuple[set[uuid.UUID], set[uuid.UU
         d = _parse_detail(detail)
         add_uuid(fixture_ids, d.get("fixture_id"))
         add_uuid(group_ids, d.get("group_id"))
-        for key in ("user_id", "member_user_id", "bet_user_id"):
+        for key in ("user_id", "member_user_id", "bet_user_id", "source_user_id"):
             add_uuid(user_ids, d.get(key))
         add_uuid(bet_ids, d.get("bet_id"))
 
@@ -166,8 +166,12 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
         return f"{partido} · Pronóstico {d.get('home', '?')}-{d.get('away', '?')} · {grupo}"
 
     if action == "bulk_copy":
+        src = ctx.user_label(d.get("source_user_id"))
+        if not src and d.get("source_username"):
+            src = f"@{d['source_username']}"
+        src_part = f"Desde perfil de {src} · " if src else ""
         return (
-            f"Ítems: {d.get('total_items', 0)} · Creadas: {d.get('created', 0)} · "
+            f"{src_part}Ítems: {d.get('total_items', 0)} · Creadas: {d.get('created', 0)} · "
             f"Omitidas: {d.get('skipped', 0)} · Errores: {d.get('error_count', 0)}"
         )
 

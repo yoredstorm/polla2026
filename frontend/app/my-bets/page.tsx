@@ -10,7 +10,7 @@ export default function MyBetsPage() {
   const [page, setPage] = useState(1);
   const { data, isLoading } = useMyBets(page);
   const { data: polla } = useActivePolla();
-  const { data: changeReqData } = useMyChangeRequests(1, 200);
+  const { data: changeReqData } = useMyChangeRequests(1, 100);
 
   const pendingByBetId = useMemo(() => {
     const map = new Map<string, ChangeRequest>();

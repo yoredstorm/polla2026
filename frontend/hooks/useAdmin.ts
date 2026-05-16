@@ -206,8 +206,22 @@ export function useRemoveGroupMember() {
 export function useAdminAllUsers() {
   return useQuery({
     queryKey: ["admin", "all-users-light"],
-    queryFn: () =>
-      api.get<{ data: { id: string; username: string }[]; pagination: any }>("/admin/users", { limit: 200 }),
+    queryFn: async () => {
+      const limit = 100;
+      const all: { id: string; username: string }[] = [];
+      let page = 1;
+      let totalPages = 1;
+      do {
+        const res = await api.get<{
+          data: { id: string; username: string }[];
+          pagination: { total: number; page: number; limit: number; total_pages: number };
+        }>("/admin/users", { page, limit });
+        all.push(...res.data);
+        totalPages = res.pagination?.total_pages ?? 1;
+        page += 1;
+      } while (page <= totalPages);
+      return { data: all, pagination: { total: all.length } };
+    },
     staleTime: 60_000,
   });
 }

@@ -185,6 +185,8 @@ docker compose exec backend alembic upgrade head
 
 > **Windows:** si `localhost` no responde, prueba `http://127.0.0.1:3000` o `:8000` (resolución IPv6).
 
+> **Cookies y WebSocket:** usa el **mismo host** en navegador y API (todo `localhost` o todo `127.0.0.1`). Mezclar hosts rompe la sesión y el WS de notificaciones.
+
 ---
 
 ## Desarrollo local (sin Docker)

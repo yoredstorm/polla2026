@@ -7,7 +7,10 @@
  * as the page with port 8000 (e.g. UI at http://127.0.0.1:3000 → API at http://127.0.0.1:8000).
  * That avoids mixing localhost + 127.0.0.1 (different host → cookies / CORS break).
  */
-function getApiBase(): string {
+/** Max `limit` accepted by most list endpoints (admin users, change requests, etc.). */
+export const API_MAX_PAGE_LIMIT = 100;
+
+export function getApiBase(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
   if (typeof window !== "undefined") {
     if (configured) return configured;

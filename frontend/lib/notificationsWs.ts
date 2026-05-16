@@ -1,15 +1,9 @@
 "use client";
 import type { QueryClient } from "@tanstack/react-query";
+import { getApiBase } from "@/lib/api";
 
 function getWsUrl(): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL;
-  let httpBase: string;
-  if (typeof window !== "undefined") {
-    httpBase = configured || `${window.location.protocol}//${window.location.hostname}:8000`;
-  } else {
-    httpBase = configured || "http://localhost:8000";
-  }
-  return httpBase.replace(/^http/, "ws") + "/api/v1/ws/notifications";
+  return getApiBase().replace(/^http/, "ws") + "/api/v1/ws/notifications";
 }
 
 type WsMessage =
@@ -27,6 +21,9 @@ const SILENT_NOTIFICATION_TYPES = new Set([
 
 const recentToastKeys = new Map<string, number>();
 const TOAST_DEDUPE_MS = 4000;
+
+/** WebSocket close code when access cookie is missing or invalid. */
+const WS_CLOSE_UNAUTHORIZED = 4401;
 
 function shouldShowNotificationToast(notificationType: string, title: string): boolean {
   if (SILENT_NOTIFICATION_TYPES.has(notificationType)) {
@@ -48,6 +45,8 @@ let reconnectDelay = 1000;
 let listeners = 0;
 let onConnected: (() => void) | null = null;
 let onDisconnected: (() => void) | null = null;
+/** After 4401, stop reconnect loop until a new connectNotificationsWs session. */
+let stopReconnectUntilNewSession = false;
 
 export function setNotificationWsCallbacks(cb: {
   onConnected?: () => void;
@@ -62,8 +61,18 @@ export function connectNotificationsWs(
   showToast: (msg: string, type?: "success" | "error" | "info") => void,
 ) {
   listeners += 1;
+  stopReconnectUntilNewSession = false;
+
   if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
     return disconnectNotificationsWs;
+  }
+
+  function scheduleReconnect() {
+    if (stopReconnectUntilNewSession || listeners <= 0) return;
+    reconnectTimer = setTimeout(() => {
+      reconnectDelay = Math.min(reconnectDelay * 2, 30000);
+      connect();
+    }, reconnectDelay);
   }
 
   function connect() {
@@ -71,6 +80,7 @@ export function connectNotificationsWs(
 
     socket.onopen = () => {
       reconnectDelay = 1000;
+      stopReconnectUntilNewSession = false;
       onConnected?.();
     };
 
@@ -94,14 +104,13 @@ export function connectNotificationsWs(
       }
     };
 
-    socket.onclose = () => {
+    socket.onclose = (ev) => {
       onDisconnected?.();
-      if (listeners > 0) {
-        reconnectTimer = setTimeout(() => {
-          reconnectDelay = Math.min(reconnectDelay * 2, 30000);
-          connect();
-        }, reconnectDelay);
+      if (ev.code === WS_CLOSE_UNAUTHORIZED) {
+        stopReconnectUntilNewSession = true;
+        return;
       }
+      scheduleReconnect();
     };
 
     socket.onerror = () => {

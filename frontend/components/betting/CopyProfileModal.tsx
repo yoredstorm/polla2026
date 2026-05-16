@@ -13,6 +13,7 @@ interface Props {
   open: boolean;
   onClose: () => void;
   sourceBets: Bet[];
+  sourceUserId: string;
   sourceUsername: string;
 }
 
@@ -72,14 +73,14 @@ function effectiveFreeCount(items: BulkItem[]): number {
   return items.filter((i) => i.mode === "free").length;
 }
 
-export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: Props) {
+export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sourceUsername }: Props) {
   const qc = useQueryClient();
   const { data: polla, isLoading: pollaLoading } = useActivePolla();
   const { data: fixturesPage, isLoading: fixturesLoading } = useFixtures({ status: "scheduled", limit: 200 });
   const { data: myBetsPage, isLoading: myBetsLoading } = useMyBets(1, 200);
 
   const bulkCopy = useMutation({
-    mutationFn: (body: { bets: BulkCopyPayloadItem[] }) =>
+    mutationFn: (body: { bets: BulkCopyPayloadItem[]; source_user_id: string }) =>
       api.post<BulkCopyResult>("/bets/bulk-copy", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["my-bets"] });
@@ -191,7 +192,10 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUsername }: 
     const payload = buildPayloadItems(items);
     if (payload.length === 0) return;
     try {
-      const res = await bulkCopy.mutateAsync({ bets: payload });
+      const res = await bulkCopy.mutateAsync({
+        bets: payload,
+        source_user_id: sourceUserId,
+      });
       const total = payload.length;
 
       if (res.created > 0 && res.errors.length === 0) {

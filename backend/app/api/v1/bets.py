@@ -167,6 +167,7 @@ class BulkBetItem(BaseModel):
 
 class BulkCopyIn(BaseModel):
     bets: list[BulkBetItem]
+    source_user_id: uuid.UUID | None = None
 
 
 class BulkCopyOut(BaseModel):
@@ -179,6 +180,14 @@ class BulkCopyOut(BaseModel):
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: CurrentUser, db: DBSession):
     from app.models.group import Group
+    from app.models.user import User
+
+    source_username: str | None = None
+    if body.source_user_id:
+        src_res = await db.execute(select(User).where(User.id == body.source_user_id))
+        src_user = src_res.scalar_one_or_none()
+        if src_user:
+            source_username = src_user.username
 
     polla_res = await db.execute(
         select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)
@@ -243,7 +252,12 @@ async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: Curre
                 errors.append(f"{item.fixture_id} extra: {str(e)}")
 
     await log_action(db, user_id=current_user.id, action="bulk_copy", detail={
-        "total_items": len(body.bets), "created": created, "skipped": skipped, "error_count": len(errors),
+        "total_items": len(body.bets),
+        "created": created,
+        "skipped": skipped,
+        "error_count": len(errors),
+        "source_user_id": str(body.source_user_id) if body.source_user_id else None,
+        "source_username": source_username,
     }, ip=request.client.host if request.client else None)
     await db.commit()
 
