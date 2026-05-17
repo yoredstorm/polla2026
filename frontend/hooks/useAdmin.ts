@@ -296,6 +296,23 @@ export function useAuditLog(page = 1, limit = 50, action?: string) {
   });
 }
 
+export async function downloadAuditLogCsv(action?: string) {
+  const { getApiBase } = await import("@/lib/api");
+  const params = new URLSearchParams({ limit: "500" });
+  if (action) params.set("action", action);
+  const res = await fetch(`${getApiBase()}/api/v1/admin/audit-log/export?${params}`, {
+    credentials: "include",
+  });
+  if (!res.ok) throw new Error("No se pudo exportar");
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "audit_log.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── Bet change requests ─────────────────────────────────────────────
 
 export interface AdminChangeRequest {

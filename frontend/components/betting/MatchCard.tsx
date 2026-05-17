@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Fixture } from "@/types/api";
 import { TeamAvatar } from "@/components/betting/TeamAvatar";
 import { cn, formatMatchDate, formatCountdown, isWithin24Hours, getStatusLabel } from "@/lib/utils";
+import { BettingTrendsBar } from "@/components/betting/BettingTrendsBar";
 
 interface MatchCardProps {
   fixture: Fixture;
@@ -97,6 +98,10 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
           <span className="text-warning">{formatCountdown(fixture.match_date)}</span>
         )}
       </div>
+
+      {!isLocked && !isFinished && fixture.status === "scheduled" && fixture.betting_open && (
+        <BettingTrendsBar fixtureId={fixture.id} compact />
+      )}
 
       {/* Bet button */}
       {!isLocked && !isFinished && fixture.status === "scheduled" && (

@@ -4,6 +4,7 @@ import { Navbar } from "@/components/ui/Navbar";
 import { useGlobalLeaderboard, useWeeklyLeaderboard, type LeaderboardSort } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/hooks/useAuth";
 import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
+import { useMyRival } from "@/hooks/useRival";
 
 const PAGE_SIZE = 20;
 /** Mínimo de apuestas hechas (incluye pendientes de liquidar) para entrar al ranking. */
@@ -14,6 +15,7 @@ export default function LeaderboardPage() {
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<LeaderboardSort>("points");
   const { user } = useAuth();
+  const { data: rivalData } = useMyRival(!!user);
 
   const { data: global, isLoading: globalLoading } = useGlobalLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
   const { data: weekly, isLoading: weeklyLoading } = useWeeklyLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
@@ -22,9 +24,19 @@ export default function LeaderboardPage() {
   const isLoading = view === "global" ? globalLoading : weeklyLoading;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen page-with-mobile-nav">
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 py-8">
+        {rivalData?.rival && (
+          <section className="mb-6 rounded-xl border border-orange-500/25 bg-orange-500/5 p-4">
+            <p className="text-xs text-orange-300/80 uppercase tracking-wide mb-1">Rival frecuente</p>
+            <p className="font-display text-xl text-white">@{rivalData.rival.opponent_username}</p>
+            <p className="text-sm text-muted mt-1">
+              Historial: {rivalData.rival.wins} victorias, {rivalData.rival.losses} derrotas
+              {rivalData.rival.draws > 0 ? `, ${rivalData.rival.draws} empates` : ""}
+            </p>
+          </section>
+        )}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
           <h1 className="font-display text-3xl text-white">Ranking</h1>
           <div className="flex flex-wrap gap-2">

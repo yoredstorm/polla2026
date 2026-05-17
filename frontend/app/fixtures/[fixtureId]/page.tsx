@@ -21,6 +21,9 @@ import {
   useRejectChallenge,
 } from "@/hooks/useChallenges";
 import { formatMatchDate, getStatusLabel, formatAmount, cn } from "@/lib/utils";
+import { BettingTrendsBar } from "@/components/betting/BettingTrendsBar";
+import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { FixtureSocialSection } from "@/components/social/FixtureSocialSection";
 
 export default function FixtureDetailPage() {
   const params = useParams();
@@ -85,6 +88,17 @@ export default function FixtureDetailPage() {
             </div>
           </div>
         </div>
+
+        {fixture.status === "scheduled" && fixture.betting_open && !fixture.is_locked && (
+          <section className="mb-6 rounded-xl border border-white/10 bg-glass p-4">
+            <h3 className="font-display text-sm text-white mb-2">Tendencia de apuestas</h3>
+            <BettingTrendsBar fixtureId={fixtureId} />
+          </section>
+        )}
+
+        <ActivityFeed fixtureId={fixtureId} limit={10} title="Actividad del partido" className="mb-6" />
+
+        <FixtureSocialSection fixtureId={fixtureId} />
 
         {fixture.status === "finished" && primaryBet && (
           <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 mb-6">

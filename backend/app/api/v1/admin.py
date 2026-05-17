@@ -162,7 +162,25 @@ async def update_fixture_result(
     settled = await settle_fixture_bets(db, fixture)
     from app.services.challenge_service import settle_challenges_for_fixture
 
+    breakdown_q = (
+        select(User.username, Bet.points_earned)
+        .join(User, Bet.user_id == User.id)
+        .where(
+            Bet.fixture_id == fixture_id,
+            Bet.points_earned.isnot(None),  # noqa: E711
+        )
+        .order_by(Bet.points_earned.desc())
+    )
+    breakdown_rows = (await db.execute(breakdown_q)).all()
+    user_breakdown = [
+        {"username": r.username, "points_earned": int(r.points_earned or 0)}
+        for r in breakdown_rows
+    ]
+
     await settle_challenges_for_fixture(db, redis, fixture)
+    from app.services.badge_notify_service import notify_new_badges_for_fixture
+
+    await notify_new_badges_for_fixture(db, redis, fixture_id)
     nt, nb, np = build_fixture_finished(
         fixture_id=str(fixture_id),
         home_team=fixture.home_team,
@@ -187,6 +205,7 @@ async def update_fixture_result(
         "fixture_id": str(fixture_id), "home_score": body.home_score, "away_score": body.away_score,
         "status": body.status, "settled_count": settled,
         "notified_users_count": len(notified),
+        "user_breakdown": user_breakdown,
     }, ip=request.client.host if request.client else None)
     await db.commit()
 
@@ -291,7 +310,12 @@ async def edit_fixture(
         fixture.away_logo_url = body.away_logo_url
 
     if body.betting_open is not None:
-        fixture.betting_open = body.betting_open
+        if body.betting_open is False and fixture.betting_open:
+            from app.services.betting_close_service import close_fixture_betting
+
+            await close_fixture_betting(db, fixture, reason="admin_close")
+        else:
+            fixture.betting_open = body.betting_open
 
     if body.venue is not None:
         fixture.venue = body.venue
@@ -583,18 +607,34 @@ async def patch_group(
     group = result.scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
+    changes: dict[str, str] = {}
     if body.entry_fee is not None:
+        changes["entry_fee"] = str(body.entry_fee)
         group.entry_fee = body.entry_fee
     if body.currency is not None:
+        changes["currency"] = body.currency
         group.currency = body.currency
     if body.bet_amount_mode is not None:
+        changes["bet_amount_mode"] = body.bet_amount_mode
         group.bet_amount_mode = body.bet_amount_mode
     if body.fixed_bet_amount is not None:
+        changes["fixed_bet_amount"] = str(body.fixed_bet_amount)
         group.fixed_bet_amount = body.fixed_bet_amount if body.fixed_bet_amount > 0 else None
     if body.is_active is not None:
+        changes["is_active"] = str(body.is_active)
         group.is_active = body.is_active
     if body.challenge_max_stake is not None:
-        group.challenge_max_stake = max(1, min(20, body.challenge_max_stake))
+        val = max(1, min(20, body.challenge_max_stake))
+        changes["challenge_max_stake"] = str(val)
+        group.challenge_max_stake = val
+    if changes:
+        await log_action(
+            db,
+            user_id=admin.id,
+            action="admin_patch_group",
+            detail={"group_id": str(group_id), "changes": changes},
+            ip=request.client.host if request.client else None,
+        )
     await db.commit()
     await db.refresh(group)
     return {
@@ -715,10 +755,23 @@ async def remove_group_member(
         raise HTTPException(status_code=404, detail="Member not found")
 
     prev_pool = group.prize_pool
+    user_res = await db.execute(select(User).where(User.id == user_id))
+    removed_user = user_res.scalar_one_or_none()
     await db.delete(member)
     group.prize_pool = max(Decimal("0"), group.prize_pool - group.entry_fee)
     count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
     member_count = max(0, int(count_res.scalar() or 0) - 1)
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_member_removed",
+        detail={
+            "group_id": str(group_id),
+            "member_user_id": str(user_id),
+            "username": removed_user.username if removed_user else None,
+        },
+        ip=request.client.host if request.client else None,
+    )
     await db.commit()
     await broadcast_polla_updated(
         db,
@@ -880,9 +933,10 @@ async def list_audit_logs(
     page: int = Query(1, ge=1),
     limit: int = Query(50, ge=1, le=200),
     action: Optional[str] = Query(None),
+    user_id: Optional[uuid.UUID] = Query(None),
+    fixture_id: Optional[uuid.UUID] = Query(None),
 ):
     from app.models.audit_log import AuditLog
-    from sqlalchemy import outerjoin
 
     base = (
         select(
@@ -900,6 +954,10 @@ async def list_audit_logs(
 
     if action:
         base = base.where(AuditLog.action == action)
+    if user_id:
+        base = base.where(AuditLog.user_id == user_id)
+    if fixture_id:
+        base = base.where(AuditLog.detail.contains(str(fixture_id)))
 
     count_q = select(func.count()).select_from(base.subquery())
     total = (await db.execute(count_q)).scalar() or 0
@@ -931,8 +989,70 @@ async def list_audit_logs(
             )
             for r, (label, summary) in zip(rows, enriched)
         ],
-        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": -(-total // limit)},
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
     }
+
+
+@router.get("/audit-log/export")
+@limiter.limit(ADMIN_RATE)
+async def export_audit_logs(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    action: Optional[str] = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
+):
+    """CSV export for transparency / disputes."""
+    import csv
+    import io
+    from fastapi.responses import StreamingResponse
+    from app.models.audit_log import AuditLog
+    from app.services.audit_formatter import enrich_audit_rows
+
+    base = (
+        select(
+            AuditLog.id,
+            AuditLog.user_id,
+            User.username,
+            AuditLog.action,
+            AuditLog.detail,
+            AuditLog.ip_address,
+            AuditLog.created_at,
+        )
+        .select_from(AuditLog)
+        .outerjoin(User, AuditLog.user_id == User.id)
+    )
+    if action:
+        base = base.where(AuditLog.action == action)
+    rows = (
+        await db.execute(base.order_by(AuditLog.created_at.desc()).limit(limit))
+    ).all()
+    enriched = await enrich_audit_rows(db, rows)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(
+        ["created_at", "action", "action_label", "username", "user_id", "summary", "detail", "ip"]
+    )
+    for r, (label, summary) in zip(rows, enriched):
+        writer.writerow(
+            [
+                r.created_at.isoformat(),
+                r.action,
+                label,
+                r.username or "",
+                str(r.user_id) if r.user_id else "",
+                summary,
+                r.detail or "",
+                r.ip_address or "",
+            ]
+        )
+    buf.seek(0)
+    return StreamingResponse(
+        iter([buf.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=audit_log.csv"},
+    )
 
 
 # ── Bet Change Requests ──────────────────────────────────────────────

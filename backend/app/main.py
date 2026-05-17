@@ -18,7 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.middlewares import SecurityHeadersMiddleware, RequestLoggingMiddleware
 from app.core.rate_limiter import limiter
-from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges
+from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges, social
 from app.db.session import get_redis
 from app.services.ws_manager import ws_manager
 
@@ -51,6 +51,30 @@ async def _redis_notification_listener() -> None:
         await pubsub.unsubscribe("notifications")
         await pubsub.aclose()
         raise
+
+
+async def _fixture_betting_close_loop() -> None:
+    from app.db.session import AsyncSessionLocal
+    from app.services.betting_close_service import close_due_fixtures_batch
+
+    while True:
+        try:
+            async with AsyncSessionLocal() as db:
+                try:
+                    n = await close_due_fixtures_batch(db)
+                    if n:
+                        await db.commit()
+                except Exception:
+                    await db.rollback()
+                    logger.exception("fixture_betting_close_tick_failed")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("fixture_betting_close_loop_failed")
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            raise
 
 
 async def _change_request_expiry_loop() -> None:
@@ -121,12 +145,14 @@ async def lifespan(app: FastAPI):
 
     listener_task = asyncio.create_task(_redis_notification_listener())
     expiry_task = asyncio.create_task(_change_request_expiry_loop())
+    betting_close_task = asyncio.create_task(_fixture_betting_close_loop())
     jwt_rotation_task = asyncio.create_task(jwt_key_rotation_loop())
     yield
     jwt_rotation_task.cancel()
+    betting_close_task.cancel()
     expiry_task.cancel()
     listener_task.cancel()
-    for task in (jwt_rotation_task, expiry_task, listener_task):
+    for task in (jwt_rotation_task, betting_close_task, expiry_task, listener_task):
         try:
             await task
         except asyncio.CancelledError:
@@ -207,6 +233,7 @@ app.include_router(ws.router, prefix=PREFIX)
 app.include_router(challenges.router, prefix=PREFIX)
 app.include_router(activity.router, prefix=PREFIX)
 app.include_router(badges.router, prefix=PREFIX)
+app.include_router(social.router, prefix=PREFIX)
 
 
 @app.get("/health")

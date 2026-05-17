@@ -8,6 +8,7 @@ import { Navbar } from "@/components/ui/Navbar";
 import { useUpdateBetsProfile } from "@/hooks/useUserProfile";
 import { getMe } from "@/lib/auth";
 import { BadgeGrid } from "@/components/gamification/BadgeGrid";
+import { useMyBadgeProgress } from "@/hooks/useBadgeCatalog";
 import { cn } from "@/lib/utils";
 import type { BadgeOut } from "@/types/api";
 
@@ -16,7 +17,11 @@ function BadgesSection() {
     queryKey: ["me", "badges"],
     queryFn: () => api.get<{ badges: BadgeOut[] }>("/users/me/badges"),
   });
+  const { data: progress } = useMyBadgeProgress();
   const badges = data?.badges ?? [];
+  const earned = progress?.earned_count ?? badges.length;
+  const total = progress?.total_count ?? 0;
+  const pct = total > 0 ? Math.round((earned / total) * 100) : 0;
   return (
     <div className="rounded-xl border border-white/10 bg-glass p-4">
       <div className="flex items-center justify-between gap-2 mb-3">
@@ -25,6 +30,19 @@ function BadgesSection() {
           Ver todas →
         </Link>
       </div>
+      {total > 0 && (
+        <div className="mb-4">
+          <div className="flex justify-between text-xs text-muted mb-1">
+            <span>Progreso de coleccion</span>
+            <span>
+              {earned}/{total} ({pct}%)
+            </span>
+          </div>
+          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full bg-accent transition-all" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
       <BadgeGrid badges={badges} emptyLabel="Aún no tienes medallas. Apuesta, acierta y gana duelos." />
     </div>
   );
@@ -108,7 +126,7 @@ export default function ProfilePage() {
 
   if (isLoading || !me) {
     return (
-      <div className="min-h-screen">
+      <div className="min-h-screen page-with-mobile-nav">
         <Navbar />
         <p className="text-center text-muted py-20">Cargando...</p>
       </div>
@@ -116,7 +134,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen page-with-mobile-nav">
       <Navbar />
       <main className="max-w-lg mx-auto px-4 py-10">
         <h1 className="font-display text-3xl text-white mb-2">Mi perfil</h1>

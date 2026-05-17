@@ -10,6 +10,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAnimatedPrizePool, parsePrizePool } from "@/hooks/useAnimatedPrizePool";
 import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
 import { BadgeCatalogSection } from "@/components/gamification/BadgeCatalogSection";
+import { ActivityFeed } from "@/components/activity/ActivityFeed";
+import { FollowingFeed } from "@/components/social/FollowingFeed";
+import { useMyRival } from "@/hooks/useRival";
 import { cn, formatCountdown } from "@/lib/utils";
 
 function PiggyBankIcon({ className }: { className?: string }) {
@@ -34,6 +37,7 @@ export default function DashboardPage() {
   const { data: statsFinished } = useFixtures({ status: "finished", limit: 1 });
   const { data: leaderboard } = useGlobalLeaderboard(1, 50, "points", 1);
   const { data: polla } = useActivePolla();
+  const { data: rivalData } = useMyRival(!!user);
 
   const serverPrize = parsePrizePool(polla?.prize_pool);
   const { displayed: prizeAnimated, isAnimating } = useAnimatedPrizePool(serverPrize);
@@ -222,6 +226,28 @@ export default function DashboardPage() {
             <Link href="/winners" className="block text-center text-sm text-accent hover:underline mb-4">
               Ver podio y premios
             </Link>
+
+            {rivalData?.rival && (
+              <section className="rounded-xl border border-orange-500/25 bg-orange-500/5 p-4 mb-4">
+                <p className="text-xs text-orange-300/80 uppercase tracking-wide mb-1">Tu rival</p>
+                <p className="font-display text-lg text-white">
+                  @{rivalData.rival.opponent_username ?? "?"}
+                </p>
+                <p className="text-xs text-muted mt-1">
+                  {rivalData.rival.wins}V – {rivalData.rival.losses}D
+                  {rivalData.rival.draws > 0 ? ` – ${rivalData.rival.draws}E` : ""}
+                  {" · "}
+                  {rivalData.rival.duels_together ?? rivalData.rival.total_duels} duelos
+                </p>
+                <Link href="/leaderboard" className="text-xs text-accent hover:underline mt-2 inline-block">
+                  Ver ranking
+                </Link>
+              </section>
+            )}
+
+            <FollowingFeed />
+            <ActivityFeed limit={12} className="mb-4" />
+
             <section>
               <h2 className="font-display text-xl text-white mb-1">Top apostadores</h2>
               <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-4 space-y-3">

@@ -23,6 +23,7 @@ import {
 } from "@/lib/notificationsWs";
 import type { Notification, NotificationPayload } from "@/types/api";
 import { cn } from "@/lib/utils";
+import { notificationHref, notificationLinkLabel } from "@/lib/notificationLinks";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString("es-PE", {
@@ -304,11 +305,28 @@ export function NotificationBell() {
 
                       {n.type === "change_request_resolved" && (
                         <Link
-                          href="/my-bets"
+                          href="/my-bets?tab=pronosticos"
                           onClick={() => !n.read_at && markRead.mutate(n.id)}
                           className="inline-block text-xs text-accent hover:underline"
                         >
                           Ver mis apuestas
+                        </Link>
+                      )}
+
+                      {(n.type === "badge_earned" ||
+                        n.type === "challenge_pending" ||
+                        n.type === "challenge_accepted" ||
+                        n.type === "challenge_settled") &&
+                        notificationHref(n) && (
+                        <Link
+                          href={notificationHref(n)!}
+                          onClick={() => {
+                            if (!n.read_at) markRead.mutate(n.id);
+                            setOpen(false);
+                          }}
+                          className="inline-block text-xs text-accent hover:underline"
+                        >
+                          {notificationLinkLabel(n)} →
                         </Link>
                       )}
 
@@ -317,6 +335,10 @@ export function NotificationBell() {
                         n.type !== "change_request_expired" &&
                         n.type !== "change_request_expired_batch" &&
                         n.type !== "fixture_finished" &&
+                        n.type !== "badge_earned" &&
+                        n.type !== "challenge_pending" &&
+                        n.type !== "challenge_accepted" &&
+                        n.type !== "challenge_settled" &&
                         !n.read_at && (
                         <button
                           type="button"

@@ -188,6 +188,20 @@ async def update_my_bets_profile(
     if data.show_bet_amounts is not None:
         current_user.show_bet_amounts = data.show_bet_amounts
 
+    from app.services.audit import log_action
+
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="profile_visibility_changed",
+        detail={
+            "visibility": current_user.bets_profile_visibility,
+            "show_bet_amounts": current_user.show_bet_amounts,
+            "rotate_code": bool(data.rotate_code),
+        },
+        ip=request.client.host if request.client else None,
+    )
+
     await db.commit()
     await db.refresh(current_user)
 

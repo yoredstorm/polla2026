@@ -211,7 +211,9 @@ async def create_challenge(
             "challenge_id": str(ch.id),
             "fixture_id": str(fixture_id),
             "stake": stake_points,
+            "stake_points": stake_points,
             "challenged_username": challenged.username,
+            "challenged_id": str(challenged.id),
         },
         ip=ip,
     )
@@ -416,16 +418,21 @@ async def settle_challenges_for_fixture(db: AsyncSession, redis: aioredis.Redis 
         ch.settled_at = datetime.now(timezone.utc)
         settled += 1
 
+        challenger_u = await db.get(User, ch.challenger_id)
+        challenged_u = await db.get(User, ch.challenged_id)
         await log_action(
             db,
             user_id=None,
             action="challenge_settled",
             detail={
                 "challenge_id": str(ch.id),
+                "fixture_id": str(ch.fixture_id),
                 "winner_id": str(ch.winner_id) if ch.winner_id else None,
                 "challenger_points": c_pts,
                 "challenged_points": d_pts,
                 "stake": stake,
+                "challenger_username": challenger_u.username if challenger_u else None,
+                "challenged_username": challenged_u.username if challenged_u else None,
             },
             ip=None,
         )
@@ -647,3 +654,79 @@ async def search_challenge_opponents(
             }
         )
     return out
+
+
+async def get_h2h_stats(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    opponent_id: uuid.UUID,
+    *,
+    group_id: uuid.UUID | None = None,
+) -> dict:
+    """Head-to-head record between two users in settled challenges."""
+    group = await db.get(Group, group_id) if group_id else await _get_active_group(db)
+    if not group:
+        return {
+            "opponent_id": str(opponent_id),
+            "wins": 0,
+            "losses": 0,
+            "draws": 0,
+            "total_duels": 0,
+        }
+
+    res = await db.execute(
+        select(Challenge).where(
+            Challenge.group_id == group.id,
+            Challenge.status == "settled",
+            or_(
+                and_(Challenge.challenger_id == user_id, Challenge.challenged_id == opponent_id),
+                and_(Challenge.challenger_id == opponent_id, Challenge.challenged_id == user_id),
+            ),
+        )
+    )
+    wins = losses = draws = 0
+    for ch in res.scalars().all():
+        if ch.winner_id is None:
+            draws += 1
+        elif ch.winner_id == user_id:
+            wins += 1
+        else:
+            losses += 1
+    opp = await db.get(User, opponent_id)
+    return {
+        "opponent_id": str(opponent_id),
+        "opponent_username": opp.username if opp else None,
+        "wins": wins,
+        "losses": losses,
+        "draws": draws,
+        "total_duels": wins + losses + draws,
+    }
+
+
+async def get_primary_rival(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    group_id: uuid.UUID | None = None,
+) -> dict | None:
+    """Opponent with the most settled duels against the user."""
+    group = await db.get(Group, group_id) if group_id else await _get_active_group(db)
+    if not group:
+        return None
+
+    res = await db.execute(
+        select(Challenge).where(
+            Challenge.group_id == group.id,
+            Challenge.status == "settled",
+            or_(Challenge.challenger_id == user_id, Challenge.challenged_id == user_id),
+        )
+    )
+    counts: dict[uuid.UUID, int] = {}
+    for ch in res.scalars().all():
+        oid = ch.challenged_id if ch.challenger_id == user_id else ch.challenger_id
+        counts[oid] = counts.get(oid, 0) + 1
+    if not counts:
+        return None
+    opponent_id = max(counts, key=counts.get)  # type: ignore[arg-type]
+    h2h = await get_h2h_stats(db, user_id, opponent_id, group_id=group.id)
+    return {**h2h, "duels_together": counts[opponent_id]}

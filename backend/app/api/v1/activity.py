@@ -1,4 +1,6 @@
 """Recent activity feed for engagement."""
+import uuid
+
 from fastapi import APIRouter, Request, Query
 from sqlalchemy import select
 
@@ -11,9 +13,11 @@ router = APIRouter(prefix="/activity", tags=["Activity"])
 
 PUBLIC_ACTIONS = {
     "challenge_settled",
+    "challenge_created",
+    "challenge_accepted",
+    "challenge_rejected",
     "admin_settle",
     "bet_create",
-    "challenge_created",
     "bulk_copy",
 }
 
@@ -25,6 +29,7 @@ async def recent_activity(
     current_user: CurrentUser,
     db: DBSession,
     limit: int = Query(30, ge=1, le=50),
+    fixture_id: uuid.UUID | None = Query(None),
 ):
     q = (
         select(AuditLog)
@@ -32,6 +37,8 @@ async def recent_activity(
         .order_by(AuditLog.created_at.desc())
         .limit(limit)
     )
+    if fixture_id:
+        q = q.where(AuditLog.detail.contains(str(fixture_id)))
     rows = (await db.execute(q)).scalars().all()
     enriched = await enrich_audit_rows(db, rows)
     out = []

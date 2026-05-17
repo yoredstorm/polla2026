@@ -363,6 +363,12 @@ def build_change_request_auto_expired_admins_batch(
     return title, body, payload
 
 
+def build_badge_earned(*, badge_id: str, badge_label: str) -> tuple[str, str, dict[str, Any]]:
+    title = f"Nueva medalla: {badge_label}"
+    body = "Desbloqueaste una medalla. Revisa tu perfil y el catalogo en el dashboard."
+    return title, body, {"badge_id": badge_id, "badge_label": badge_label}
+
+
 def build_fixture_finished(
     *,
     fixture_id: str,

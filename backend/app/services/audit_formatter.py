@@ -35,6 +35,11 @@ ACTION_LABELS_ES: dict[str, str] = {
     "challenge_rejected": "Reto rechazado",
     "challenge_settled": "Reto liquidado",
     "challenge_points_transferred": "Transferencia de puntos (reto)",
+    "admin_member_removed": "Miembro eliminado",
+    "admin_patch_group": "Config polla actualizada",
+    "admin_repair_challenge_ranking": "Reparar ranking retos",
+    "profile_visibility_changed": "Privacidad de perfil",
+    "fixture_betting_closed_snapshot": "Cierre de apuestas (tendencia)",
 }
 
 
@@ -103,7 +108,15 @@ def _collect_ids(details: list[str | None]) -> tuple[set[uuid.UUID], set[uuid.UU
         d = _parse_detail(detail)
         add_uuid(fixture_ids, d.get("fixture_id"))
         add_uuid(group_ids, d.get("group_id"))
-        for key in ("user_id", "member_user_id", "bet_user_id", "source_user_id"):
+        for key in (
+            "user_id",
+            "member_user_id",
+            "bet_user_id",
+            "source_user_id",
+            "winner_id",
+            "challenger_id",
+            "challenged_id",
+        ):
             add_uuid(user_ids, d.get(key))
         add_uuid(bet_ids, d.get("bet_id"))
 
@@ -246,10 +259,79 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
 
     if action == "admin_settle":
         partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
-        return (
+        line = (
             f"{partido} · Resultado final {d.get('home_score', '?')}-{d.get('away_score', '?')} · "
             f"Apuestas liquidadas: {d.get('settled_count', 0)} · "
             f"Usuarios notificados: {d.get('notified_users_count', 0)}"
+        )
+        breakdown = d.get("user_breakdown")
+        if isinstance(breakdown, list) and breakdown:
+            bits = []
+            for row in breakdown[:8]:
+                if isinstance(row, dict):
+                    un = row.get("username") or "?"
+                    pts = row.get("points_earned", "?")
+                    bits.append(f"@{un}: {pts} pts")
+            if bits:
+                line += " · " + "; ".join(bits)
+                if len(breakdown) > 8:
+                    line += f" (+{len(breakdown) - 8} más)"
+        return line
+
+    if action == "challenge_created":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        rival = d.get("challenged_username") or ctx.user_label(d.get("challenged_id"))
+        return f"{partido} · Reto a @{rival or '?'} por {d.get('stake', d.get('stake_points', '?'))} pts"
+
+    if action == "challenge_accepted":
+        return f"Reto aceptado · Apuesta en juego: {d.get('stake', d.get('stake_points', '?'))} pts c/u"
+
+    if action == "challenge_rejected":
+        return "Reto rechazado por el retado"
+
+    if action == "challenge_settled":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        ganador = ctx.user_label(d.get("winner_id")) or "Empate"
+        if d.get("winner_id") is None and "winner_id" in d:
+            ganador = "Empate"
+        return (
+            f"{partido} · {ganador} · Marcador duelo {d.get('challenger_points', '?')}-"
+            f"{d.get('challenged_points', '?')} · Stake {d.get('stake', '?')} pts"
+        )
+
+    if action == "challenge_points_transferred":
+        return f"Transferencia de puntos del reto · Stake {d.get('stake', '?')} pts"
+
+    if action == "admin_member_removed":
+        polla = ctx.group_label(d.get("group_id")) or "Polla"
+        jugador = ctx.user_label(d.get("member_user_id")) or "Usuario"
+        return f"{polla} · Eliminado {jugador}"
+
+    if action == "admin_patch_group":
+        polla = ctx.group_label(d.get("group_id")) or "Polla"
+        changes = d.get("changes") or {}
+        if isinstance(changes, dict) and changes:
+            parts = [f"{k}: {v}" for k, v in list(changes.items())[:6]]
+            return f"{polla} · " + ", ".join(parts)
+        return f"{polla} · Configuracion actualizada"
+
+    if action == "admin_repair_challenge_ranking":
+        polla = ctx.group_label(d.get("group_id")) or "Polla"
+        return f"{polla} · Ranking reparado en {d.get('members_adjusted', 0)} miembro(s)"
+
+    if action == "profile_visibility_changed":
+        vis = "publico" if d.get("visibility") == "public" else "solo con codigo"
+        extra = " · Montos ocultos" if d.get("show_bet_amounts") is False else ""
+        if d.get("rotate_code"):
+            extra += " · Codigo rotado"
+        return f"Perfil {vis}{extra}"
+
+    if action == "fixture_betting_closed_snapshot":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        return (
+            f"{partido} · Tendencia al cierre: {d.get('total_bets', 0)} apuestas · "
+            f"Local {d.get('home_pct', 0)}% · Empate {d.get('draw_pct', 0)}% · "
+            f"Visitante {d.get('away_pct', 0)}%"
         )
 
     # Fallback: friendly key-value in Spanish

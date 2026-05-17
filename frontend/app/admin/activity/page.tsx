@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAuditLog, type AuditEntry } from "@/hooks/useAdmin";
+import { useAuditLog, type AuditEntry, downloadAuditLogCsv } from "@/hooks/useAdmin";
 import { cn } from "@/lib/utils";
 
 const ACTION_FILTERS: { value: string | undefined; label: string }[] = [
@@ -12,6 +12,11 @@ const ACTION_FILTERS: { value: string | undefined; label: string }[] = [
   { value: "bet_create", label: "Nueva apuesta" },
   { value: "bulk_copy", label: "Copia masiva" },
   { value: "bet_change_request", label: "Solicitud de cambio" },
+  { value: "challenge_created", label: "Reto creado" },
+  { value: "challenge_accepted", label: "Reto aceptado" },
+  { value: "challenge_rejected", label: "Reto rechazado" },
+  { value: "challenge_settled", label: "Reto liquidado" },
+  { value: "challenge_points_transferred", label: "Pts retos transferidos" },
   { value: "admin_confirm_entry", label: "Confirmar entrada" },
   { value: "admin_confirm_extra", label: "Confirmar extra" },
   { value: "admin_approve_change_request", label: "Aprobar solicitud" },
@@ -19,6 +24,11 @@ const ACTION_FILTERS: { value: string | undefined; label: string }[] = [
   { value: "change_request_auto_expired", label: "Solicitudes caducadas" },
   { value: "admin_edit_fixture", label: "Editar partido" },
   { value: "admin_settle", label: "Liquidar partido" },
+  { value: "admin_member_removed", label: "Miembro eliminado" },
+  { value: "admin_patch_group", label: "Editar polla" },
+  { value: "admin_repair_challenge_ranking", label: "Reparar ranking retos" },
+  { value: "profile_visibility_changed", label: "Privacidad perfil" },
+  { value: "fixture_betting_closed_snapshot", label: "Cierre apuestas (tendencia)" },
 ];
 
 const ACTION_COLORS: Record<string, string> = {
@@ -27,9 +37,13 @@ const ACTION_COLORS: Record<string, string> = {
   logout: "bg-gray-500/20 text-gray-400",
   change_password: "bg-yellow-500/20 text-yellow-400",
   bet_create: "bg-purple-500/20 text-purple-400",
-  bet_extra: "bg-purple-500/20 text-purple-400",
   bulk_copy: "bg-pink-500/20 text-pink-400",
   bet_change_request: "bg-cyan-500/20 text-cyan-400",
+  challenge_created: "bg-orange-500/20 text-orange-300",
+  challenge_accepted: "bg-emerald-500/20 text-emerald-300",
+  challenge_rejected: "bg-red-500/20 text-red-300",
+  challenge_settled: "bg-violet-500/20 text-violet-300",
+  challenge_points_transferred: "bg-violet-500/15 text-violet-200",
   admin_confirm_entry: "bg-emerald-500/20 text-emerald-400",
   admin_confirm_extra: "bg-emerald-500/20 text-emerald-400",
   admin_approve_change_request: "bg-emerald-500/20 text-emerald-400",
@@ -37,6 +51,11 @@ const ACTION_COLORS: Record<string, string> = {
   change_request_auto_expired: "bg-zinc-500/20 text-zinc-300",
   admin_edit_fixture: "bg-orange-500/20 text-orange-400",
   admin_settle: "bg-red-500/20 text-red-400",
+  admin_member_removed: "bg-red-500/15 text-red-300",
+  admin_patch_group: "bg-sky-500/20 text-sky-300",
+  admin_repair_challenge_ranking: "bg-amber-500/20 text-amber-300",
+  profile_visibility_changed: "bg-indigo-500/20 text-indigo-300",
+  fixture_betting_closed_snapshot: "bg-zinc-500/20 text-zinc-300",
 };
 
 function formatDate(iso: string) {
@@ -51,30 +70,75 @@ function formatDate(iso: string) {
   });
 }
 
-function DetailCell({ entry }: { entry: AuditEntry }) {
+function DetailCell({ entry, expanded, onToggle }: { entry: AuditEntry; expanded: boolean; onToggle: () => void }) {
   const summary = entry.detail_summary?.trim();
-  if (summary) {
-    return <p className="text-xs text-muted leading-relaxed">{summary}</p>;
-  }
-  if (!entry.detail) return <span className="text-muted">—</span>;
+  const hasRaw = !!entry.detail && entry.detail.length > 0;
+
   return (
-    <p className="text-xs text-muted/70 break-all font-mono line-clamp-2" title={entry.detail}>
-      {entry.detail}
-    </p>
+    <div className="space-y-1">
+      {summary ? (
+        <p className="text-xs text-muted leading-relaxed">{summary}</p>
+      ) : !hasRaw ? (
+        <span className="text-muted">—</span>
+      ) : null}
+      {hasRaw && (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="text-[10px] text-accent hover:underline"
+        >
+          {expanded ? "Ocultar JSON" : "Ver JSON"}
+        </button>
+      )}
+      {expanded && hasRaw && (
+        <pre className="text-[10px] text-muted/90 bg-black/30 rounded-lg p-2 overflow-x-auto max-h-40 font-mono whitespace-pre-wrap break-all">
+          {tryFormatJson(entry.detail!)}
+        </pre>
+      )}
+    </div>
   );
+}
+
+function tryFormatJson(raw: string) {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
 }
 
 export default function ActivityPage() {
   const [page, setPage] = useState(1);
   const [actionFilter, setActionFilter] = useState<string | undefined>(undefined);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const { data, isLoading } = useAuditLog(page, 50, actionFilter);
 
   const logs = data?.data ?? [];
   const pagination = data?.pagination;
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      await downloadAuditLogCsv(actionFilter);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <h2 className="font-display text-2xl text-accent">Registro de Actividad</h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="font-display text-2xl text-accent">Registro de Actividad</h2>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          className="px-3 py-1.5 rounded-lg text-xs border border-accent/40 text-accent hover:bg-accent/10 disabled:opacity-50"
+        >
+          {exporting ? "Exportando…" : "Exportar CSV"}
+        </button>
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {ACTION_FILTERS.map((f) => (
@@ -132,7 +196,13 @@ export default function ActivityPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 max-w-md">
-                    <DetailCell entry={entry} />
+                    <DetailCell
+                      entry={entry}
+                      expanded={expandedId === entry.id}
+                      onToggle={() =>
+                        setExpandedId((id) => (id === entry.id ? null : entry.id))
+                      }
+                    />
                   </td>
                   <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
                     {entry.ip_address ?? "—"}

@@ -34,7 +34,9 @@ async def _upsert_fixture(db: AsyncSession, data: dict) -> Fixture:
             setattr(fixture, key, val)
 
     if should_lock_fixture(fixture):
-        fixture.is_locked = True
+        from app.services.betting_close_service import close_fixture_betting_if_due
+
+        await close_fixture_betting_if_due(db, fixture)
 
     await db.flush()
     return fixture
@@ -107,6 +109,25 @@ async def list_fixtures(
 async def live_fixtures(request: Request, current_user: CurrentUser, db: DBSession):
     result = await db.execute(select(Fixture).where(Fixture.status == "live"))
     return [FixtureOut.model_validate(f) for f in result.scalars().all()]
+
+
+@router.get("/{fixture_id}/betting-trends")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def fixture_betting_trends(
+    request: Request,
+    fixture_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    from app.services.betting_trends_service import get_fixture_betting_trends
+
+    data = await get_fixture_betting_trends(db, fixture_id)
+    if not data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "FIXTURE_NOT_FOUND", "message": "Fixture not found"}},
+        )
+    return data
 
 
 @router.get("/{fixture_id}", response_model=FixtureOut)

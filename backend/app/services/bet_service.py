@@ -91,10 +91,11 @@ async def create_bet(
     if not fixture:
         raise ValueError("FIXTURE_NOT_FOUND")
 
-    # Auto-lock check
-    if should_lock_fixture(fixture) and not fixture.is_locked:
-        fixture.is_locked = True
-        await db.flush()
+    # Auto-lock check (closes betting + audit snapshot)
+    if should_lock_fixture(fixture) and (fixture.betting_open or not fixture.is_locked):
+        from app.services.betting_close_service import close_fixture_betting_if_due
+
+        await close_fixture_betting_if_due(db, fixture)
 
     if not is_fixture_bettable(fixture):
         raise ValueError("BET_LOCKED")

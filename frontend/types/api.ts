@@ -228,7 +228,11 @@ export type NotificationType =
   | "entry_pending"
   | "fixture_finished"
   | "change_request_expired"
-  | "change_request_expired_batch";
+  | "change_request_expired_batch"
+  | "badge_earned"
+  | "challenge_pending"
+  | "challenge_accepted"
+  | "challenge_settled";
 
 export interface NotificationPayload {
   request_id?: string;
@@ -245,6 +249,8 @@ export interface NotificationPayload {
   away_team?: string;
   home_score?: number;
   away_score?: number;
+  badge_id?: string;
+  badge_label?: string;
 }
 
 export interface Notification {

@@ -16,6 +16,7 @@ import { BadgeGrid } from "@/components/gamification/BadgeGrid";
 import { formatAmount } from "@/lib/utils";
 import type { BadgeOut } from "@/types/api";
 import { CopyProfileModal } from "@/components/betting/CopyProfileModal";
+import { FollowButton } from "@/components/social/FollowButton";
 import { CopyBetDetailModal } from "@/components/betting/CopyBetDetailModal";
 import type { Bet } from "@/types/api";
 
@@ -134,7 +135,10 @@ export default function UserPublicProfilePage() {
         ) : (
           <>
             <div className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 mb-6">
-              <h1 className="font-display text-3xl text-white">@{summary.username}</h1>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h1 className="font-display text-3xl text-white">@{summary.username}</h1>
+                {!isMe && <FollowButton username={summary.username} />}
+              </div>
               <p className="text-sm text-muted mt-2">
                 Visibilidad:{" "}
                 {summary.bets_profile_visibility === "public"
