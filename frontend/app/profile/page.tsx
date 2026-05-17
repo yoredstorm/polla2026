@@ -19,7 +19,12 @@ function BadgesSection() {
   const badges = data?.badges ?? [];
   return (
     <div className="rounded-xl border border-white/10 bg-glass p-4">
-      <h3 className="font-display text-lg text-white mb-3">Medallas</h3>
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h3 className="font-display text-lg text-white">Tus medallas</h3>
+        <Link href="/dashboard#medallas" className="text-xs text-accent hover:underline shrink-0">
+          Ver todas →
+        </Link>
+      </div>
       <BadgeGrid badges={badges} emptyLabel="Aún no tienes medallas. Apuesta, acierta y gana duelos." />
     </div>
   );

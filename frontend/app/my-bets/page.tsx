@@ -5,6 +5,7 @@ import { Navbar } from "@/components/ui/Navbar";
 import { BettingSlip } from "@/components/betting/BettingSlip";
 import { useMyBets, useMyChangeRequests, type ChangeRequest } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
+import { MyChallengesSection } from "@/components/betting/MyChallengesSection";
 
 export default function MyBetsPage() {
   const [page, setPage] = useState(1);
@@ -30,7 +31,7 @@ export default function MyBetsPage() {
           <div>
             <h1 className="font-display text-3xl text-white">Mis Apuestas</h1>
             <p className="text-sm text-muted mt-1">
-              Usa <span className="text-accent">"Copiar prediccion"</span> para reusar un marcador en otro partido.
+              Pronósticos y retos 1v1 con trazabilidad de puntos en el ranking.
             </p>
           </div>
           {polla && (
@@ -63,6 +64,8 @@ export default function MyBetsPage() {
           </div>
         )}
 
+        <h2 className="font-display text-xl text-white mb-4">Pronósticos</h2>
+
         {isLoading ? (
           <p className="text-muted text-center py-20">Cargando...</p>
         ) : data?.data.length === 0 ? (
@@ -93,6 +96,8 @@ export default function MyBetsPage() {
             )}
           </>
         )}
+
+        <MyChallengesSection />
       </main>
     </div>
   );

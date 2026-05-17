@@ -18,7 +18,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.core.config import settings
 from app.core.middlewares import SecurityHeadersMiddleware, RequestLoggingMiddleware
 from app.core.rate_limiter import limiter
-from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity
+from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges
 from app.db.session import get_redis
 from app.services.ws_manager import ws_manager
 
@@ -206,6 +206,7 @@ app.include_router(notifications.router, prefix=PREFIX)
 app.include_router(ws.router, prefix=PREFIX)
 app.include_router(challenges.router, prefix=PREFIX)
 app.include_router(activity.router, prefix=PREFIX)
+app.include_router(badges.router, prefix=PREFIX)
 
 
 @app.get("/health")

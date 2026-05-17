@@ -2,11 +2,12 @@
 import uuid
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
-from sqlalchemy import select, or_
+from sqlalchemy import select, or_, desc, nulls_last
 
 from app.api.deps import CurrentUser, DBSession, RedisClient
 from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
 from app.models.challenge import Challenge
+from app.models.fixture import Fixture
 from app.models.user import User
 from app.services.challenge_service import (
     create_challenge,
@@ -17,6 +18,8 @@ from app.services.challenge_service import (
     get_challenge_max_stake,
     effective_max_stake_for_user,
     max_stake_by_balance,
+    ranking_delta_for_user,
+    duel_result_for_user,
     MIN_STAKE,
 )
 
@@ -51,12 +54,26 @@ class ChallengeOut(BaseModel):
     created_at: str
     accepted_at: str | None
     settled_at: str | None
+    fixture_home_team: str | None = None
+    fixture_away_team: str | None = None
+    fixture_match_date: str | None = None
+    opponent_username: str | None = None
+    my_fixture_points: int | None = None
+    ranking_delta: int | None = None
+    duel_result: str | None = None
+    is_challenger: bool | None = None
 
     class Config:
         from_attributes = True
 
 
-def _map_challenge(ch: Challenge, users: dict[uuid.UUID, str]) -> ChallengeOut:
+def _map_challenge(
+    ch: Challenge,
+    users: dict[uuid.UUID, str],
+    *,
+    viewer_id: uuid.UUID | None = None,
+    fixture: Fixture | None = None,
+) -> ChallengeOut:
     return ChallengeOut(
         id=str(ch.id),
         fixture_id=str(ch.fixture_id),
@@ -73,6 +90,26 @@ def _map_challenge(ch: Challenge, users: dict[uuid.UUID, str]) -> ChallengeOut:
         created_at=ch.created_at.isoformat(),
         accepted_at=ch.accepted_at.isoformat() if ch.accepted_at else None,
         settled_at=ch.settled_at.isoformat() if ch.settled_at else None,
+        fixture_home_team=fixture.home_team if fixture else None,
+        fixture_away_team=fixture.away_team if fixture else None,
+        fixture_match_date=fixture.match_date.isoformat() if fixture and fixture.match_date else None,
+        opponent_username=(
+            users.get(ch.challenged_id)
+            if viewer_id == ch.challenger_id
+            else users.get(ch.challenger_id)
+            if viewer_id
+            else None
+        ),
+        my_fixture_points=(
+            ch.challenger_fixture_points
+            if viewer_id == ch.challenger_id
+            else ch.challenged_fixture_points
+            if viewer_id == ch.challenged_id
+            else None
+        ),
+        ranking_delta=ranking_delta_for_user(ch, viewer_id) if viewer_id else None,
+        duel_result=duel_result_for_user(ch, viewer_id) if viewer_id else None,
+        is_challenger=viewer_id == ch.challenger_id if viewer_id else None,
     )
 
 
@@ -204,16 +241,30 @@ async def list_my_challenges(request: Request, current_user: CurrentUser, db: DB
         .where(
             or_(Challenge.challenger_id == current_user.id, Challenge.challenged_id == current_user.id)
         )
-        .order_by(Challenge.created_at.desc())
-        .limit(50)
+        .order_by(nulls_last(desc(Challenge.settled_at)), Challenge.created_at.desc())
+        .limit(100)
     )
     rows = res.scalars().all()
     ids: set[uuid.UUID] = set()
+    fixture_ids: set[uuid.UUID] = set()
     for ch in rows:
         ids.add(ch.challenger_id)
         ids.add(ch.challenged_id)
+        fixture_ids.add(ch.fixture_id)
     users = await _usernames(db, *ids)
-    return [_map_challenge(ch, users) for ch in rows]
+    fixtures: dict[uuid.UUID, Fixture] = {}
+    if fixture_ids:
+        fx = await db.execute(select(Fixture).where(Fixture.id.in_(fixture_ids)))
+        fixtures = {f.id: f for f in fx.scalars().all()}
+    return [
+        _map_challenge(
+            ch,
+            users,
+            viewer_id=current_user.id,
+            fixture=fixtures.get(ch.fixture_id),
+        )
+        for ch in rows
+    ]
 
 
 @router.get("/fixture/{fixture_id}", response_model=list[ChallengeOut])

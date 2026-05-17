@@ -505,6 +505,46 @@ async def repair_settled_challenge_loser_points(db: AsyncSession, group_id: uuid
     return repaired
 
 
+def ranking_delta_for_user(ch: Challenge, user_id: uuid.UUID) -> int | None:
+    """
+    Net ranking points gained/lost from this duel vs state before accept.
+    None if not yet settled (or no point movement to show).
+    """
+    if ch.status == "rejected" or ch.status == "cancelled":
+        return 0
+    if ch.status not in ("settled",):
+        return None
+
+    stake = ch.stake_points
+    is_challenger = ch.challenger_id == user_id
+    my_pts = ch.challenger_fixture_points if is_challenger else ch.challenged_fixture_points
+    my_pts = int(my_pts or 0)
+
+    if ch.winner_id == user_id:
+        return stake + my_pts
+    if ch.winner_id is None:
+        return my_pts
+    return -(stake + my_pts)
+
+
+def duel_result_for_user(ch: Challenge, user_id: uuid.UUID) -> str:
+    if ch.status == "pending_accept":
+        return "pending"
+    if ch.status == "active":
+        return "active"
+    if ch.status == "rejected":
+        return "rejected"
+    if ch.status == "cancelled":
+        return "cancelled"
+    if ch.status != "settled":
+        return ch.status
+    if ch.winner_id == user_id:
+        return "won"
+    if ch.winner_id is None:
+        return "draw"
+    return "lost"
+
+
 async def compute_challenge_stats(
     db: AsyncSession, user_id: uuid.UUID, group_id: uuid.UUID
 ) -> dict[str, int]:

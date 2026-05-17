@@ -1,11 +1,86 @@
 """Compute user badges from bet history and challenges."""
 import uuid
+from typing import Literal
+
 from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bet import Bet
 from app.models.fixture import Fixture
 from app.models.challenge import Challenge
+
+BadgeCategory = Literal["bets", "challenges", "ranking"]
+
+# Single source of truth for UI catalog and copy
+BADGE_CATALOG: list[dict] = [
+    {
+        "id": "oracle",
+        "label": "Oraculo",
+        "description": "3 marcadores exactos seguidos",
+        "category": "bets",
+        "hint": "Apuesta al resultado exacto varias veces seguidas",
+    },
+    {
+        "id": "invicto",
+        "label": "Invicto",
+        "description": "5 partidos seguidos sumando puntos (1 o 2 pts)",
+        "category": "bets",
+        "hint": "No falles el ganador ni el marcador en 5 partidos seguidos",
+    },
+    {
+        "id": "madrugador",
+        "label": "Madrugador",
+        "description": "5+ apuestas con mas de 24h de anticipacion",
+        "category": "bets",
+        "hint": "Registra tus pronosticos con tiempo",
+    },
+    {
+        "id": "snaiper",
+        "label": "Snaiper",
+        "description": "10 marcadores exactos en el torneo",
+        "category": "bets",
+        "hint": "Acumula aciertos exactos a lo largo del mundial",
+    },
+    {
+        "id": "relampago",
+        "label": "Relampago",
+        "description": "5+ apuestas en la ultima hora antes del partido",
+        "category": "bets",
+        "hint": "Apuesta justo antes del pitido inicial",
+    },
+    {
+        "id": "hat_trick",
+        "label": "Hat-trick",
+        "description": "3 duelos 1v1 ganados seguidos",
+        "category": "challenges",
+        "hint": "Gana tres retos consecutivos en Te reto",
+    },
+    {
+        "id": "challenge_king",
+        "label": "Rey del duelo",
+        "description": "3 victorias seguidas o 5+ victorias totales en retos",
+        "category": "challenges",
+        "hint": "Domina los duelos contra otros jugadores",
+    },
+    {
+        "id": "challenge_cursed",
+        "label": "Marca del rival",
+        "description": "3 duelos perdidos seguidos",
+        "category": "challenges",
+        "hint": "Medalla ironica por una mala racha en retos",
+    },
+    {
+        "id": "podium",
+        "label": "Podio",
+        "description": "Top 1, 2 o 3 del ranking de la polla activa",
+        "category": "ranking",
+        "hint": "Sube en el ranking global del torneo",
+    },
+]
+
+
+def get_badge_catalog() -> list[dict]:
+    return list(BADGE_CATALOG)
 
 
 async def compute_badges(

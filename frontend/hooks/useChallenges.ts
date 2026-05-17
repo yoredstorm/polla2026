@@ -16,6 +16,16 @@ export interface Challenge {
   challenger_fixture_points?: number | null;
   challenged_fixture_points?: number | null;
   created_at: string;
+  accepted_at?: string | null;
+  settled_at?: string | null;
+  fixture_home_team?: string | null;
+  fixture_away_team?: string | null;
+  fixture_match_date?: string | null;
+  opponent_username?: string | null;
+  my_fixture_points?: number | null;
+  ranking_delta?: number | null;
+  duel_result?: string | null;
+  is_challenger?: boolean | null;
 }
 
 export interface ChallengeOpponent {

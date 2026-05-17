@@ -9,6 +9,7 @@ import { useActivePolla } from "@/hooks/useGroups";
 import { useAuth } from "@/hooks/useAuth";
 import { useAnimatedPrizePool, parsePrizePool } from "@/hooks/useAnimatedPrizePool";
 import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
+import { BadgeCatalogSection } from "@/components/gamification/BadgeCatalogSection";
 import { cn, formatCountdown } from "@/lib/utils";
 
 function PiggyBankIcon({ className }: { className?: string }) {
@@ -245,6 +246,8 @@ export default function DashboardPage() {
             </section>
           </div>
         </div>
+
+        <BadgeCatalogSection />
       </main>
     </div>
   );
