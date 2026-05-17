@@ -41,7 +41,7 @@ export default function RegisterPage() {
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-8 space-y-5">
           {[
-            { name: "username" as const, label: "Usuario", type: "text", placeholder: "mi_usuario" },
+            { name: "username" as const, label: "Usuario", type: "text", placeholder: "mi usuario" },
             { name: "password" as const, label: "Contraseña", type: "password", placeholder: "Mínimo 8 caracteres" },
             { name: "confirmPassword" as const, label: "Confirmar Contraseña", type: "password", placeholder: "Repite tu contraseña" },
           ].map((field) => (

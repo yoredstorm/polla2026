@@ -50,7 +50,7 @@ function LoginForm() {
             type="text"
             autoComplete="username"
             className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
-            placeholder="tu_usuario"
+            placeholder="tu usuario"
           />
           {errors.username && <p className="text-danger text-xs mt-1">{errors.username.message}</p>}
         </div>
