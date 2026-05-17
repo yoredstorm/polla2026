@@ -164,7 +164,7 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
             }}
             onFocus={() => setShowSuggestions(true)}
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
-            placeholder="ej. lcamacho"
+            placeholder="ej. ppimentel"
             autoComplete="off"
           />
           {showSuggestions && opponents && opponents.length > 0 && (
