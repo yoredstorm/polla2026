@@ -21,6 +21,7 @@ function CreatePollaForm() {
   const [entry, setEntry] = useState("20");
   const [currency, setCurrency] = useState("PEN");
   const [extra, setExtra] = useState("");
+  const [maxStake, setMaxStake] = useState("5");
   const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
@@ -33,6 +34,7 @@ function CreatePollaForm() {
         entry_fee: parseFloat(entry) || 0,
         currency,
         per_match_amount: extra ? parseFloat(extra) : undefined,
+        challenge_max_stake: Math.max(1, Math.min(20, parseInt(maxStake, 10) || 5)),
       });
     } catch (e: any) {
       setError(e?.detail || "Error al crear la polla.");
@@ -79,6 +81,20 @@ function CreatePollaForm() {
             Participantes pueden agregar este monto al apostar; el admin confirma el pago.
           </p>
         </div>
+        <div>
+          <label className="text-sm text-muted mb-1 block">Máximo pts por duelo (Te reto)</label>
+          <input
+            type="number"
+            min={1}
+            max={20}
+            value={maxStake}
+            onChange={(e) => setMaxStake(e.target.value)}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-accent"
+          />
+          <p className="text-xs text-muted mt-1">
+            Evita transferencias de puntos entre amigos; además cada jugador solo puede apostar hasta el 50% de sus puntos disponibles.
+          </p>
+        </div>
         {error && <p className="text-danger text-xs">{error}</p>}
         <button type="submit" disabled={create.isPending}
           className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim disabled:opacity-50 transition-colors">
@@ -96,11 +112,19 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
   const [formEntry, setFormEntry] = useState(polla.entry_fee);
   const [formExtra, setFormExtra] = useState(polla.fixed_bet_amount ?? "");
   const [formCurrency, setFormCurrency] = useState(polla.currency ?? "PEN");
+  const [formMaxStake, setFormMaxStake] = useState(String(polla.challenge_max_stake ?? 10));
 
   function save() {
     const extraVal = formExtra ? parseFloat(formExtra) : 0;
     patch.mutate(
-      { groupId: polla.id, entry_fee: parseFloat(formEntry) || 0, currency: formCurrency, bet_amount_mode: "single_entry", fixed_bet_amount: extraVal },
+      {
+        groupId: polla.id,
+        entry_fee: parseFloat(formEntry) || 0,
+        currency: formCurrency,
+        bet_amount_mode: "single_entry",
+        fixed_bet_amount: extraVal,
+        challenge_max_stake: Math.max(1, Math.min(20, parseInt(formMaxStake, 10) || 10)),
+      },
       { onSuccess: () => { setEditing(false); onSaved(); } },
     );
   }
@@ -153,6 +177,10 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
               <p className="text-sm text-muted">No configurado</p>
             )}
           </div>
+          <div className="col-span-2">
+            <p className="text-xs text-muted uppercase tracking-wide mb-1">Máximo pts por duelo</p>
+            <p className="text-lg font-bold text-white">{polla.challenge_max_stake ?? 10} pts</p>
+          </div>
         </div>
       ) : (
         <div className="space-y-3 pt-2 border-t border-white/10">
@@ -172,6 +200,17 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
                 <option value="ARS">ARS</option>
               </select>
             </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted mb-1 block">Máximo pts por duelo (1–20)</label>
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={formMaxStake}
+              onChange={(e) => setFormMaxStake(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent"
+            />
           </div>
           <div>
             <label className="text-xs text-muted mb-1 block">Extra opcional por partido (0 = desactivado)</label>

@@ -38,6 +38,78 @@ async def publish_to_user(redis: aioredis.Redis, user_id: uuid.UUID, event: dict
     )
 
 
+async def broadcast_event(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    event: dict[str, Any],
+) -> None:
+    """Push a lightweight WS event to all active users (no notification row)."""
+    if not redis:
+        return
+    result = await db.execute(select(User.id).where(User.is_active == True))  # noqa: E712
+    for (uid,) in result.all():
+        await publish_to_user(redis, uid, event)
+
+
+async def broadcast_polla_updated(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    group_id: uuid.UUID,
+    prize_pool: Any,
+    previous_prize_pool: Any,
+    member_count: int,
+    reason: str,
+) -> None:
+    from decimal import Decimal
+
+    prev = Decimal(str(previous_prize_pool))
+    curr = Decimal(str(prize_pool))
+    await broadcast_event(
+        db,
+        redis,
+        {
+            "type": "polla_updated",
+            "data": {
+                "group_id": str(group_id),
+                "prize_pool": str(curr),
+                "previous_prize_pool": str(prev),
+                "member_count": member_count,
+                "delta": str(curr - prev),
+                "reason": reason,
+            },
+        },
+    )
+
+
+async def broadcast_fixture_updated(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    fixture_id: uuid.UUID,
+    status: str,
+    home_score: int | None,
+    away_score: int | None,
+    home_team: str,
+    away_team: str,
+) -> None:
+    await broadcast_event(
+        db,
+        redis,
+        {
+            "type": "fixture_updated",
+            "data": {
+                "fixture_id": str(fixture_id),
+                "status": status,
+                "home_score": home_score,
+                "away_score": away_score,
+                "home_team": home_team,
+                "away_team": away_team,
+            },
+        },
+    )
+
+
 async def create_notification(
     db: AsyncSession,
     redis: aioredis.Redis | None,

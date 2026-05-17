@@ -26,7 +26,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
-            "img-src 'self' data: https://media.api-sports.io https://media-2.api-sports.io; "
+            "img-src 'self' data: https://flagcdn.com; "
             "script-src 'self'; "
             "style-src 'self' 'unsafe-inline';"
         )

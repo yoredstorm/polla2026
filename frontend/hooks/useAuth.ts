@@ -24,12 +24,22 @@ export function useAuth() {
   }, [me, isLoading]);
 
   const loginMutation = useMutation({
-    mutationFn: ({ username, password }: { username: string; password: string }) =>
-      login(username, password),
-    onSuccess: (data: any) => {
+    mutationFn: ({
+      username,
+      password,
+    }: {
+      username: string;
+      password: string;
+      redirectTo?: string;
+    }) => login(username, password),
+    onSuccess: (data: any, variables) => {
       if (data?.user) setUser(data.user);
       queryClient.invalidateQueries({ queryKey: ["me"] });
-      router.push("/dashboard");
+      const target =
+        variables.redirectTo && variables.redirectTo.startsWith("/") && !variables.redirectTo.startsWith("//")
+          ? variables.redirectTo
+          : "/dashboard";
+      router.push(target);
     },
   });
 

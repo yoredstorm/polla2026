@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/register"];
+/** Rutas accesibles sin sesión */
+const UNAUTH_ALLOWED_PREFIXES = ["/login", "/register", "/u/"];
+/** Si ya hay sesión, no volver a login/registro */
+const AUTH_ENTRY_PREFIXES = ["/login", "/register"];
 
 function apiBaseFromRequest(request: NextRequest): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
@@ -12,16 +15,17 @@ function apiBaseFromRequest(request: NextRequest): string {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isPublicRoute = PUBLIC_ROUTES.some((r) => pathname.startsWith(r));
+  const allowsAnonymous = UNAUTH_ALLOWED_PREFIXES.some((r) => pathname.startsWith(r));
+  const isAuthEntry = AUTH_ENTRY_PREFIXES.some((r) => pathname.startsWith(r));
   const accessToken = request.cookies.get("access_token")?.value;
 
-  if (!accessToken && !isPublicRoute) {
+  if (!accessToken && !allowsAnonymous) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("callbackUrl", pathname);
     return NextResponse.redirect(loginUrl);
   }
 
-  if (accessToken && isPublicRoute) {
+  if (accessToken && isAuthEntry) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 

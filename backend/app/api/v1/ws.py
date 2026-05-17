@@ -50,7 +50,9 @@ async def notifications_ws(websocket: WebSocket):
 
     try:
         while True:
-            await websocket.receive_text()
+            raw = await websocket.receive_text()
+            if raw.strip() == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
     except WebSocketDisconnect:
         pass
     finally:

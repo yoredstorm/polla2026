@@ -1,15 +1,16 @@
 "use client";
 import type { QueryClient } from "@tanstack/react-query";
 import { getApiBase } from "@/lib/api";
+import {
+  handleRealtimeMessage,
+  softInvalidateOnReconnect,
+  type WsEvent,
+} from "@/lib/realtimeSync";
+import { ensureFreshSession } from "@/lib/api";
 
 function getWsUrl(): string {
   return getApiBase().replace(/^http/, "ws") + "/api/v1/ws/notifications";
 }
-
-type WsMessage =
-  | { type: "snapshot"; unread_count: number }
-  | { type: "unread_count"; count: number }
-  | { type: "notification"; data: { title: string; body: string; type: string } };
 
 /** Admin inbox items — update the bell badge, no popup toast (avoids duplicate with form success). */
 const SILENT_NOTIFICATION_TYPES = new Set([
@@ -24,6 +25,9 @@ const TOAST_DEDUPE_MS = 4000;
 
 /** WebSocket close code when access cookie is missing or invalid. */
 const WS_CLOSE_UNAUTHORIZED = 4401;
+
+const PING_INTERVAL_MS = 25_000;
+const PONG_TIMEOUT_MS = 10_000;
 
 function shouldShowNotificationToast(notificationType: string, title: string): boolean {
   if (SILENT_NOTIFICATION_TYPES.has(notificationType)) {
@@ -41,19 +45,53 @@ function shouldShowNotificationToast(notificationType: string, title: string): b
 
 let socket: WebSocket | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let pingTimer: ReturnType<typeof setInterval> | null = null;
+let pongTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 1000;
 let listeners = 0;
 let onConnected: (() => void) | null = null;
 let onDisconnected: (() => void) | null = null;
+let onStale: (() => void) | null = null;
+let lastMessageAt = Date.now();
 /** After 4401, stop reconnect loop until a new connectNotificationsWs session. */
 let stopReconnectUntilNewSession = false;
 
 export function setNotificationWsCallbacks(cb: {
   onConnected?: () => void;
   onDisconnected?: () => void;
+  onStale?: () => void;
 }) {
   onConnected = cb.onConnected ?? null;
   onDisconnected = cb.onDisconnected ?? null;
+  onStale = cb.onStale ?? null;
+}
+
+function clearPingTimers() {
+  if (pingTimer) {
+    clearInterval(pingTimer);
+    pingTimer = null;
+  }
+  if (pongTimer) {
+    clearTimeout(pongTimer);
+    pongTimer = null;
+  }
+}
+
+function schedulePongTimeout() {
+  if (pongTimer) clearTimeout(pongTimer);
+  pongTimer = setTimeout(() => {
+    socket?.close();
+  }, PONG_TIMEOUT_MS);
+}
+
+function startPingLoop() {
+  clearPingTimers();
+  pingTimer = setInterval(() => {
+    if (socket?.readyState === WebSocket.OPEN) {
+      socket.send("ping");
+      schedulePongTimeout();
+    }
+  }, PING_INTERVAL_MS);
 }
 
 export function connectNotificationsWs(
@@ -69,42 +107,51 @@ export function connectNotificationsWs(
 
   function scheduleReconnect() {
     if (stopReconnectUntilNewSession || listeners <= 0) return;
+    const jitter = Math.random() * 500;
     reconnectTimer = setTimeout(() => {
       reconnectDelay = Math.min(reconnectDelay * 2, 30000);
       connect();
-    }, reconnectDelay);
+    }, reconnectDelay + jitter);
   }
 
   function connect() {
     socket = new WebSocket(getWsUrl());
 
-    socket.onopen = () => {
+    socket.onopen = async () => {
       reconnectDelay = 1000;
       stopReconnectUntilNewSession = false;
+      lastMessageAt = Date.now();
+      startPingLoop();
       onConnected?.();
-    };
-
-    socket.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data) as WsMessage;
-        if (msg.type === "unread_count") {
-          queryClient.setQueryData(["notifications", "unread-count"], { count: msg.count });
-        } else if (msg.type === "snapshot") {
-          queryClient.setQueryData(["notifications", "unread-count"], { count: msg.unread_count });
-        } else if (msg.type === "notification") {
-          queryClient.invalidateQueries({ queryKey: ["notifications"] });
-          queryClient.invalidateQueries({ queryKey: ["notifications", "unread-count"] });
-          queryClient.invalidateQueries({ queryKey: ["fixtures"] });
-          if (shouldShowNotificationToast(msg.data.type, msg.data.title)) {
-            showToast(msg.data.title, "info");
-          }
-        }
-      } catch {
-        // ignore malformed messages
+      if (await ensureFreshSession()) {
+        softInvalidateOnReconnect(queryClient);
       }
     };
 
+    socket.onmessage = (ev) => {
+      lastMessageAt = Date.now();
+      void (async () => {
+        try {
+          const msg = JSON.parse(ev.data) as WsEvent;
+          if (msg.type === "pong") {
+            if (pongTimer) clearTimeout(pongTimer);
+            return;
+          }
+          await handleRealtimeMessage(queryClient, msg);
+          if (msg.type === "notification" && shouldShowNotificationToast(msg.data.type, msg.data.title)) {
+            showToast(msg.data.title, "info");
+          }
+          if (msg.type === "polla_updated" && msg.data.reason === "entry_confirmed") {
+            showToast("El pozo global ha crecido", "info");
+          }
+        } catch {
+          // ignore malformed messages
+        }
+      })();
+    };
+
     socket.onclose = (ev) => {
+      clearPingTimers();
       onDisconnected?.();
       if (ev.code === WS_CLOSE_UNAUTHORIZED) {
         stopReconnectUntilNewSession = true;
@@ -120,12 +167,26 @@ export function connectNotificationsWs(
 
   connect();
 
-  return disconnectNotificationsWs;
+  const staleCheck = setInterval(() => {
+    if (socket?.readyState === WebSocket.OPEN && Date.now() - lastMessageAt > 45_000) {
+      onStale?.();
+      void ensureFreshSession().then((ok) => {
+        if (ok) softInvalidateOnReconnect(queryClient);
+      });
+      lastMessageAt = Date.now();
+    }
+  }, 15_000);
+
+  return () => {
+    clearInterval(staleCheck);
+    disconnectNotificationsWs();
+  };
 }
 
 export function disconnectNotificationsWs() {
   listeners = Math.max(0, listeners - 1);
   if (listeners > 0) return;
+  clearPingTimers();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

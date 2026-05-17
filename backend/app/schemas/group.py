@@ -62,6 +62,12 @@ class GroupMemberOut(BaseModel):
     total_amount_bet: Decimal
 
 
+class BadgeOut(BaseModel):
+    id: str
+    label: str
+    description: str
+
+
 class LeaderboardEntry(BaseModel):
     position: int
     user_id: uuid.UUID
@@ -76,6 +82,14 @@ class LeaderboardEntry(BaseModel):
     wager_count: int = 0
     show_bet_amounts: bool = True
     total_wagered: Decimal = Decimal("0")
+    bet_points: int = 0
+    challenge_pts_won: int = 0
+    challenge_pts_lost: int = 0
+    challenge_pts_net: int = 0
+    challenges_won: int = 0
+    challenges_lost: int = 0
+    challenges_active: int = 0
+    badges: list[BadgeOut] = []
 
 
 class GroupFixtureStandingEntry(BaseModel):

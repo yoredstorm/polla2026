@@ -12,6 +12,7 @@ from sqlalchemy import select, and_, func
 from app.models.bet import Bet
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember
+from app.services.challenge_service import user_has_active_challenge_on_fixture
 from app.schemas.bet import BetCreate
 import structlog
 
@@ -195,11 +196,23 @@ async def settle_fixture_bets(db: AsyncSession, fixture: Fixture) -> int:
             fixture.away_score,
         )
         bet.points_earned = pts
-        # Update group member points if applicable
-        if bet.group_id:
+        # Free bets (group_id NULL) still count for the active polla ranking.
+        target_group_id = bet.group_id
+        if not target_group_id:
+            polla_res = await db.execute(
+                select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+            )
+            polla = polla_res.scalar_one_or_none()
+            if polla:
+                target_group_id = polla.id
+        if target_group_id:
+            # With an active reto, fixture pts only decide the duel; ranking updates on challenge settle.
+            if await user_has_active_challenge_on_fixture(db, bet.user_id, fixture.id):
+                settled += 1
+                continue
             member_result = await db.execute(
                 select(GroupMember).where(
-                    and_(GroupMember.group_id == bet.group_id, GroupMember.user_id == bet.user_id)
+                    and_(GroupMember.group_id == target_group_id, GroupMember.user_id == bet.user_id)
                 )
             )
             member = member_result.scalar_one_or_none()

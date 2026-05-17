@@ -16,6 +16,7 @@ export function useFixtures(filters: FixtureFilter = {}) {
       limit: filters.limit || 20,
     }),
     staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 

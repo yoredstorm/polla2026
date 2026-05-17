@@ -16,6 +16,7 @@ export function useGlobalLeaderboard(
     queryFn: () =>
       api.get<LeaderboardEntry[]>("/leaderboard/global", { page, limit, sort, min_bets }),
     staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: true,
   });
 }
 

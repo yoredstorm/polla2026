@@ -1,21 +1,36 @@
 "use client";
+import { useState } from "react";
 import { useParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { TeamAvatar } from "@/components/betting/TeamAvatar";
 import { Navbar } from "@/components/ui/Navbar";
 import { BetForm } from "@/components/betting/BetForm";
 import { BettingSlip } from "@/components/betting/BettingSlip";
+import { ChallengeModal } from "@/components/betting/ChallengeModal";
+import { ChallengeCard } from "@/components/betting/ChallengeCard";
+import { useToast } from "@/components/ui/Toast";
+import { getApiErrorMessage } from "@/lib/challengeUtils";
 import { useFixture } from "@/hooks/useFixtures";
 import { useMyBetsForFixture } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
 import { useGroupFixtureStandings } from "@/hooks/useGroups";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  useFixtureChallenges,
+  useAcceptChallenge,
+  useRejectChallenge,
+} from "@/hooks/useChallenges";
 import { formatMatchDate, getStatusLabel, formatAmount, cn } from "@/lib/utils";
 
 export default function FixtureDetailPage() {
   const params = useParams();
   const fixtureId = params.fixtureId as string;
   const { user } = useAuth();
+  const [challengeOpen, setChallengeOpen] = useState(false);
+  const { data: challenges } = useFixtureChallenges(fixtureId);
+  const acceptChallenge = useAcceptChallenge();
+  const rejectChallenge = useRejectChallenge();
+  const toast = useToast((s) => s.add);
 
   const { data: fixture, isLoading } = useFixture(fixtureId);
   const { data: myBets } = useMyBetsForFixture(fixtureId);
@@ -37,9 +52,11 @@ export default function FixtureDetailPage() {
 
   const topThree = standings?.slice(0, 3) ?? [];
   const rest = standings?.slice(3) ?? [];
+  const primaryBet = myBets?.[0];
+  const hasBet = (myBets?.length ?? 0) > 0;
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen page-with-mobile-nav">
       <Navbar />
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-8 mb-6">
@@ -68,6 +85,66 @@ export default function FixtureDetailPage() {
             </div>
           </div>
         </div>
+
+        {fixture.status === "finished" && primaryBet && (
+          <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 mb-6">
+            <h2 className="font-display text-lg text-white mb-2">Tu resultado</h2>
+            <p className="text-sm text-muted">
+              Predijiste {primaryBet.predicted_home_score}–{primaryBet.predicted_away_score} · Final{" "}
+              {fixture.home_score}–{fixture.away_score}
+            </p>
+            <p className="font-display text-3xl text-accent mt-2">{primaryBet.points_earned ?? 0} pts</p>
+          </section>
+        )}
+
+        {fixture.status === "scheduled" &&
+          !fixture.is_locked &&
+          fixture.betting_open &&
+          polla?.is_member && (
+          <section className="mb-6">
+            {hasBet ? (
+              <button
+                type="button"
+                onClick={() => setChallengeOpen(true)}
+                className="px-4 py-2 rounded-xl border border-accent/50 text-accent text-sm font-bold hover:bg-accent/10"
+              >
+                Te reto
+              </button>
+            ) : (
+              <p className="text-sm text-muted">Haz tu pronostico para poder retar a otro jugador.</p>
+            )}
+          </section>
+        )}
+
+        {challenges && challenges.length > 0 && (
+          <section className="mb-6 space-y-3">
+            <h3 className="font-display text-lg text-white">Duelos</h3>
+            {challenges.map((ch) => (
+              <ChallengeCard
+                key={ch.id}
+                challenge={ch}
+                currentUserId={user?.id}
+                hasBet={hasBet}
+                acceptPending={acceptChallenge.isPending}
+                rejectPending={rejectChallenge.isPending}
+                onAccept={() =>
+                  acceptChallenge.mutate(ch.id, {
+                    onSuccess: () => toast("Reto aceptado — duelo en juego", "success"),
+                    onError: (err) => toast(getApiErrorMessage(err, "No se pudo aceptar el reto"), "error"),
+                  })
+                }
+                onReject={() =>
+                  rejectChallenge.mutate(ch.id, {
+                    onSuccess: () => toast("Reto rechazado", "info"),
+                    onError: (err) => toast(getApiErrorMessage(err, "No se pudo rechazar"), "error"),
+                  })
+                }
+              />
+            ))}
+          </section>
+        )}
+
+        <ChallengeModal fixtureId={fixtureId} open={challengeOpen} onClose={() => setChallengeOpen(false)} />
 
         {fixture.status === "finished" && polla && (
           <section className="rounded-2xl border border-accent/25 bg-gradient-to-b from-accent/10 via-white/[0.04] to-transparent p-6 mb-6 overflow-hidden">

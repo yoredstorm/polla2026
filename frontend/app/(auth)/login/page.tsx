@@ -22,12 +22,17 @@ function LoginForm() {
   const { login } = useAuth();
   const searchParams = useSearchParams();
   const inactivityLogout = searchParams.get("reason") === "inactivity";
+  const callbackUrl = searchParams.get("callbackUrl");
   const { register, handleSubmit, formState: { errors } } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
   });
 
   function onSubmit(values: LoginValues) {
-    login.mutate({ username: values.username, password: values.password });
+    login.mutate({
+      username: values.username,
+      password: values.password,
+      redirectTo: callbackUrl ?? undefined,
+    });
   }
 
   return (

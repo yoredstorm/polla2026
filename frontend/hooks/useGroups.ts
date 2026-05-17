@@ -7,7 +7,9 @@ export function useActivePolla() {
   return useQuery({
     queryKey: ["pool", "active"],
     queryFn: () => api.get<ActivePolla | null>("/groups/pool/active"),
-    staleTime: 30_000,
+    staleTime: 5_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
     retry: false,
   });
 }

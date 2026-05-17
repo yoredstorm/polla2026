@@ -23,6 +23,7 @@ from app.schemas.group import (
 )
 from app.schemas.bet import BetOut, BetWithUserOut
 from app.services.group_service import create_group, join_group, get_group_leaderboard
+from app.services.bet_service import calculate_prize_distribution
 
 from decimal import Decimal
 from pydantic import BaseModel
@@ -75,6 +76,57 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         per_match_amount=per_match,
         is_member=is_member,
         member_count=member_count,
+    )
+
+
+class WinnerEntry(BaseModel):
+    position: int
+    user_id: str
+    username: str
+    total_points: int
+    prize_amount: str
+
+
+class WinnersOut(BaseModel):
+    group_id: str
+    group_name: str
+    prize_pool: str
+    currency: str
+    winners: list[WinnerEntry]
+
+
+@router.get("/pool/active/winners", response_model=WinnersOut | None)
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_active_polla_winners(request: Request, current_user: CurrentUser, db: DBSession):
+    result = await db.execute(
+        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+    )
+    group = result.scalar_one_or_none()
+    if not group:
+        return None
+
+    leaderboard = await get_group_leaderboard(db, group.id, sort="points", min_bets=1)
+    distribution = calculate_prize_distribution(group.prize_pool)
+    winners: list[WinnerEntry] = []
+    for entry in leaderboard[:3]:
+        pos = entry.position
+        if pos not in distribution:
+            continue
+        winners.append(
+            WinnerEntry(
+                position=pos,
+                user_id=str(entry.user_id),
+                username=entry.username,
+                total_points=entry.total_points,
+                prize_amount=str(distribution[pos]),
+            )
+        )
+    return WinnersOut(
+        group_id=str(group.id),
+        group_name=group.name,
+        prize_pool=str(group.prize_pool),
+        currency=group.currency,
+        winners=winners,
     )
 
 

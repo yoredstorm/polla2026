@@ -23,6 +23,7 @@ class Group(Base):
     bet_amount_mode: Mapped[str] = mapped_column(String(20), default="single_entry", nullable=False)
     fixed_bet_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    challenge_max_stake: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     owner: Mapped["User"] = relationship("User", back_populates="owned_groups")

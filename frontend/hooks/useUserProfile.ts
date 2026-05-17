@@ -16,13 +16,16 @@ export function writeStoredProfileInvite(userId: string, code: string) {
   sessionStorage.setItem(profileInviteStorageKey(userId), code);
 }
 
-export function useUserSummaryByUsername(username: string, inviteCode?: string) {
+export function useUserSummaryByUsername(username: string, inviteCode?: string, isAuthenticated = true) {
   return useQuery({
-    queryKey: ["user-summary", username, inviteCode ?? ""],
-    queryFn: () =>
-      api.get<PublicUserSummary>(`/users/by-username/${encodeURIComponent(username)}/summary`, {
-        invite_code: inviteCode,
-      }),
+    queryKey: ["user-summary", username, inviteCode ?? "", isAuthenticated],
+    queryFn: () => {
+      const path = isAuthenticated
+        ? `/users/by-username/${encodeURIComponent(username)}/summary`
+        : `/users/by-username/${encodeURIComponent(username)}/public`;
+      const params = isAuthenticated && inviteCode ? { invite_code: inviteCode } : undefined;
+      return api.get<PublicUserSummary>(path, params);
+    },
     enabled: !!username,
   });
 }

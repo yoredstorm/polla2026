@@ -7,6 +7,7 @@ export function useMyBets(page = 1, limit = 20) {
   return useQuery({
     queryKey: ["my-bets", page],
     queryFn: () => api.get<PaginatedResponse<Bet>>("/bets/my-bets", { page, limit }),
+    refetchOnWindowFocus: true,
   });
 }
 

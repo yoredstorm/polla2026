@@ -3,10 +3,27 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
 import { Navbar } from "@/components/ui/Navbar";
 import { useUpdateBetsProfile } from "@/hooks/useUserProfile";
 import { getMe } from "@/lib/auth";
+import { BadgeGrid } from "@/components/gamification/BadgeGrid";
 import { cn } from "@/lib/utils";
+import type { BadgeOut } from "@/types/api";
+
+function BadgesSection() {
+  const { data } = useQuery({
+    queryKey: ["me", "badges"],
+    queryFn: () => api.get<{ badges: BadgeOut[] }>("/users/me/badges"),
+  });
+  const badges = data?.badges ?? [];
+  return (
+    <div className="rounded-xl border border-white/10 bg-glass p-4">
+      <h3 className="font-display text-lg text-white mb-3">Medallas</h3>
+      <BadgeGrid badges={badges} emptyLabel="Aún no tienes medallas. Apuesta, acierta y gana duelos." />
+    </div>
+  );
+}
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -235,6 +252,8 @@ export default function ProfilePage() {
                 : "Tus montos se mostraran borrosos en tu perfil publico."}
             </p>
           </div>
+
+          <BadgesSection />
 
           {flash && <p className="text-sm text-accent">{flash}</p>}
 

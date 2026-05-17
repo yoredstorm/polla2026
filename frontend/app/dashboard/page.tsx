@@ -2,11 +2,14 @@
 import Link from "next/link";
 import { Navbar } from "@/components/ui/Navbar";
 import { MatchCard } from "@/components/betting/MatchCard";
+import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { useFixtures } from "@/hooks/useFixtures";
 import { useGlobalLeaderboard } from "@/hooks/useLeaderboard";
 import { useActivePolla } from "@/hooks/useGroups";
 import { useAuth } from "@/hooks/useAuth";
-import { cn } from "@/lib/utils";
+import { useAnimatedPrizePool, parsePrizePool } from "@/hooks/useAnimatedPrizePool";
+import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
+import { cn, formatCountdown } from "@/lib/utils";
 
 function PiggyBankIcon({ className }: { className?: string }) {
   return (
@@ -25,46 +28,127 @@ function PiggyBankIcon({ className }: { className?: string }) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data: fixturesData } = useFixtures({ status: "scheduled", limit: 6 });
-  const { data: leaderboard } = useGlobalLeaderboard(1, 8, "bets", 1);
+  const { data: fixturesData, isLoading: fixturesLoading } = useFixtures({ status: "scheduled", limit: 6 });
+  const { data: statsAll } = useFixtures({ limit: 1 });
+  const { data: statsFinished } = useFixtures({ status: "finished", limit: 1 });
+  const { data: leaderboard } = useGlobalLeaderboard(1, 50, "points", 1);
   const { data: polla } = useActivePolla();
 
-  const prizePool = polla ? parseFloat(polla.prize_pool) : null;
+  const serverPrize = parsePrizePool(polla?.prize_pool);
+  const { displayed: prizeAnimated, isAnimating } = useAnimatedPrizePool(serverPrize);
+  const prizeDisplayed = prizeAnimated ?? serverPrize;
   const currency = polla?.currency ?? "USD";
 
+  const totalFixtures = statsAll?.pagination?.total ?? 0;
+  const playedFixtures = statsFinished?.pagination?.total ?? 0;
+  const progressPct = totalFixtures > 0 ? Math.round((playedFixtures / totalFixtures) * 100) : 0;
+
+  const hero = fixturesData?.data?.[0];
+  const myEntry = leaderboard?.find((e) => e.user_id === user?.id);
+  const leader = leaderboard?.[0];
+  const gapToLeader =
+    leader && myEntry ? Math.max(0, leader.total_points - myEntry.total_points) : null;
+
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen page-with-mobile-nav">
       <Navbar />
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
           <div>
-            <h1 className="font-display text-3xl text-white">Bienvenido, {user?.username}</h1>
-            <p className="text-muted mt-1">Proximos partidos disponibles para apostar</p>
+            <p className="text-xs uppercase tracking-widest text-accent mb-1">Centro del Mundial 2026</p>
+            <h1 className="font-display text-3xl text-white">Hola, {user?.username}</h1>
+            <p className="text-muted mt-1">Tu hub de pronosticos y competencia</p>
           </div>
           <Link
             href="/profile"
             className="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-white/15 bg-white/5 text-sm text-white hover:bg-white/10 transition-colors"
           >
-            Ajustes de perfil y privacidad
+            Perfil y privacidad
           </Link>
         </div>
+
+        {totalFixtures > 0 && (
+          <section className="mb-8 rounded-2xl border border-white/10 bg-glass p-4">
+            <div className="flex justify-between text-xs text-muted mb-2">
+              <span>Progreso del torneo</span>
+              <span>
+                {playedFixtures} / {totalFixtures} partidos ({progressPct}%)
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-white/10 overflow-hidden">
+              <div
+                className="h-full bg-accent transition-all duration-500"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </section>
+        )}
+
+        {myEntry && (
+          <section className="mb-8 grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="rounded-xl border border-white/10 bg-glass p-4 text-center">
+              <p className="text-xs text-muted">Tu puesto</p>
+              <p className="font-display text-3xl text-accent">#{myEntry.position}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-glass p-4 text-center">
+              <p className="text-xs text-muted">Puntos</p>
+              <p className="font-display text-3xl text-white">{myEntry.total_points}</p>
+            </div>
+            <div className="rounded-xl border border-white/10 bg-glass p-4 text-center col-span-2 sm:col-span-2">
+              <p className="text-xs text-muted">Distancia al lider</p>
+              <p className="font-display text-xl text-white mt-1">
+                {gapToLeader === 0
+                  ? "Eres el lider"
+                  : gapToLeader != null
+                    ? `${gapToLeader} pts para alcanzar a ${leader?.username}`
+                    : "—"}
+              </p>
+            </div>
+          </section>
+        )}
+
+        {hero && (
+          <section className="mb-8">
+            <h2 className="font-display text-lg text-white mb-3">Proximo partido</h2>
+            <Link
+              href={`/fixtures/${hero.id}`}
+              className="block rounded-2xl border border-accent/40 bg-gradient-to-r from-accent/10 to-transparent p-6 hover:border-accent/60 transition-colors"
+            >
+              <p className="text-xs text-accent mb-2">{formatCountdown(hero.match_date)}</p>
+              <p className="font-display text-2xl text-white">
+                {hero.home_team} vs {hero.away_team}
+              </p>
+              <p className="text-sm text-muted mt-1">
+                {hero.group_name ?? hero.round}
+                {hero.venue ? ` · ${hero.venue}` : ""}
+              </p>
+            </Link>
+          </section>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             <section>
-              <h2 className="font-display text-xl text-white mb-4">Proximos Partidos</h2>
-              {fixturesData ? (
+              <h2 className="font-display text-xl text-white mb-4">Proximos partidos</h2>
+              {fixturesLoading ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[0, 1, 2, 3].map((i) => (
+                    <MatchCardSkeleton key={i} />
+                  ))}
+                </div>
+              ) : fixturesData?.data.length ? (
+                <div className="flex gap-4 overflow-x-auto pb-2 snap-x sm:grid sm:grid-cols-2 sm:overflow-visible">
                   {fixturesData.data.map((fixture, i) => (
-                    <MatchCard key={fixture.id} fixture={fixture} index={i} />
+                    <div className="min-w-[280px] snap-start sm:min-w-0" key={fixture.id}>
+                      <MatchCard fixture={fixture} index={i} />
+                    </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-muted">Cargando partidos...</p>
+                <p className="text-muted">No hay partidos programados.</p>
               )}
             </section>
 
-            {/* Game rules */}
             <section>
               <h2 className="font-display text-xl text-white mb-1">Reglas de puntuacion</h2>
               <p className="text-xs text-muted mb-4">Asi se calculan los puntos al liquidar cada partido.</p>
@@ -72,26 +156,27 @@ export default function DashboardPage() {
                 <div className="rounded-xl border border-accent/40 bg-accent/5 p-4 text-center">
                   <p className="font-display text-4xl text-accent mb-2">2</p>
                   <p className="text-xs font-bold text-white uppercase tracking-wide mb-1">Exacto</p>
-                  <p className="text-xs text-muted leading-relaxed">Marcador exacto: goles y ganador correctos</p>
                 </div>
                 <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/5 p-4 text-center">
                   <p className="font-display text-4xl text-yellow-400 mb-2">1</p>
                   <p className="text-xs font-bold text-white uppercase tracking-wide mb-1">Ganador</p>
-                  <p className="text-xs text-muted leading-relaxed">Solo el ganador o empate correcto</p>
                 </div>
                 <div className="rounded-xl border border-white/10 bg-white/5 p-4 text-center">
                   <p className="font-display text-4xl text-muted mb-2">0</p>
                   <p className="text-xs font-bold text-white uppercase tracking-wide mb-1">Fallo</p>
-                  <p className="text-xs text-muted leading-relaxed">Prediccion incorrecta del resultado</p>
                 </div>
               </div>
             </section>
           </div>
 
           <div className="space-y-6">
-            {/* Piggy bank */}
             {polla ? (
-              <div className="rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 via-white/[0.03] to-transparent p-5">
+              <div
+                className={cn(
+                  "rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/10 via-white/[0.03] to-transparent p-5 transition-transform",
+                  isAnimating && "scale-[1.02] shadow-lg shadow-accent/20",
+                )}
+              >
                 <div className="flex items-center gap-3 mb-3">
                   <PiggyBankIcon className="w-10 h-10 text-accent shrink-0" />
                   <div>
@@ -101,16 +186,22 @@ export default function DashboardPage() {
                 </div>
                 <p className="font-display text-4xl text-white mb-1">
                   {currency}{" "}
-                  <span className="text-accent">
-                    {prizePool !== null ? prizePool.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
+                  <span className="text-accent tabular-nums">
+                    {prizeDisplayed != null
+                      ? prizeDisplayed.toLocaleString("es-PE", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })
+                      : "—"}
                   </span>
                 </p>
-                <p className="text-xs text-muted">{polla.member_count} participante{polla.member_count !== 1 ? "s" : ""}</p>
+                <p className="text-xs text-muted">
+                  {polla.member_count} participante{polla.member_count !== 1 ? "s" : ""}
+                </p>
                 {polla.entry_fee && parseFloat(polla.entry_fee) > 0 && (
-                  <p className="text-xs text-muted mt-1">Entrada: {currency} {parseFloat(polla.entry_fee).toFixed(2)}</p>
-                )}
-                {polla.per_match_amount && parseFloat(polla.per_match_amount) > 0 && (
-                  <p className="text-xs text-muted">Extra por partido: {currency} {parseFloat(polla.per_match_amount).toFixed(2)}</p>
+                  <p className="text-xs text-muted mt-1">
+                    Entrada: {currency} {parseFloat(polla.entry_fee).toFixed(2)}
+                  </p>
                 )}
                 {!polla.is_member && (
                   <p className="text-xs text-amber-300 mt-3 bg-amber-500/10 rounded-lg px-3 py-2">
@@ -123,75 +214,35 @@ export default function DashboardPage() {
                 <PiggyBankIcon className="w-10 h-10 text-muted shrink-0" />
                 <div>
                   <p className="text-sm text-muted">Pozo no configurado aun.</p>
-                  <p className="text-xs text-muted opacity-60">El admin activara la polla pronto.</p>
                 </div>
               </div>
             )}
 
-            {/* Leaderboard mini */}
-            <div>
+            <Link href="/winners" className="block text-center text-sm text-accent hover:underline mb-4">
+              Ver podio y premios
+            </Link>
+            <section>
               <h2 className="font-display text-xl text-white mb-1">Top apostadores</h2>
-              <p className="text-xs text-muted mb-4">Por volumen de apuestas; % sobre apuestas liquidadas.</p>
               <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-4 space-y-3">
                 {leaderboard?.length ? (
-                  leaderboard.map((entry) => {
-                    const wrong = entry.wrong_results ?? Math.max(0, entry.total_bets - entry.correct_results);
-                    const wagers = entry.wager_count ?? entry.total_bets;
-                    const settled = entry.total_bets;
-                    const vis = entry.bets_profile_visibility ?? "public";
-                    const showAmounts = entry.show_bet_amounts ?? true;
-                    const wagered = parseFloat(entry.total_wagered ?? "0");
-                    return (
-                      <Link
-                        key={entry.user_id}
-                        href={`/u/${encodeURIComponent(entry.username)}`}
-                        className="flex items-center gap-3 rounded-lg p-1 -m-1 hover:bg-white/5 transition-colors"
-                      >
-                        <span className="font-display text-2xl text-muted w-6 text-center">{entry.position}</span>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-sm font-medium text-white truncate">{entry.username}</p>
-                            <span
-                              className={cn(
-                                "text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded",
-                                vis === "invite_only"
-                                  ? "bg-amber-500/20 text-amber-200"
-                                  : "bg-emerald-500/15 text-emerald-200",
-                              )}
-                            >
-                              {vis === "invite_only" ? "Privado" : "Publico"}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted">
-                            {wagers} apuesta{wagers !== 1 ? "s" : ""}
-                            {settled > 0
-                              ? ` · ${entry.accuracy_pct}% acierto · ${wrong} fallos`
-                              : wagers > 0
-                                ? " · sin liquidar aun"
-                                : ""}
-                            {wagered > 0 && (
-                              <>
-                                {" · "}
-                                {showAmounts ? (
-                                  <span className="text-emerald-400">S/ {wagered.toFixed(2)}</span>
-                                ) : (
-                                  <span className="blur-sm select-none text-muted/40">S/ ••••</span>
-                                )}
-                              </>
-                            )}
-                          </p>
-                        </div>
-                        <span className="font-display text-lg text-accent shrink-0">{entry.total_points}pts</span>
-                      </Link>
-                    );
-                  })
+                  leaderboard.slice(0, 8).map((entry, i) => (
+                    <LeaderboardEntryCard
+                      key={entry.user_id}
+                      entry={entry}
+                      isMe={entry.user_id === user?.id}
+                      rankIndex={i}
+                      compact
+                    />
+                  ))
                 ) : !leaderboard ? (
-                  <p className="text-muted text-sm">Cargando...</p>
+                  <div className="space-y-2">
+                    <MatchCardSkeleton />
+                  </div>
                 ) : (
-                  <p className="text-muted text-sm">Aun no hay apuestas registradas.</p>
+                  <p className="text-muted text-sm">Aun no hay datos.</p>
                 )}
               </div>
-            </div>
+            </section>
           </div>
         </div>
       </main>

@@ -122,6 +122,12 @@ export interface GroupMember {
   total_amount_bet: string;
 }
 
+export interface BadgeOut {
+  id: string;
+  label: string;
+  description: string;
+}
+
 export interface LeaderboardEntry {
   position: number;
   user_id: string;
@@ -136,6 +142,14 @@ export interface LeaderboardEntry {
   wager_count?: number;
   show_bet_amounts?: boolean;
   total_wagered?: string;
+  bet_points?: number;
+  challenge_pts_won?: number;
+  challenge_pts_lost?: number;
+  challenge_pts_net?: number;
+  challenges_won?: number;
+  challenges_lost?: number;
+  challenges_active?: number;
+  badges?: BadgeOut[];
 }
 
 export interface PaginationMeta {

@@ -61,7 +61,29 @@ async def get_current_admin(
     return current_user
 
 
+async def get_optional_user(
+    db: AsyncSession = Depends(get_db),
+    access_token: str | None = Cookie(default=None, alias="access_token"),
+) -> User | None:
+    if not access_token:
+        return None
+    payload = decode_access_token(access_token)
+    if payload is None:
+        return None
+    user_id: str | None = payload.get("sub")
+    if not user_id:
+        return None
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        return None
+    if user.locked_until and user.locked_until > datetime.now(timezone.utc):
+        return None
+    return user
+
+
 CurrentUser = Annotated[User, Depends(get_current_user)]
+OptionalUser = Annotated[User | None, Depends(get_optional_user)]
 CurrentAdmin = Annotated[User, Depends(get_current_admin)]
 DBSession = Annotated[AsyncSession, Depends(get_db)]
 RedisClient = Annotated[aioredis.Redis, Depends(get_redis)]

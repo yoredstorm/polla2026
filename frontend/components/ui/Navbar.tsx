@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInactivityTimeout } from "@/hooks/useInactivityTimeout";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/ui/NotificationBell";
+import { MobileBottomNav } from "@/components/ui/MobileBottomNav";
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard" },
@@ -32,6 +33,7 @@ export function Navbar() {
   }, []);
 
   return (
+    <>
     <nav className="border-b border-white/10 bg-surface/80 backdrop-blur-md sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/dashboard" className="font-display text-xl text-accent">
@@ -115,5 +117,7 @@ export function Navbar() {
         </div>
       </div>
     </nav>
+    <MobileBottomNav />
+    </>
   );
 }

@@ -23,6 +23,8 @@ from app.services.notification_service import (
     build_change_request_resolved,
     build_fixture_finished,
     notify_all_active_users,
+    broadcast_polla_updated,
+    broadcast_fixture_updated,
 )
 import structlog
 
@@ -72,6 +74,7 @@ class AdminGroupPatch(BaseModel):
     bet_amount_mode: Optional[Literal["single_entry", "per_bet"]] = None
     fixed_bet_amount: Optional[Decimal] = None
     is_active: Optional[bool] = None
+    challenge_max_stake: Optional[int] = None
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -157,6 +160,9 @@ async def update_fixture_result(
     await db.flush()
 
     settled = await settle_fixture_bets(db, fixture)
+    from app.services.challenge_service import settle_challenges_for_fixture
+
+    await settle_challenges_for_fixture(db, redis, fixture)
     nt, nb, np = build_fixture_finished(
         fixture_id=str(fixture_id),
         home_team=fixture.home_team,
@@ -166,6 +172,16 @@ async def update_fixture_result(
     )
     notified = await notify_all_active_users(
         db, redis, type="fixture_finished", title=nt, body=nb, payload=np,
+    )
+    await broadcast_fixture_updated(
+        db,
+        redis,
+        fixture_id=fixture.id,
+        status=fixture.status,
+        home_score=fixture.home_score,
+        away_score=fixture.away_score,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
     )
     await log_action(db, user_id=admin.id, action="admin_settle", detail={
         "fixture_id": str(fixture_id), "home_score": body.home_score, "away_score": body.away_score,
@@ -192,6 +208,7 @@ async def update_fixture_status(
     body: FixtureStatusIn,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     result = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
     fixture = result.scalar_one_or_none()
@@ -202,6 +219,16 @@ async def update_fixture_status(
         fixture.is_locked = True
         fixture.betting_open = False
     await db.commit()
+    await broadcast_fixture_updated(
+        db,
+        redis,
+        fixture_id=fixture.id,
+        status=fixture.status,
+        home_score=fixture.home_score,
+        away_score=fixture.away_score,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+    )
     return {"ok": True, "status": fixture.status}
 
 
@@ -458,6 +485,7 @@ class CreatePollaIn(BaseModel):
     entry_fee: Decimal = Decimal("0")
     currency: str = "PEN"
     per_match_amount: Decimal | None = None
+    challenge_max_stake: int = 10
 
 
 @router.post("/groups", status_code=201)
@@ -480,6 +508,7 @@ async def create_polla(
         fixed_bet_amount=body.per_match_amount if body.per_match_amount and body.per_match_amount > 0 else None,
         is_active=True,
         prize_pool=Decimal("0"),
+        challenge_max_stake=max(1, min(20, body.challenge_max_stake)),
     )
     db.add(group)
     await db.commit()
@@ -492,6 +521,7 @@ async def create_polla(
         "currency": group.currency,
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,
+        "challenge_max_stake": group.challenge_max_stake,
     }
 
 
@@ -530,6 +560,7 @@ async def list_groups(
                 "bet_amount_mode": g.bet_amount_mode,
                 "fixed_bet_amount": str(g.fixed_bet_amount) if g.fixed_bet_amount is not None else None,
                 "is_active": g.is_active,
+                "challenge_max_stake": g.challenge_max_stake,
                 "member_count": member_counts.get(g.id, 0),
                 "created_at": g.created_at.isoformat(),
             }
@@ -562,12 +593,15 @@ async def patch_group(
         group.fixed_bet_amount = body.fixed_bet_amount if body.fixed_bet_amount > 0 else None
     if body.is_active is not None:
         group.is_active = body.is_active
+    if body.challenge_max_stake is not None:
+        group.challenge_max_stake = max(1, min(20, body.challenge_max_stake))
     await db.commit()
     await db.refresh(group)
     return {
         "id": str(group.id),
         "name": group.name,
         "entry_fee": str(group.entry_fee),
+        "challenge_max_stake": group.challenge_max_stake,
         "bet_amount_mode": group.bet_amount_mode,
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,
@@ -613,6 +647,7 @@ async def add_group_member(
     body: AddMemberIn,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     group_res = await db.execute(select(Group).where(Group.id == group_id))
     group = group_res.scalar_one_or_none()
@@ -632,13 +667,25 @@ async def add_group_member(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="User is already a member")
 
+    prev_pool = group.prize_pool
     member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=group.entry_fee)
     db.add(member)
     group.prize_pool += group.entry_fee
     await log_action(db, user_id=admin.id, action="admin_confirm_entry", detail={
         "group_id": str(group_id), "member_user_id": str(body.user_id), "entry_fee": str(group.entry_fee),
     }, ip=request.client.host if request.client else None)
+    count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
+    member_count = int(count_res.scalar() or 0) + 1
     await db.commit()
+    await broadcast_polla_updated(
+        db,
+        redis,
+        group_id=group.id,
+        prize_pool=group.prize_pool,
+        previous_prize_pool=prev_pool,
+        member_count=member_count,
+        reason="entry_confirmed",
+    )
     logger.info("admin_member_added", group_id=str(group_id), user_id=str(body.user_id), admin=str(admin.id))
     return {"ok": True, "username": user.username, "prize_pool": str(group.prize_pool)}
 
@@ -651,6 +698,7 @@ async def remove_group_member(
     user_id: uuid.UUID,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     group_res = await db.execute(select(Group).where(Group.id == group_id))
     group = group_res.scalar_one_or_none()
@@ -666,9 +714,21 @@ async def remove_group_member(
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
 
+    prev_pool = group.prize_pool
     await db.delete(member)
     group.prize_pool = max(Decimal("0"), group.prize_pool - group.entry_fee)
+    count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
+    member_count = max(0, int(count_res.scalar() or 0) - 1)
     await db.commit()
+    await broadcast_polla_updated(
+        db,
+        redis,
+        group_id=group.id,
+        prize_pool=group.prize_pool,
+        previous_prize_pool=prev_pool,
+        member_count=member_count,
+        reason="member_removed",
+    )
     logger.info("admin_member_removed", group_id=str(group_id), user_id=str(user_id), admin=str(admin.id))
     return {"ok": True, "prize_pool": str(group.prize_pool)}
 
@@ -744,6 +804,7 @@ async def confirm_extra_bet(
     bet_id: uuid.UUID,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     """Confirm that user paid the extra for this bet → adds amount to prize_pool."""
     group_res = await db.execute(select(Group).where(Group.id == group_id))
@@ -760,6 +821,7 @@ async def confirm_extra_bet(
     if bet.amount_confirmed:
         raise HTTPException(status_code=409, detail="Already confirmed")
 
+    prev_pool = group.prize_pool
     bet.amount_confirmed = True
     group.prize_pool += bet.amount
 
@@ -776,7 +838,18 @@ async def confirm_extra_bet(
     await log_action(db, user_id=admin.id, action="admin_confirm_extra", detail={
         "bet_id": str(bet_id), "group_id": str(group_id), "bet_user_id": str(bet.user_id), "amount": str(bet.amount),
     }, ip=request.client.host if request.client else None)
+    count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
+    member_count = int(count_res.scalar() or 0)
     await db.commit()
+    await broadcast_polla_updated(
+        db,
+        redis,
+        group_id=group.id,
+        prize_pool=group.prize_pool,
+        previous_prize_pool=prev_pool,
+        member_count=member_count,
+        reason="extra_confirmed",
+    )
     logger.info("extra_confirmed", bet_id=str(bet_id), amount=str(bet.amount), admin=str(admin.id))
     return {"ok": True, "amount": str(bet.amount), "prize_pool": str(group.prize_pool)}
 
@@ -1126,3 +1199,30 @@ async def reject_change_request(
     await db.commit()
     logger.info("change_request_rejected", request_id=str(request_id), admin=str(admin.id))
     return {"ok": True, "status": "rejected"}
+
+
+@router.post("/polla/repair-challenge-ranking")
+@limiter.limit("10/minute")
+async def repair_polla_challenge_ranking(request: Request, admin: CurrentAdmin, db: DBSession):
+    """
+    Corrige ranking de perdedores de retos que conservaron pts del partido (bug anterior).
+    """
+    from app.services.challenge_service import repair_settled_challenge_loser_points
+
+    result = await db.execute(
+        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+    )
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="No active polla")
+
+    repaired = await repair_settled_challenge_loser_points(db, group.id)
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_repair_challenge_ranking",
+        detail={"group_id": str(group.id), "members_adjusted": repaired},
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return {"ok": True, "members_adjusted": repaired, "group_id": str(group.id)}

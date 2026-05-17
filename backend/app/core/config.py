@@ -29,11 +29,6 @@ class Settings(BaseSettings):
     JWT_KEY_ROTATION_DAYS: int = 7
     JWT_KEY_GRACE_DAYS: int = 7
 
-    # API Football
-    FOOTBALL_API_KEY: str = ""
-    FOOTBALL_API_HOST: str = "api-football-v1.p.rapidapi.com"
-    FOOTBALL_API_BASE_URL: str = "https://api-football-v1.p.rapidapi.com/v3"
-
     # CORS
     CORS_ORIGINS: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost,http://127.0.0.1"
 
@@ -47,10 +42,6 @@ class Settings(BaseSettings):
     RATE_LIMIT_PER_MINUTE: int = 100
     LOGIN_RATE_LIMIT_PER_MINUTE: int = 5
     LOGIN_BLOCK_DURATION_SECONDS: int = 900
-
-    # Leagues to sync
-    SUPPORTED_LEAGUES: List[int] = [39, 140, 2, 13, 262]
-    CURRENT_SEASON: int = 2024
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
@@ -82,8 +73,6 @@ class Settings(BaseSettings):
 
     def get_cors_origins(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
-
-    ALLOWED_EXTERNAL_HOSTS: List[str] = ["api-football-v1.p.rapidapi.com"]
 
     class Config:
         env_file = ".env"

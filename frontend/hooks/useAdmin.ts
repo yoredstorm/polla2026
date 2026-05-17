@@ -134,8 +134,13 @@ export function useAdminGroups(page = 1, limit = 20) {
 export function useCreatePolla() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name: string; entry_fee: number; currency: string; per_match_amount?: number }) =>
-      api.post<any>("/admin/groups", body),
+    mutationFn: (body: {
+      name: string;
+      entry_fee: number;
+      currency: string;
+      per_match_amount?: number;
+      challenge_max_stake?: number;
+    }) => api.post<any>("/admin/groups", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "groups"] });
       qc.invalidateQueries({ queryKey: ["pool"] });
@@ -156,6 +161,7 @@ export function usePatchGroup() {
       bet_amount_mode?: string;
       fixed_bet_amount?: number;
       is_active?: boolean;
+      challenge_max_stake?: number;
     }) => api.patch<any>(`/admin/groups/${groupId}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "groups"] });

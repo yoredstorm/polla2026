@@ -30,6 +30,11 @@ ACTION_LABELS_ES: dict[str, str] = {
     "change_request_auto_expired": "Solicitudes caducadas",
     "admin_edit_fixture": "Editar partido",
     "admin_settle": "Liquidar partido",
+    "challenge_created": "Reto creado",
+    "challenge_accepted": "Reto aceptado",
+    "challenge_rejected": "Reto rechazado",
+    "challenge_settled": "Reto liquidado",
+    "challenge_points_transferred": "Transferencia de puntos (reto)",
 }
 
 

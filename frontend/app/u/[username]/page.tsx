@@ -10,7 +10,11 @@ import {
   writeStoredProfileInvite,
   readStoredProfileInvite,
 } from "@/hooks/useUserProfile";
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/api";
+import { BadgeGrid } from "@/components/gamification/BadgeGrid";
 import { formatAmount } from "@/lib/utils";
+import type { BadgeOut } from "@/types/api";
 import { CopyProfileModal } from "@/components/betting/CopyProfileModal";
 import { CopyBetDetailModal } from "@/components/betting/CopyBetDetailModal";
 import type { Bet } from "@/types/api";
@@ -36,6 +40,7 @@ export default function UserPublicProfilePage() {
   const { data: summary, isLoading: sumLoading, refetch: refetchSummary } = useUserSummaryByUsername(
     username,
     inviteOverride,
+    !!user,
   );
 
   useEffect(() => {
@@ -53,6 +58,15 @@ export default function UserPublicProfilePage() {
     if (isMe) return true;
     return summary.total_bets !== null && summary.total_bets !== undefined;
   }, [summary, isMe]);
+
+  const canShowBadges =
+    summary?.bets_profile_visibility === "public" || isMe;
+
+  const { data: badgesData } = useQuery({
+    queryKey: ["user-badges", username],
+    queryFn: () => api.get<{ badges: BadgeOut[] }>(`/users/by-username/${encodeURIComponent(username)}/badges`),
+    enabled: !!username && canShowBadges,
+  });
 
   const { data: betsPage, isLoading: betsLoading } = useUserPublicBets(
     summary?.user_id,
@@ -148,6 +162,16 @@ export default function UserPublicProfilePage() {
                 </button>
               )}
             </div>
+
+            {canShowBadges && (
+              <div className="rounded-xl border border-white/10 bg-glass p-4 mb-6">
+                <h2 className="font-display text-lg text-white mb-3">Medallas</h2>
+                <BadgeGrid
+                  badges={badgesData?.badges ?? []}
+                  emptyLabel="Sin medallas por ahora."
+                />
+              </div>
+            )}
 
             {!canListBets && summary.bets_profile_visibility === "invite_only" && !isMe && (
               <form

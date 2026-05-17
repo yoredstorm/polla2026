@@ -7,13 +7,15 @@ from decimal import Decimal
 from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func, desc, cast, Float
+from sqlalchemy import select, and_, or_, func, desc, cast, Float
 import structlog
 
 from app.models.group import Group, GroupMember
 from app.models.bet import Bet
 from app.models.user import User
-from app.schemas.group import GroupCreate, LeaderboardEntry
+from app.schemas.group import GroupCreate, LeaderboardEntry, BadgeOut
+from app.services.challenge_service import compute_challenge_stats, compute_bet_points_for_ranking
+from app.services.gamification_service import compute_badges
 
 logger = structlog.get_logger(__name__)
 
@@ -180,6 +182,16 @@ async def _fetch_leaderboard_page(
     return leaderboard
 
 
+async def _ranking_points_for_member(
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    user_id: uuid.UUID,
+    member: GroupMember,
+) -> int:
+    """Ranking = member.total_points (apuestas + retos). Tarjetas pueden mostrar pts del partido aunque el reto los haya absorbido."""
+    return member.total_points
+
+
 async def get_group_leaderboard(
     db: AsyncSession,
     group_id: uuid.UUID,
@@ -196,6 +208,7 @@ async def get_group_leaderboard(
 
     entries: list[LeaderboardEntry] = []
     for member, user in rows:
+        polla_bets = or_(Bet.group_id == group_id, Bet.group_id.is_(None))
         bets_result = await db.execute(
             select(
                 func.count().label("wager_count"),
@@ -204,7 +217,7 @@ async def get_group_leaderboard(
                 func.count()
                 .filter(and_(Bet.points_earned.isnot(None), Bet.points_earned == 0))
                 .label("wrong"),
-            ).where(and_(Bet.user_id == user.id, Bet.group_id == group_id))
+            ).where(and_(Bet.user_id == user.id, polla_bets))
         )
         br = bets_result.one()
         wager = int(br.wager_count or 0)
@@ -216,12 +229,15 @@ async def get_group_leaderboard(
         accuracy = round((correct / settled * 100) if settled > 0 else 0.0, 1)
         miss_pct = round((wrong / settled * 100) if settled > 0 else 0.0, 1)
         vis = _norm_visibility(user.bets_profile_visibility)
+        ranking_pts = await _ranking_points_for_member(db, group_id, user.id, member)
+        cstats = await compute_challenge_stats(db, user.id, group_id)
+        bet_pts = await compute_bet_points_for_ranking(db, user.id, group_id)
         entries.append(
             LeaderboardEntry(
                 position=0,
                 user_id=user.id,
                 username=user.username,
-                total_points=member.total_points,
+                total_points=ranking_pts,
                 total_bets=settled,
                 correct_results=correct,
                 accuracy_pct=accuracy,
@@ -231,6 +247,14 @@ async def get_group_leaderboard(
                 wager_count=wager,
                 show_bet_amounts=bool(getattr(user, "show_bet_amounts", True)),
                 total_wagered=Decimal(str(member.total_amount_bet or 0)),
+                bet_points=bet_pts,
+                challenge_pts_won=cstats["challenge_pts_won"],
+                challenge_pts_lost=cstats["challenge_pts_lost"],
+                challenge_pts_net=cstats["challenge_pts_net"],
+                challenges_won=cstats["challenges_won"],
+                challenges_lost=cstats["challenges_lost"],
+                challenges_active=cstats["challenges_active"],
+                badges=[],
             )
         )
 
@@ -243,6 +267,10 @@ async def get_group_leaderboard(
 
     for pos, entry in enumerate(entries, start=1):
         entry.position = pos
+        raw_badges = await compute_badges(
+            db, entry.user_id, group_id=group_id, position=entry.position
+        )
+        entry.badges = [BadgeOut(**b) for b in raw_badges[:3]]
 
     return entries
 
@@ -254,6 +282,18 @@ async def get_global_leaderboard(
     sort: Literal["points", "accuracy", "bets"] = "points",
     min_bets: int = 1,
 ) -> list[LeaderboardEntry]:
+    """
+    Ranking visible en dashboard. Usa total_points del miembro en la polla activa
+    (apuestas + retos 1v1). Si no hay polla activa, cae al sumatorio de apuestas.
+    """
+    result = await db.execute(
+        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+    )
+    group = result.scalar_one_or_none()
+    if group:
+        full = await get_group_leaderboard(db, group.id, sort=sort, min_bets=min_bets)
+        offset = (page - 1) * limit
+        return full[offset : offset + limit]
     return await _fetch_leaderboard_page(db, page=page, limit=limit, sort=sort, min_bets=min_bets)
 
 

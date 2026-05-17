@@ -36,6 +36,22 @@ async function tryRefresh(): Promise<boolean> {
   return _refreshPromise;
 }
 
+/** Proactive session check before WS-driven refetches (avoids 401 storms in console). */
+export async function ensureFreshSession(): Promise<boolean> {
+  if (typeof window === "undefined" || _redirecting) return false;
+  try {
+    const meRes = await fetch(`${getApiBase()}/api/v1/users/me`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (meRes.ok) return true;
+    if (meRes.status === 401) return tryRefresh();
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 function redirectToLogin() {
   if (typeof window === "undefined" || _redirecting) return;
   const path = window.location.pathname;

@@ -44,7 +44,7 @@ export function NotificationBell() {
   const panelRef = useRef<HTMLDivElement>(null);
 
   const { data: notifPage } = useNotifications(1, 30);
-  const { data: unreadData } = useUnreadCount(!!user, !wsConnected);
+  const { data: unreadData } = useUnreadCount(!!user);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const approveCr = useApproveChangeRequest();
@@ -63,6 +63,9 @@ export function NotificationBell() {
     setNotificationWsCallbacks({
       onConnected: () => setWsConnected(true),
       onDisconnected: () => setWsConnected(false),
+      onStale: () => {
+        setWsConnected(false);
+      },
     });
     const disconnect = connectNotificationsWs(qc, (msg, type) => toastRef.current(msg, type));
     return () => {
@@ -147,6 +150,13 @@ export function NotificationBell() {
         className="relative p-2 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors"
         aria-label="Notificaciones"
       >
+        <span
+          className={cn(
+            "absolute bottom-1 left-1 w-2 h-2 rounded-full border border-surface",
+            wsConnected ? "bg-accent" : "bg-amber-500 animate-pulse",
+          )}
+          title={wsConnected ? "En vivo" : "Reconectando…"}
+        />
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
@@ -166,6 +176,9 @@ export function NotificationBell() {
         <div className="absolute right-0 top-full mt-2 w-[min(100vw-2rem,380px)] max-w-[380px] rounded-2xl border border-white/10 bg-surface shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <h3 className="font-display text-sm text-white">Notificaciones</h3>
+            <Link href="/notifications" className="text-xs text-muted hover:text-accent mr-2">
+              Ver todas
+            </Link>
             {unread > 0 && (
               <button
                 type="button"

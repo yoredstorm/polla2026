@@ -28,7 +28,7 @@ Plataforma fullstack para **pollas de pronósticos deportivos**: los participant
 |---------------|-------------|
 | **Gestión de pollas** | Crear polla activa, cuota de entrada, moneda, modo de monto (`single_entry` / `per_bet`) y monto fijo por apuesta. |
 | **Miembros** | Confirmar entrada, listar pendientes, agregar o quitar participantes. |
-| **Partidos** | Sincronizar desde API-Football, editar equipos/logos/fecha/estadio, resultados y estado. |
+| **Partidos** | Cargar calendario desde `worldcup.json`, editar equipos/fecha/estadio, resultados y estado. |
 | **Apuestas extra** | Confirmar pagos pendientes antes de sumar al pozo de premios. |
 | **Solicitudes** | Bandeja central de cambios de apuesta (aprobar / rechazar con notas). |
 | **Auditoría** | Registro de acciones (`bulk_copy`, cambios, altas, etc.) con filtros en panel de actividad. |
@@ -86,7 +86,7 @@ Configuración típica del pozo acumulado:
 | Base de datos | **PostgreSQL 16** |
 | Caché / pub-sub | **Redis 7** |
 | Proxy | **Nginx** (API + frontend + WebSocket upgrade) |
-| Datos deportivos | **API-Football** (RapidAPI) |
+| Datos deportivos | **`worldcup.json`** (seed local) + edición admin |
 | Contenedores | **Docker Compose** |
 
 ---
@@ -122,7 +122,6 @@ flowchart LR
 ## Requisitos previos
 
 - [Docker](https://www.docker.com/) y Docker Compose v2
-- Clave de [API-Football en RapidAPI](https://rapidapi.com/api-sports/api/api-football) (para sincronizar partidos)
 - (Opcional) Node.js 20+ y Python 3.12+ para desarrollo local sin Docker
 
 ---
@@ -149,7 +148,7 @@ Editar al menos:
 | Archivo | Variables clave |
 |---------|-----------------|
 | `.env` (raíz) | `POSTGRES_PASSWORD`, `REDIS_PASSWORD` — **fuente única** para Docker |
-| `backend/.env` | `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET`, `FOOTBALL_API_KEY`, etc. |
+| `backend/.env` | `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET`, etc. |
 | `frontend/.env` | Opcional: `NEXT_PUBLIC_API_URL` (si no usas el puerto 8000 del host) |
 
 Con Docker, `docker-compose.yml` inyecta `DATABASE_URL` y `REDIS_URL` en el backend usando las contraseñas del `.env` raíz; no hace falta duplicarlas en `backend/.env` (si las pones ahí, deben coincidir).
@@ -223,17 +222,11 @@ pytest --cov=app --cov-report=term-missing
 
 ---
 
-## Ligas soportadas (API-Football)
+## Calendario de partidos
 
-| Liga | ID |
-|------|-----|
-| Premier League | 39 |
-| LaLiga | 140 |
-| UEFA Champions League | 2 |
-| Copa Libertadores | 13 |
-| Liga MX | 262 |
+Los fixtures del Mundial 2026 se cargan desde `backend/asset/worldcup.json` al iniciar (si la tabla está vacía) o con **Admin → Partidos → Re-seed**. El admin puede editar equipos, fechas, resultados y estado manualmente.
 
-El administrador puede sincronizar fixtures desde el panel o vía API de seed.
+En producción con varios workers de Uvicorn, use **1 worker** o **sticky sessions** en Nginx para `/api/v1/ws/notifications` (WebSocket).
 
 ---
 
@@ -290,7 +283,7 @@ Documentación interactiva en `/docs` con la API en ejecución (deshabilitada cu
 | Autenticación | Access 15 min; refresh rotado en cada `/auth/refresh`; detección de reutilización; una sesión activa por login |
 | Secretos | `python backend/scripts/generate_secrets.py` — nunca commitear `.env` |
 | Registro | structlog sin cookies; Sentry con scrub de tokens/cookies |
-| SSRF | Whitelist de hosts externos (API-Football) |
+| SSRF | Sin llamadas HTTP salientes a APIs deportivas externas |
 
 ### Generar llaves (obligatorio en producción)
 

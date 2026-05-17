@@ -2,7 +2,7 @@ import uuid
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from sqlalchemy import select, func, and_
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import CurrentUser, DBSession, OptionalUser
 from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
 from app.core.security import generate_profile_bets_invite_code, hash_token
 from app.models.bet import Bet
@@ -27,6 +27,73 @@ PROFILE_BETS_VIEW_RATE_LIMIT = "30/minute"
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def get_me(request: Request, current_user: CurrentUser):
     return UserOut.model_validate(current_user)
+
+
+async def _active_group_id(db: DBSession) -> uuid.UUID | None:
+    from app.models.group import Group
+
+    result = await db.execute(
+        select(Group.id).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+    )
+    return result.scalar_one_or_none()
+
+
+@router.get("/me/badges")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_my_badges(request: Request, current_user: CurrentUser, db: DBSession):
+    from app.services.gamification_service import compute_badges
+
+    group_id = await _active_group_id(db)
+    badges = await compute_badges(db, current_user.id, group_id=group_id)
+    return {"badges": badges}
+
+
+@router.get("/by-username/{username}/badges")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_user_badges_by_username(
+    request: Request,
+    username: str,
+    db: DBSession,
+    current_user: OptionalUser,
+):
+    from app.services.gamification_service import compute_badges
+
+    result = await db.execute(select(User).where(User.username == username))
+    target = result.scalar_one_or_none()
+    if not target or not target.is_active:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if target.bets_profile_visibility == "invite_only":
+        if not current_user or current_user.id != target.id:
+            raise HTTPException(status_code=403, detail="Profile is private")
+
+    group_id = await _active_group_id(db)
+    return {"badges": await compute_badges(db, target.id, group_id=group_id)}
+
+
+@router.get("/by-username/{username}/public", response_model=PublicUserSummary)
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_user_public_summary(
+    request: Request,
+    username: str,
+    db: DBSession,
+):
+    """Public read-only profile summary (no login required)."""
+    result = await db.execute(select(User).where(User.username == username, User.is_active == True))  # noqa: E712
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    total_bets = None
+    if target.bets_profile_visibility == "public":
+        cnt = await db.execute(select(func.count()).select_from(Bet).where(Bet.user_id == target.id))
+        total_bets = int(cnt.scalar() or 0)
+    return PublicUserSummary(
+        user_id=target.id,
+        username=target.username,
+        bets_profile_visibility=target.bets_profile_visibility,  # type: ignore[arg-type]
+        total_bets=total_bets,
+        show_bet_amounts=target.show_bet_amounts,
+    )
 
 
 @router.get("/by-username/{username}/summary", response_model=PublicUserSummary)

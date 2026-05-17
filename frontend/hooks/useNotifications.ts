@@ -16,13 +16,14 @@ export function useNotifications(page = 1, limit = 20, unreadOnly = false) {
   });
 }
 
-export function useUnreadCount(enabled = true, pollWhenDisconnected = false) {
+export function useUnreadCount(enabled = true) {
   return useQuery({
     queryKey: ["notifications", "unread-count"],
     queryFn: () => api.get<{ count: number }>("/notifications/unread-count"),
     enabled,
     staleTime: 5_000,
-    refetchInterval: pollWhenDisconnected ? 30_000 : false,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
   });
 }
 

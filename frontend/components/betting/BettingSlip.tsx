@@ -93,6 +93,11 @@ export function BettingSlip({
                 Pagado ✓
               </span>
             )}
+            {parseFloat(bet.amount) === 0 && isSettled && (
+              <span className="text-[10px] bg-white/10 text-muted px-1.5 py-0.5 rounded">
+                Gratis · cuenta en ranking
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {showCopy && (
