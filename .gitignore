@@ -83,6 +83,9 @@ MANIFEST
 *.manifest
 *.spec
 *.ps1
+
+#ide
+.cursor/
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
