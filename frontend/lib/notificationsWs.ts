@@ -44,6 +44,20 @@ function shouldShowNotificationToast(notificationType: string, title: string): b
 }
 
 let socket: WebSocket | null = null;
+
+/** Avoid browser warning when cleanup runs while still CONNECTING (login redirect / Strict Mode). */
+function safeCloseSocket(ws: WebSocket | null) {
+  if (!ws) return;
+  if (ws.readyState === WebSocket.CONNECTING) {
+    ws.onopen = () => {
+      ws.close();
+    };
+    return;
+  }
+  ws.close();
+}
+/** Avoid onerror → close() races when React remounts during CONNECTING. */
+let closingIntentionally = false;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let pingTimer: ReturnType<typeof setInterval> | null = null;
 let pongTimer: ReturnType<typeof setTimeout> | null = null;
@@ -80,7 +94,7 @@ function clearPingTimers() {
 function schedulePongTimeout() {
   if (pongTimer) clearTimeout(pongTimer);
   pongTimer = setTimeout(() => {
-    socket?.close();
+    safeCloseSocket(socket);
   }, PONG_TIMEOUT_MS);
 }
 
@@ -161,7 +175,7 @@ export function connectNotificationsWs(
     };
 
     socket.onerror = () => {
-      socket?.close();
+      safeCloseSocket(socket);
     };
   }
 
@@ -192,7 +206,7 @@ export function disconnectNotificationsWs() {
     reconnectTimer = null;
   }
   if (socket) {
-    socket.close();
+    safeCloseSocket(socket);
     socket = null;
   }
 }
