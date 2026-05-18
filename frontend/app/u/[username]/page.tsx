@@ -17,6 +17,7 @@ import { formatAmount } from "@/lib/utils";
 import type { BadgeOut } from "@/types/api";
 import { CopyProfileModal } from "@/components/betting/CopyProfileModal";
 import { FollowButton } from "@/components/social/FollowButton";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import { CopyBetDetailModal } from "@/components/betting/CopyBetDetailModal";
 import type { Bet } from "@/types/api";
 
@@ -136,7 +137,14 @@ export default function UserPublicProfilePage() {
           <>
             <div className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 mb-6">
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <h1 className="font-display text-3xl text-white">@{summary.username}</h1>
+                <div className="flex items-center gap-3 min-w-0">
+                  <UserAvatar
+                    username={summary.username}
+                    avatarDisplay={summary.avatar_display}
+                    size="lg"
+                  />
+                  <h1 className="font-display text-3xl text-white truncate">@{summary.username}</h1>
+                </div>
                 {!isMe && <FollowButton username={summary.username} />}
               </div>
               <p className="text-sm text-muted mt-2">

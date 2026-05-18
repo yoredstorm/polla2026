@@ -29,6 +29,15 @@ const ACTION_FILTERS: { value: string | undefined; label: string }[] = [
   { value: "admin_repair_challenge_ranking", label: "Reparar ranking retos" },
   { value: "profile_visibility_changed", label: "Privacidad perfil" },
   { value: "fixture_betting_closed_snapshot", label: "Cierre apuestas (tendencia)" },
+  { value: "comment_created", label: "Comentario" },
+  { value: "comment_deleted", label: "Comentario eliminado" },
+  { value: "comment_hidden", label: "Comentario oculto" },
+  { value: "reaction_set", label: "Reaccion" },
+  { value: "reaction_cleared", label: "Reaccion quitada" },
+  { value: "social_follow", label: "Seguir" },
+  { value: "social_unfollow", label: "Dejar de seguir" },
+  { value: "social_spam_muted", label: "Silencio spam" },
+  { value: "avatar_updated", label: "Avatar" },
 ];
 
 const ACTION_COLORS: Record<string, string> = {
@@ -56,6 +65,15 @@ const ACTION_COLORS: Record<string, string> = {
   admin_repair_challenge_ranking: "bg-amber-500/20 text-amber-300",
   profile_visibility_changed: "bg-indigo-500/20 text-indigo-300",
   fixture_betting_closed_snapshot: "bg-zinc-500/20 text-zinc-300",
+  comment_created: "bg-teal-500/20 text-teal-300",
+  comment_deleted: "bg-red-500/15 text-red-300",
+  comment_hidden: "bg-orange-500/15 text-orange-300",
+  reaction_set: "bg-pink-500/20 text-pink-300",
+  reaction_cleared: "bg-pink-500/10 text-pink-200",
+  social_follow: "bg-blue-500/15 text-blue-300",
+  social_unfollow: "bg-blue-500/10 text-blue-200",
+  social_spam_muted: "bg-red-600/20 text-red-300",
+  avatar_updated: "bg-indigo-500/20 text-indigo-300",
 };
 
 function formatDate(iso: string) {

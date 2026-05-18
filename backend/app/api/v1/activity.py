@@ -19,6 +19,8 @@ PUBLIC_ACTIONS = {
     "admin_settle",
     "bet_create",
     "bulk_copy",
+    "comment_created",
+    "reaction_set",
 }
 
 

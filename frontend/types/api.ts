@@ -11,6 +11,9 @@ export interface User {
   bets_profile_visibility?: BetsProfileVisibility;
   has_bets_profile_invite_code?: boolean;
   show_bet_amounts?: boolean;
+  avatar_preset?: string | null;
+  avatar_url?: string | null;
+  avatar_display?: string | null;
 }
 
 export interface PublicUserSummary {
@@ -19,6 +22,9 @@ export interface PublicUserSummary {
   bets_profile_visibility: BetsProfileVisibility;
   total_bets: number | null;
   show_bet_amounts?: boolean;
+  avatar_preset?: string | null;
+  avatar_url?: string | null;
+  avatar_display?: string | null;
 }
 
 export interface ActivePolla {
@@ -132,6 +138,9 @@ export interface LeaderboardEntry {
   position: number;
   user_id: string;
   username: string;
+  avatar_preset?: string | null;
+  avatar_url?: string | null;
+  avatar_display?: string | null;
   total_points: number;
   total_bets: number;
   correct_results: number;
@@ -232,7 +241,8 @@ export type NotificationType =
   | "badge_earned"
   | "challenge_pending"
   | "challenge_accepted"
-  | "challenge_settled";
+  | "challenge_settled"
+  | "comment_mention";
 
 export interface NotificationPayload {
   request_id?: string;

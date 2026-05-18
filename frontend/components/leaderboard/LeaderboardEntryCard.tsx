@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import type { BadgeOut, LeaderboardEntry } from "@/types/api";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 const BADGE_COLORS: Record<string, string> = {
   oracle: "bg-violet-500/20 text-violet-200 border-violet-500/30",
@@ -79,6 +80,7 @@ export function LeaderboardEntryCard({ entry, isMe, rankIndex, compact }: Leader
       </span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
+          <UserAvatar username={entry.username} avatarDisplay={entry.avatar_display} size="sm" />
           <Link href={`/u/${encodeURIComponent(entry.username)}`} className="group min-w-0">
             <p
               className={cn(

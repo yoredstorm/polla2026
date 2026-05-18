@@ -40,6 +40,15 @@ ACTION_LABELS_ES: dict[str, str] = {
     "admin_repair_challenge_ranking": "Reparar ranking retos",
     "profile_visibility_changed": "Privacidad de perfil",
     "fixture_betting_closed_snapshot": "Cierre de apuestas (tendencia)",
+    "comment_created": "Comentario publicado",
+    "comment_deleted": "Comentario eliminado",
+    "comment_hidden": "Comentario ocultado",
+    "reaction_set": "Reaccion al partido",
+    "reaction_cleared": "Reaccion quitada",
+    "social_follow": "Seguir usuario",
+    "social_unfollow": "Dejar de seguir",
+    "social_spam_muted": "Silencio anti-spam",
+    "avatar_updated": "Avatar actualizado",
 }
 
 
@@ -333,6 +342,58 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
             f"Local {d.get('home_pct', 0)}% · Empate {d.get('draw_pct', 0)}% · "
             f"Visitante {d.get('away_pct', 0)}%"
         )
+
+    if action == "comment_created":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        preview = d.get("body_preview") or ""
+        mentions = d.get("mentioned_usernames") or []
+        line = f"{partido} · Comentario"
+        if preview:
+            line += f": «{preview[:80]}{'…' if len(str(preview)) > 80 else ''}»"
+        if mentions:
+            line += f" · Menciones: {', '.join('@' + u for u in mentions[:5])}"
+        return line
+
+    if action == "comment_deleted":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        return f"{partido} · Comentario eliminado"
+
+    if action == "comment_hidden":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        estado = "oculto" if d.get("is_hidden") else "visible"
+        return f"{partido} · Comentario {estado} (moderacion)"
+
+    if action == "reaction_set":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        tipo = d.get("reaction_type", "?")
+        prev = d.get("previous_type")
+        if prev and prev != tipo:
+            return f"{partido} · Reaccion {prev} → {tipo}"
+        return f"{partido} · Reaccion: {tipo}"
+
+    if action == "reaction_cleared":
+        partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        return f"{partido} · Reaccion quitada ({d.get('reaction_type', '?')})"
+
+    if action == "social_follow":
+        un = d.get("following_username")
+        return f"Ahora sigues a @{un}" if un else "Siguiendo usuario"
+
+    if action == "social_unfollow":
+        un = d.get("following_username")
+        return f"Dejaste de seguir a @{un}" if un else "Dejo de seguir"
+
+    if action == "social_spam_muted":
+        mins = d.get("duration_minutes", "?")
+        strike = d.get("strike", "?")
+        return f"Silenciado {mins} min (strike {strike}) · hasta {d.get('until', '?')}"
+
+    if action == "avatar_updated":
+        if d.get("preset"):
+            return f"Avatar preset: {d.get('preset')}"
+        if d.get("upload"):
+            return "Avatar personalizado subido"
+        return "Avatar restablecido"
 
     # Fallback: friendly key-value in Spanish
     key_labels = {

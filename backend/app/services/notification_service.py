@@ -363,6 +363,26 @@ def build_change_request_auto_expired_admins_batch(
     return title, body, payload
 
 
+def build_comment_mention(
+    *,
+    author_username: str,
+    fixture_id: str,
+    comment_id: str,
+    home_team: str,
+    away_team: str,
+    body_preview: str,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"@{author_username} te menciono"
+    body = f"En {home_team} vs {away_team}: \"{body_preview}\""
+    return title, body, {
+        "fixture_id": fixture_id,
+        "comment_id": comment_id,
+        "author_username": author_username,
+        "home_team": home_team,
+        "away_team": away_team,
+    }
+
+
 def build_badge_earned(*, badge_id: str, badge_label: str) -> tuple[str, str, dict[str, Any]]:
     title = f"Nueva medalla: {badge_label}"
     body = "Desbloqueaste una medalla. Revisa tu perfil y el catalogo en el dashboard."

@@ -57,6 +57,10 @@ class ChangePassword(BaseModel):
         return v
 
 
+class AvatarUpdate(BaseModel):
+    preset: str | None = None
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -70,6 +74,9 @@ class UserOut(BaseModel):
     bets_profile_visibility: Literal["public", "invite_only"] = "public"
     has_bets_profile_invite_code: bool = False
     show_bet_amounts: bool = True
+    avatar_preset: str | None = None
+    avatar_url: str | None = None
+    avatar_display: str | None = None
 
 
 class PublicUserSummary(BaseModel):
@@ -78,6 +85,9 @@ class PublicUserSummary(BaseModel):
     bets_profile_visibility: Literal["public", "invite_only"]
     total_bets: int | None = None
     show_bet_amounts: bool = True
+    avatar_preset: str | None = None
+    avatar_url: str | None = None
+    avatar_display: str | None = None
 
 
 class BetsProfileUpdate(BaseModel):

@@ -9,6 +9,7 @@ from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
 from app.models.challenge import Challenge
 from app.models.fixture import Fixture
 from app.models.user import User
+from app.services.avatar_service import avatar_display_path
 from app.services.challenge_service import (
     create_challenge,
     accept_challenge,
@@ -46,6 +47,8 @@ class ChallengeOut(BaseModel):
     challenged_id: str
     challenger_username: str | None = None
     challenged_username: str | None = None
+    challenger_avatar_display: str | None = None
+    challenged_avatar_display: str | None = None
     stake_points: int
     status: str
     winner_id: str | None
@@ -69,19 +72,23 @@ class ChallengeOut(BaseModel):
 
 def _map_challenge(
     ch: Challenge,
-    users: dict[uuid.UUID, str],
+    users: dict[uuid.UUID, dict],
     *,
     viewer_id: uuid.UUID | None = None,
     fixture: Fixture | None = None,
 ) -> ChallengeOut:
+    ch_user = users.get(ch.challenger_id) or {}
+    cd_user = users.get(ch.challenged_id) or {}
     return ChallengeOut(
         id=str(ch.id),
         fixture_id=str(ch.fixture_id),
         group_id=str(ch.group_id),
         challenger_id=str(ch.challenger_id),
         challenged_id=str(ch.challenged_id),
-        challenger_username=users.get(ch.challenger_id),
-        challenged_username=users.get(ch.challenged_id),
+        challenger_username=ch_user.get("username"),
+        challenged_username=cd_user.get("username"),
+        challenger_avatar_display=ch_user.get("avatar_display"),
+        challenged_avatar_display=cd_user.get("avatar_display"),
         stake_points=ch.stake_points,
         status=ch.status,
         winner_id=str(ch.winner_id) if ch.winner_id else None,
@@ -94,9 +101,9 @@ def _map_challenge(
         fixture_away_team=fixture.away_team if fixture else None,
         fixture_match_date=fixture.match_date.isoformat() if fixture and fixture.match_date else None,
         opponent_username=(
-            users.get(ch.challenged_id)
+            cd_user.get("username")
             if viewer_id == ch.challenger_id
-            else users.get(ch.challenger_id)
+            else ch_user.get("username")
             if viewer_id
             else None
         ),
@@ -113,11 +120,21 @@ def _map_challenge(
     )
 
 
-async def _usernames(db, *user_ids: uuid.UUID) -> dict[uuid.UUID, str]:
+async def _user_meta(db, *user_ids: uuid.UUID) -> dict[uuid.UUID, dict]:
     if not user_ids:
         return {}
-    res = await db.execute(select(User.id, User.username).where(User.id.in_(user_ids)))
-    return {row[0]: row[1] for row in res.all()}
+    res = await db.execute(
+        select(User.id, User.username, User.avatar_preset, User.avatar_url).where(
+            User.id.in_(user_ids)
+        )
+    )
+    out: dict[uuid.UUID, dict] = {}
+    for uid, username, preset, url in res.all():
+        out[uid] = {
+            "username": username,
+            "avatar_display": avatar_display_path(preset, url),
+        }
+    return out
 
 
 @router.post("", response_model=ChallengeOut, status_code=201)
@@ -159,7 +176,7 @@ async def post_challenge(
         }
         raise HTTPException(status_code=400, detail={"error": {"code": code, "message": messages.get(code, code)}})
 
-    users = await _usernames(db, ch.challenger_id, ch.challenged_id)
+    users = await _user_meta(db, ch.challenger_id, ch.challenged_id)
     return _map_challenge(ch, users)
 
 
@@ -206,7 +223,7 @@ async def post_accept(
             detail={"error": {"code": code, "message": messages.get(code, code)}},
         )
 
-    users = await _usernames(db, ch.challenger_id, ch.challenged_id)
+    users = await _user_meta(db, ch.challenger_id, ch.challenged_id)
     return _map_challenge(ch, users)
 
 
@@ -229,7 +246,7 @@ async def post_reject(
         await db.rollback()
         raise HTTPException(status_code=404, detail=str(e))
 
-    users = await _usernames(db, ch.challenger_id, ch.challenged_id)
+    users = await _user_meta(db, ch.challenger_id, ch.challenged_id)
     return _map_challenge(ch, users)
 
 
@@ -251,7 +268,7 @@ async def list_my_challenges(request: Request, current_user: CurrentUser, db: DB
         ids.add(ch.challenger_id)
         ids.add(ch.challenged_id)
         fixture_ids.add(ch.fixture_id)
-    users = await _usernames(db, *ids)
+    users = await _user_meta(db, *ids)
     fixtures: dict[uuid.UUID, Fixture] = {}
     if fixture_ids:
         fx = await db.execute(select(Fixture).where(Fixture.id.in_(fixture_ids)))
@@ -286,7 +303,7 @@ async def list_fixture_challenges(
     for ch in rows:
         ids.add(ch.challenger_id)
         ids.add(ch.challenged_id)
-    users = await _usernames(db, *ids)
+    users = await _user_meta(db, *ids)
     return [_map_challenge(ch, users) for ch in rows]
 
 

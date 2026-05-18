@@ -42,6 +42,7 @@ services:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      - uploads_data:/app/uploads
     command:
       - uvicorn
       - app.main:app
@@ -76,3 +77,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads_data:

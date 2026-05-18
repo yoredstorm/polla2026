@@ -10,6 +10,8 @@ export interface Challenge {
   challenged_id: string;
   challenger_username: string | null;
   challenged_username: string | null;
+  challenger_avatar_display?: string | null;
+  challenged_avatar_display?: string | null;
   stake_points: number;
   status: string;
   winner_id: string | null;

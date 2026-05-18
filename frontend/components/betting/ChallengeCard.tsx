@@ -3,27 +3,31 @@ import { motion } from "framer-motion";
 import type { Challenge } from "@/hooks/useChallenges";
 import { challengeStatusLabel } from "@/lib/challengeUtils";
 import { cn } from "@/lib/utils";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 
 function Fighter({
   username,
+  avatarDisplay,
   highlight,
   isWinner,
 }: {
   username: string | null;
+  avatarDisplay?: string | null;
   highlight?: boolean;
   isWinner?: boolean;
 }) {
-  const initial = (username ?? "?").charAt(0).toUpperCase();
   return (
     <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
-      <div
-        className={cn(
-          "w-14 h-14 rounded-full flex items-center justify-center font-display text-xl border-2",
-          highlight ? "border-accent bg-accent/20 text-accent" : "border-white/20 bg-white/5 text-white",
-          isWinner && "ring-2 ring-yellow-400/60",
-        )}
-      >
-        {initial}
+      <div className={cn(isWinner && "ring-2 ring-yellow-400/60 rounded-full")}>
+        <UserAvatar
+          username={username ?? "?"}
+          avatarDisplay={avatarDisplay}
+          size="sm"
+          className={cn(
+            "w-14 h-14 text-xl border-2",
+            highlight ? "border-accent" : "border-white/20",
+          )}
+        />
       </div>
       <p className={cn("text-sm font-medium truncate max-w-full", highlight ? "text-accent" : "text-white")}>
         @{username ?? "?"}
@@ -80,6 +84,7 @@ export function ChallengeCard({
       <div className="flex items-center gap-3">
         <Fighter
           username={ch.challenger_username}
+          avatarDisplay={ch.challenger_avatar_display}
           highlight={ch.challenger_id === currentUserId}
           isWinner={ch.status === "settled" && ch.winner_id === ch.challenger_id}
         />
@@ -89,6 +94,7 @@ export function ChallengeCard({
         </div>
         <Fighter
           username={ch.challenged_username}
+          avatarDisplay={ch.challenged_avatar_display}
           highlight={ch.challenged_id === currentUserId}
           isWinner={ch.status === "settled" && ch.winner_id === ch.challenged_id}
         />

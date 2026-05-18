@@ -43,6 +43,14 @@ class Settings(BaseSettings):
     LOGIN_RATE_LIMIT_PER_MINUTE: int = 5
     LOGIN_BLOCK_DURATION_SECONDS: int = 900
 
+    # Social spam
+    SOCIAL_COMMENT_BURST_LIMIT: int = 8
+    SOCIAL_COMMENT_BURST_WINDOW_SEC: int = 120
+
+    # Avatar uploads
+    AVATAR_UPLOAD_DIR: str = "/app/uploads/avatars"
+    AVATAR_MAX_BYTES: int = 1_048_576
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors(cls, v: str) -> str:

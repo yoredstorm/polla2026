@@ -8,7 +8,29 @@ from sqlalchemy.dialects.postgresql import UUID
 
 from app.db.session import Base
 
-REACTION_TYPES = frozenset({"like", "fire", "trophy"})
+REACTION_TYPES = frozenset({
+    "like",
+    "fire",
+    "trophy",
+    "wow",
+    "skull",
+    "sad",
+    "angry",
+    "clown",
+    "heart",
+})
+
+REACTION_LABELS: dict[str, str] = {
+    "like": "Like",
+    "fire": "Fuego",
+    "trophy": "Trofeo",
+    "wow": "Asombro",
+    "skull": "Muerte",
+    "sad": "Decepcion",
+    "angry": "Rabia",
+    "clown": "Payaso",
+    "heart": "Corazon",
+}
 
 
 class UserFollow(Base):
@@ -41,6 +63,22 @@ class FixtureComment(Base):
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
+    )
+
+
+class FixtureCommentMention(Base):
+    __tablename__ = "fixture_comment_mentions"
+
+    comment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("fixture_comments.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    mentioned_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+        index=True,
     )
 
 

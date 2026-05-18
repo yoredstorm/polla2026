@@ -1,6 +1,49 @@
 "use client";
 import Link from "next/link";
-import { useFollowingFeed } from "@/hooks/useSocial";
+import { useFollowingFeed, type FollowingBetChallenge } from "@/hooks/useSocial";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { challengeStatusLabel } from "@/lib/challengeUtils";
+import { cn } from "@/lib/utils";
+
+function challengeBadge(ch: FollowingBetChallenge) {
+  const rival = ch.challenge_opponent_username ? `@${ch.challenge_opponent_username}` : "rival";
+  const stake = ch.challenge_stake;
+
+  if (ch.challenge_result === "won") {
+    return {
+      text: `Ganó el reto vs ${rival} (${stake} pts)`,
+      className: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+    };
+  }
+  if (ch.challenge_result === "lost") {
+    return {
+      text: `Perdió el reto vs ${rival} (${stake} pts)`,
+      className: "bg-red-500/15 text-red-300 border-red-500/30",
+    };
+  }
+  if (ch.challenge_result === "draw") {
+    return {
+      text: `Empate en reto vs ${rival} (${stake} pts)`,
+      className: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30",
+    };
+  }
+  if (ch.challenge_result === "active") {
+    return {
+      text: `En reto vs ${rival} · ${stake} pts en juego`,
+      className: "bg-amber-500/15 text-amber-200 border-amber-500/30",
+    };
+  }
+  if (ch.challenge_result === "pending") {
+    return {
+      text: `Reto pendiente vs ${rival} · ${stake} pts`,
+      className: "bg-sky-500/15 text-sky-200 border-sky-500/30",
+    };
+  }
+  return {
+    text: `Reto · ${challengeStatusLabel(ch.challenge_status)} vs ${rival}`,
+    className: "bg-white/10 text-muted border-white/15",
+  };
+}
 
 export function FollowingFeed() {
   const { data, isLoading } = useFollowingFeed(12);
@@ -13,21 +56,40 @@ export function FollowingFeed() {
     <section className="rounded-xl border border-white/10 bg-glass p-4 mb-4">
       <h2 className="font-display text-lg text-white mb-3">Apuestas de quien sigues</h2>
       <ul className="space-y-2">
-        {items.map((item) => (
-          <li key={item.bet_id}>
-            <Link
-              href={`/fixtures/${item.fixture_id}`}
-              className="block rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5 transition-colors"
-            >
-              <p className="text-sm text-white">
-                <span className="text-accent">@{item.username}</span> · {item.home_team} vs {item.away_team}
-              </p>
-              <p className="text-xs text-muted mt-0.5">
-                Pronostico {item.predicted_home_score}–{item.predicted_away_score}
-              </p>
-            </Link>
-          </li>
-        ))}
+        {items.map((item) => {
+          const ch = item.challenge;
+          const badge = ch ? challengeBadge(ch) : null;
+          return (
+            <li key={item.bet_id}>
+              <Link
+                href={`/fixtures/${item.fixture_id}`}
+                className="flex gap-3 rounded-lg border border-white/10 px-3 py-2 hover:bg-white/5 transition-colors"
+              >
+                <UserAvatar username={item.username} avatarDisplay={item.avatar_display} size="sm" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white truncate">
+                    <span className="text-accent font-medium">@{item.username}</span>
+                    <span className="text-muted"> · </span>
+                    {item.home_team} vs {item.away_team}
+                  </p>
+                  <p className="text-xs text-muted mt-0.5">
+                    Pronóstico {item.predicted_home_score}–{item.predicted_away_score}
+                  </p>
+                  {badge && (
+                    <span
+                      className={cn(
+                        "inline-block mt-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border",
+                        badge.className,
+                      )}
+                    >
+                      {badge.text}
+                    </span>
+                  )}
+                </div>
+              </Link>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

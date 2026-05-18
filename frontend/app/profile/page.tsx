@@ -8,6 +8,7 @@ import { Navbar } from "@/components/ui/Navbar";
 import { useUpdateBetsProfile } from "@/hooks/useUserProfile";
 import { getMe } from "@/lib/auth";
 import { BadgeGrid } from "@/components/gamification/BadgeGrid";
+import { AvatarPicker } from "@/components/profile/AvatarPicker";
 import { useMyBadgeProgress } from "@/hooks/useBadgeCatalog";
 import { cn } from "@/lib/utils";
 import type { BadgeOut } from "@/types/api";
@@ -139,6 +140,10 @@ export default function ProfilePage() {
       <main className="max-w-lg mx-auto px-4 py-10">
         <h1 className="font-display text-3xl text-white mb-2">Mi perfil</h1>
         <p className="text-sm text-muted mb-8">@{me.username}</p>
+
+        <div className="mb-6">
+          <AvatarPicker user={me} />
+        </div>
 
         <section className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 space-y-6">
           <div>

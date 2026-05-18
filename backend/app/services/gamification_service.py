@@ -2,14 +2,15 @@
 import uuid
 from typing import Literal
 
-from sqlalchemy import select, or_, and_
+from sqlalchemy import select, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bet import Bet
 from app.models.fixture import Fixture
 from app.models.challenge import Challenge
+from app.models.social import FixtureComment, FixtureCommentMention, FixtureReaction
 
-BadgeCategory = Literal["bets", "challenges", "ranking"]
+BadgeCategory = Literal["bets", "challenges", "ranking", "social"]
 
 # Single source of truth for UI catalog and copy
 BADGE_CATALOG: list[dict] = [
@@ -76,11 +77,52 @@ BADGE_CATALOG: list[dict] = [
         "category": "ranking",
         "hint": "Sube en el ranking global del torneo",
     },
+    {
+        "id": "comentarista",
+        "label": "El Comentarista",
+        "description": "5 partidos distintos comentados seguidos",
+        "category": "social",
+        "hint": "Comenta partidos consecutivos en la comunidad",
+    },
+    {
+        "id": "reaccionador",
+        "label": "El Reaccionador",
+        "description": "15+ reacciones o reaccionar en 5 partidos",
+        "category": "social",
+        "hint": "Reacciona a los partidos del torneo",
+    },
+    {
+        "id": "mencion_magnetica",
+        "label": "Iman de menciones",
+        "description": "3+ menciones en comentarios",
+        "category": "social",
+        "hint": "Hazte notar en los comentarios del grupo",
+    },
+    {
+        "id": "polemico",
+        "label": "Polemico",
+        "description": "10+ comentarios en el torneo",
+        "category": "social",
+        "hint": "Participa activamente en el chat de partidos",
+    },
 ]
 
 
 def get_badge_catalog() -> list[dict]:
     return list(BADGE_CATALOG)
+
+
+async def ranking_position_for_user(
+    db: AsyncSession, user_id: uuid.UUID, group_id: uuid.UUID | None
+) -> int | None:
+    if not group_id:
+        return None
+    from app.services.group_service import get_group_leaderboard
+
+    for entry in await get_group_leaderboard(db, group_id, min_bets=1):
+        if entry.user_id == user_id and 1 <= entry.position <= 3:
+            return entry.position
+    return None
 
 
 async def compute_badges(
@@ -149,6 +191,7 @@ async def compute_badges(
             "description": f"Top {position} del ranking de la polla",
         })
 
+    await _append_social_badges(db, user_id, badges)
     return badges
 
 
@@ -194,4 +237,76 @@ async def _append_challenge_badges(
             "id": "challenge_cursed",
             "label": "Marca del rival",
             "description": "3 duelos perdidos seguidos",
+        })
+
+
+async def _append_social_badges(
+    db: AsyncSession, user_id: uuid.UUID, badges: list[dict]
+) -> None:
+    comment_count = (
+        await db.execute(
+            select(func.count()).select_from(FixtureComment).where(FixtureComment.user_id == user_id)
+        )
+    ).scalar() or 0
+    if comment_count >= 10:
+        badges.append({
+            "id": "polemico",
+            "label": "Polemico",
+            "description": "10+ comentarios en el torneo",
+        })
+
+    mention_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(FixtureCommentMention)
+            .where(FixtureCommentMention.mentioned_user_id == user_id)
+        )
+    ).scalar() or 0
+    if mention_count >= 3:
+        badges.append({
+            "id": "mencion_magnetica",
+            "label": "Iman de menciones",
+            "description": "3+ menciones en comentarios",
+        })
+
+    reaction_total = (
+        await db.execute(
+            select(func.count()).select_from(FixtureReaction).where(FixtureReaction.user_id == user_id)
+        )
+    ).scalar() or 0
+    reaction_fixtures = (
+        await db.execute(
+            select(func.count(func.distinct(FixtureReaction.fixture_id))).where(
+                FixtureReaction.user_id == user_id
+            )
+        )
+    ).scalar() or 0
+    if reaction_total >= 15 or reaction_fixtures >= 5:
+        badges.append({
+            "id": "reaccionador",
+            "label": "El Reaccionador",
+            "description": "15+ reacciones o reaccionar en 5 partidos",
+        })
+
+    fx_dates_res = await db.execute(
+        select(Fixture.match_date)
+        .join(FixtureComment, FixtureComment.fixture_id == Fixture.id)
+        .where(FixtureComment.user_id == user_id)
+        .group_by(Fixture.id, Fixture.match_date)
+        .order_by(Fixture.match_date.asc())
+    )
+    dates = [row[0] for row in fx_dates_res.all()]
+    streak = 1
+    max_streak = 1
+    for i in range(1, len(dates)):
+        if dates[i] >= dates[i - 1]:
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 1
+    if max_streak >= 5:
+        badges.append({
+            "id": "comentarista",
+            "label": "El Comentarista",
+            "description": "5 partidos distintos comentados seguidos",
         })

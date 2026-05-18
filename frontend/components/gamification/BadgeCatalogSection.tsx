@@ -17,6 +17,7 @@ const FILTERS: { id: BadgeCategory; label: string }[] = [
   { id: "bets", label: "Pronósticos" },
   { id: "challenges", label: "Retos" },
   { id: "ranking", label: "Ranking" },
+  { id: "social", label: "Comunidad" },
 ];
 
 function CatalogCard({

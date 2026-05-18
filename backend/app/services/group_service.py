@@ -14,6 +14,7 @@ from app.models.group import Group, GroupMember
 from app.models.bet import Bet
 from app.models.user import User
 from app.schemas.group import GroupCreate, LeaderboardEntry, BadgeOut
+from app.services.avatar_service import avatar_display_path
 from app.services.challenge_service import compute_challenge_stats, compute_bet_points_for_ranking
 from app.services.gamification_service import compute_badges
 
@@ -95,6 +96,8 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
         select(
             User.id.label("user_id"),
             User.username.label("username"),
+            User.avatar_preset.label("avatar_preset"),
+            User.avatar_url.label("avatar_url"),
             User.bets_profile_visibility.label("bets_profile_visibility"),
             User.show_bet_amounts.label("show_bet_amounts"),
             func.coalesce(func.sum(Bet.points_earned), 0).label("total_points"),
@@ -110,7 +113,14 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
         .join(Bet, Bet.user_id == User.id)
         .outerjoin(GroupMember, GroupMember.user_id == User.id)
         .where(where_clause)
-        .group_by(User.id, User.username, User.bets_profile_visibility, User.show_bet_amounts)
+        .group_by(
+            User.id,
+            User.username,
+            User.avatar_preset,
+            User.avatar_url,
+            User.bets_profile_visibility,
+            User.show_bet_amounts,
+        )
     ).subquery()
 
 
@@ -167,6 +177,12 @@ async def _fetch_leaderboard_page(
                 position=pos,
                 user_id=row.user_id,
                 username=row.username,
+                avatar_preset=getattr(row, "avatar_preset", None),
+                avatar_url=getattr(row, "avatar_url", None),
+                avatar_display=avatar_display_path(
+                    getattr(row, "avatar_preset", None),
+                    getattr(row, "avatar_url", None),
+                ),
                 total_points=int(row.total_points or 0),
                 total_bets=settled,
                 correct_results=correct,
@@ -237,6 +253,9 @@ async def get_group_leaderboard(
                 position=0,
                 user_id=user.id,
                 username=user.username,
+                avatar_preset=user.avatar_preset,
+                avatar_url=user.avatar_url,
+                avatar_display=avatar_display_path(user.avatar_preset, user.avatar_url),
                 total_points=ranking_pts,
                 total_bets=settled,
                 correct_results=correct,

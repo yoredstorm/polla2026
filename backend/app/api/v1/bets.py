@@ -136,6 +136,63 @@ async def my_bets_for_fixture(request: Request, fixture_id: uuid.UUID, current_u
     return [BetOut.model_validate(b) for b in result.scalars().all()]
 
 
+@router.get("/my-change-requests")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def my_change_requests(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+):
+    base = (
+        select(
+            BetChangeRequest,
+            Bet.predicted_home_score,
+            Bet.predicted_away_score,
+            Bet.fixture_id,
+            Fixture.match_date,
+        )
+        .join(Bet, BetChangeRequest.bet_id == Bet.id)
+        .join(Fixture, Bet.fixture_id == Fixture.id)
+        .where(BetChangeRequest.user_id == current_user.id)
+    )
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    rows = (
+        await db.execute(
+            base.order_by(BetChangeRequest.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+
+    return {
+        "data": [
+            ChangeRequestOut(
+                id=str(cr.id),
+                bet_id=str(cr.bet_id),
+                request_type=cr.request_type,
+                new_predicted_home_score=cr.new_predicted_home_score,
+                new_predicted_away_score=cr.new_predicted_away_score,
+                reason=cr.reason,
+                status=cr.status,
+                admin_notes=cr.admin_notes,
+                created_at=cr.created_at.isoformat(),
+                resolved_at=cr.resolved_at.isoformat() if cr.resolved_at else None,
+                predicted_home_score=home,
+                predicted_away_score=away,
+                fixture_id=str(fid),
+                fixture_match_date=fmd.isoformat(),
+            )
+            for cr, home, away, fid, fmd in rows
+        ],
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
+    }
+
+
 @router.get("/{bet_id}", response_model=BetOut)
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def get_bet(request: Request, bet_id: uuid.UUID, current_user: CurrentUser, db: DBSession):
@@ -404,62 +461,3 @@ async def create_change_request(
         fixture_id=str(bet.fixture_id),
         fixture_match_date=fixture.match_date.isoformat(),
     )
-
-
-@router.get("/my-change-requests")
-@limiter.limit(GLOBAL_RATE_LIMIT)
-async def my_change_requests(
-    request: Request,
-    current_user: CurrentUser,
-    db: DBSession,
-    page: int = Query(1, ge=1),
-    limit: int = Query(20, ge=1, le=100),
-):
-    from app.models.user import User
-
-    base = (
-        select(
-            BetChangeRequest,
-            Bet.predicted_home_score,
-            Bet.predicted_away_score,
-            Bet.fixture_id,
-            Fixture.match_date,
-        )
-        .join(Bet, BetChangeRequest.bet_id == Bet.id)
-        .join(Fixture, Bet.fixture_id == Fixture.id)
-        .where(BetChangeRequest.user_id == current_user.id)
-    )
-
-    count_q = select(func.count()).select_from(base.subquery())
-    total = (await db.execute(count_q)).scalar() or 0
-
-    rows = (
-        await db.execute(
-            base.order_by(BetChangeRequest.created_at.desc())
-            .offset((page - 1) * limit)
-            .limit(limit)
-        )
-    ).all()
-
-    return {
-        "data": [
-            ChangeRequestOut(
-                id=str(cr.id),
-                bet_id=str(cr.bet_id),
-                request_type=cr.request_type,
-                new_predicted_home_score=cr.new_predicted_home_score,
-                new_predicted_away_score=cr.new_predicted_away_score,
-                reason=cr.reason,
-                status=cr.status,
-                admin_notes=cr.admin_notes,
-                created_at=cr.created_at.isoformat(),
-                resolved_at=cr.resolved_at.isoformat() if cr.resolved_at else None,
-                predicted_home_score=home,
-                predicted_away_score=away,
-                fixture_id=str(fid),
-                fixture_match_date=fmd.isoformat(),
-            )
-            for cr, home, away, fid, fmd in rows
-        ],
-        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
-    }

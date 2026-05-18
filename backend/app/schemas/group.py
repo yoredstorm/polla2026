@@ -72,6 +72,9 @@ class LeaderboardEntry(BaseModel):
     position: int
     user_id: uuid.UUID
     username: str
+    avatar_preset: str | None = None
+    avatar_url: str | None = None
+    avatar_display: str | None = None
     total_points: int
     total_bets: int
     correct_results: int

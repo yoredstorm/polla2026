@@ -1,8 +1,12 @@
 import uuid
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from pathlib import Path
+
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select, func, and_
 
 from app.api.deps import CurrentUser, DBSession, OptionalUser
+from app.core.config import settings
 from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
 from app.core.security import generate_profile_bets_invite_code, hash_token
 from app.models.bet import Bet
@@ -10,10 +14,17 @@ from app.models.user import User
 from app.schemas.bet import BetOut
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.user import (
+    AvatarUpdate,
     BetsProfileMeResponse,
     BetsProfileUpdate,
     PublicUserSummary,
     UserOut,
+)
+from app.services.avatar_service import (
+    AVATAR_PRESETS,
+    avatar_display_path,
+    save_avatar_upload,
+    validate_preset,
 )
 from app.services.user_profile_service import can_show_bet_count, can_view_user_bets_list
 
@@ -23,10 +34,99 @@ router = APIRouter(prefix="/users", tags=["Users"])
 PROFILE_BETS_VIEW_RATE_LIMIT = "30/minute"
 
 
+def _user_out(user: User) -> UserOut:
+    base = UserOut.model_validate(user)
+    return base.model_copy(
+        update={
+            "avatar_display": avatar_display_path(user.avatar_preset, user.avatar_url),
+        }
+    )
+
+
+def _public_summary(target: User, **kwargs) -> PublicUserSummary:
+    return PublicUserSummary(
+        user_id=target.id,
+        username=target.username,
+        bets_profile_visibility=target.bets_profile_visibility,  # type: ignore[arg-type]
+        avatar_preset=target.avatar_preset,
+        avatar_url=target.avatar_url,
+        avatar_display=avatar_display_path(target.avatar_preset, target.avatar_url),
+        **kwargs,
+    )
+
+
+@router.get("/avatar-presets")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def list_avatar_presets(request: Request):
+    return {"presets": AVATAR_PRESETS}
+
+
+@router.get("/avatar/{user_id}")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def serve_user_avatar(request: Request, user_id: uuid.UUID):
+    path = Path(settings.AVATAR_UPLOAD_DIR) / f"{user_id}.jpg"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Avatar not found")
+    return FileResponse(path, media_type="image/jpeg")
+
+
 @router.get("/me", response_model=UserOut)
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def get_me(request: Request, current_user: CurrentUser):
-    return UserOut.model_validate(current_user)
+    return _user_out(current_user)
+
+
+@router.patch("/me/avatar", response_model=UserOut)
+@limiter.limit("20/minute")
+async def patch_my_avatar(
+    request: Request,
+    data: AvatarUpdate,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    validate_preset(data.preset)
+    current_user.avatar_preset = data.preset
+    if data.preset is not None:
+        current_user.avatar_url = None
+
+    from app.services.audit import log_action
+
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="avatar_updated",
+        detail={"preset": data.preset, "upload": False},
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    await db.refresh(current_user)
+    return _user_out(current_user)
+
+
+@router.post("/me/avatar/upload", response_model=UserOut)
+@limiter.limit("10/minute")
+async def upload_my_avatar(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    file: UploadFile = File(...),
+):
+    url = await save_avatar_upload(current_user.id, file)
+    current_user.avatar_url = url
+    current_user.avatar_preset = None
+
+    from app.services.audit import log_action
+
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="avatar_updated",
+        detail={"preset": None, "upload": True},
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    await db.refresh(current_user)
+    return _user_out(current_user)
 
 
 async def _active_group_id(db: DBSession) -> uuid.UUID | None:
@@ -41,10 +141,11 @@ async def _active_group_id(db: DBSession) -> uuid.UUID | None:
 @router.get("/me/badges")
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def get_my_badges(request: Request, current_user: CurrentUser, db: DBSession):
-    from app.services.gamification_service import compute_badges
+    from app.services.gamification_service import compute_badges, ranking_position_for_user
 
     group_id = await _active_group_id(db)
-    badges = await compute_badges(db, current_user.id, group_id=group_id)
+    position = await ranking_position_for_user(db, current_user.id, group_id)
+    badges = await compute_badges(db, current_user.id, group_id=group_id, position=position)
     return {"badges": badges}
 
 
@@ -56,7 +157,7 @@ async def get_user_badges_by_username(
     db: DBSession,
     current_user: OptionalUser,
 ):
-    from app.services.gamification_service import compute_badges
+    from app.services.gamification_service import compute_badges, ranking_position_for_user
 
     result = await db.execute(select(User).where(User.username == username))
     target = result.scalar_one_or_none()
@@ -68,7 +169,8 @@ async def get_user_badges_by_username(
             raise HTTPException(status_code=403, detail="Profile is private")
 
     group_id = await _active_group_id(db)
-    return {"badges": await compute_badges(db, target.id, group_id=group_id)}
+    position = await ranking_position_for_user(db, target.id, group_id)
+    return {"badges": await compute_badges(db, target.id, group_id=group_id, position=position)}
 
 
 @router.get("/by-username/{username}/public", response_model=PublicUserSummary)
@@ -87,13 +189,7 @@ async def get_user_public_summary(
     if target.bets_profile_visibility == "public":
         cnt = await db.execute(select(func.count()).select_from(Bet).where(Bet.user_id == target.id))
         total_bets = int(cnt.scalar() or 0)
-    return PublicUserSummary(
-        user_id=target.id,
-        username=target.username,
-        bets_profile_visibility=target.bets_profile_visibility,  # type: ignore[arg-type]
-        total_bets=total_bets,
-        show_bet_amounts=target.show_bet_amounts,
-    )
+    return _public_summary(target, total_bets=total_bets, show_bet_amounts=target.show_bet_amounts)
 
 
 @router.get("/by-username/{username}/summary", response_model=PublicUserSummary)
@@ -118,13 +214,7 @@ async def get_user_summary_by_username(
         cnt = await db.execute(select(func.count()).select_from(Bet).where(Bet.user_id == target.id))
         total_bets = int(cnt.scalar() or 0)
 
-    return PublicUserSummary(
-        user_id=target.id,
-        username=target.username,
-        bets_profile_visibility=target.bets_profile_visibility,  # type: ignore[arg-type]
-        total_bets=total_bets,
-        show_bet_amounts=target.show_bet_amounts,
-    )
+    return _public_summary(target, total_bets=total_bets, show_bet_amounts=target.show_bet_amounts)
 
 
 @router.get("/{user_id}/bets", response_model=PaginatedResponse[BetOut])

@@ -25,6 +25,10 @@ class User(Base):
     bets_profile_visibility: Mapped[str] = mapped_column(String(20), default="public", nullable=False)
     bets_profile_invite_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     show_bet_amounts: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    social_muted_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    social_spam_strikes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    avatar_preset: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

@@ -32,7 +32,10 @@ async def get_catalog_with_progress(
         select(Group.id).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
     )
     group_id = result.scalar_one_or_none()
-    earned = await compute_badges(db, current_user.id, group_id=group_id)
+    from app.services.gamification_service import ranking_position_for_user
+
+    position = await ranking_position_for_user(db, current_user.id, group_id)
+    earned = await compute_badges(db, current_user.id, group_id=group_id, position=position)
     earned_ids = {b["id"] for b in earned}
     return {
         "badges": catalog,
