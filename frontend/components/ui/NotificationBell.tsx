@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import {
@@ -9,21 +8,16 @@ import {
   useMarkNotificationRead,
   useMarkAllNotificationsRead,
 } from "@/hooks/useNotifications";
-import {
-  useApproveChangeRequest,
-  useRejectChangeRequest,
-  useConfirmExtra,
-  useAddGroupMember,
-} from "@/hooks/useAdmin";
-import { useToast } from "@/components/ui/Toast";
-import {
-  connectNotificationsWs,
-  disconnectNotificationsWs,
-  setNotificationWsCallbacks,
-} from "@/lib/notificationsWs";
-import type { Notification, NotificationPayload } from "@/types/api";
+import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
+import { useRealtimeSync } from "@/components/RealtimeSyncProvider";
+import type { Notification } from "@/types/api";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/Modal";
 import { notificationHref, notificationLinkLabel } from "@/lib/notificationLinks";
+import {
+  NotificationAdminActions,
+  isAdminActionableNotification,
+} from "@/components/notifications/NotificationAdminActions";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleString("es-PE", {
@@ -36,10 +30,8 @@ function formatTime(iso: string) {
 
 export function NotificationBell() {
   const { user } = useAuth();
-  const qc = useQueryClient();
-  const toast = useToast((s) => s.add);
+  const { wsConnected } = useRealtimeSync();
   const [open, setOpen] = useState(false);
-  const [wsConnected, setWsConnected] = useState(false);
   const [rejectTarget, setRejectTarget] = useState<Notification | null>(null);
   const [rejectNotes, setRejectNotes] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
@@ -48,32 +40,10 @@ export function NotificationBell() {
   const { data: unreadData } = useUnreadCount(!!user);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
-  const approveCr = useApproveChangeRequest();
-  const rejectCr = useRejectChangeRequest();
-  const confirmExtra = useConfirmExtra();
-  const addMember = useAddGroupMember();
+  const { handleReject, rejectCr } = useNotificationAdminActions();
 
   const unread = unreadData?.count ?? 0;
   const notifications = notifPage?.data ?? [];
-
-  const toastRef = useRef(toast);
-  toastRef.current = toast;
-
-  useEffect(() => {
-    if (!user) return;
-    setNotificationWsCallbacks({
-      onConnected: () => setWsConnected(true),
-      onDisconnected: () => setWsConnected(false),
-      onStale: () => {
-        setWsConnected(false);
-      },
-    });
-    const disconnect = connectNotificationsWs(qc, (msg, type) => toastRef.current(msg, type));
-    return () => {
-      disconnect();
-      setNotificationWsCallbacks({});
-    };
-  }, [user, qc]);
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -85,60 +55,11 @@ export function NotificationBell() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, [open]);
 
-  async function afterAction(n: Notification) {
-    if (!n.read_at) {
-      await markRead.mutateAsync(n.id);
-    }
-    toast("Accion completada", "success");
-  }
-
-  async function handleApproveChange(n: Notification, p: NotificationPayload) {
-    if (!p.request_id) return;
-    try {
-      await approveCr.mutateAsync({ requestId: p.request_id });
-      await afterAction(n);
-      qc.invalidateQueries({ queryKey: ["notifications"] });
-    } catch {
-      toast("Error al aprobar", "error");
-    }
-  }
-
   async function handleRejectConfirm() {
-    if (!rejectTarget?.payload?.request_id) return;
-    try {
-      await rejectCr.mutateAsync({
-        requestId: rejectTarget.payload.request_id,
-        admin_notes: rejectNotes || undefined,
-      });
-      await afterAction(rejectTarget);
-      setRejectTarget(null);
-      setRejectNotes("");
-      qc.invalidateQueries({ queryKey: ["notifications"] });
-    } catch {
-      toast("Error al rechazar", "error");
-    }
-  }
-
-  async function handleConfirmExtra(n: Notification, p: NotificationPayload) {
-    if (!p.group_id || !p.bet_id) return;
-    try {
-      await confirmExtra.mutateAsync({ groupId: p.group_id, betId: p.bet_id });
-      await afterAction(n);
-      qc.invalidateQueries({ queryKey: ["notifications"] });
-    } catch {
-      toast("Error al confirmar pago", "error");
-    }
-  }
-
-  async function handleConfirmEntry(n: Notification, p: NotificationPayload) {
-    if (!p.group_id || !p.user_id) return;
-    try {
-      await addMember.mutateAsync({ groupId: p.group_id, userId: p.user_id });
-      await afterAction(n);
-      qc.invalidateQueries({ queryKey: ["notifications"] });
-    } catch {
-      toast("Error al confirmar entrada", "error");
-    }
+    if (!rejectTarget) return;
+    await handleReject(rejectTarget, rejectNotes);
+    setRejectTarget(null);
+    setRejectNotes("");
   }
 
   if (!user) return null;
@@ -198,12 +119,7 @@ export function NotificationBell() {
               <ul className="divide-y divide-white/5">
                 {notifications.map((n) => {
                   const p = n.payload ?? {};
-                  const isAdminActionable =
-                    user.is_admin &&
-                    !n.read_at &&
-                    (n.type === "change_request_pending" ||
-                      n.type === "extra_bet_pending" ||
-                      n.type === "entry_pending");
+                  const isAdminActionable = isAdminActionableNotification(n, !!user.is_admin);
 
                   return (
                     <li
@@ -219,50 +135,15 @@ export function NotificationBell() {
                       <p className="text-xs text-muted leading-relaxed">{n.body}</p>
                       <p className="text-[10px] text-muted/70">{formatTime(n.created_at)}</p>
 
-                      {isAdminActionable && n.type === "change_request_pending" && (
-                        <div className="flex gap-2 pt-1">
-                          <button
-                            type="button"
-                            onClick={() => handleApproveChange(n, p)}
-                            disabled={approveCr.isPending}
-                            className="flex-1 text-xs py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-medium"
-                          >
-                            Aprobar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setRejectTarget(n);
-                              setRejectNotes("");
-                            }}
-                            className="flex-1 text-xs py-1.5 rounded-lg bg-red-500/20 text-red-300 hover:bg-red-500/30 font-medium"
-                          >
-                            Rechazar
-                          </button>
-                        </div>
-                      )}
-
-                      {isAdminActionable && n.type === "extra_bet_pending" && (
-                        <button
-                          type="button"
-                          onClick={() => handleConfirmExtra(n, p)}
-                          disabled={confirmExtra.isPending}
-                          className="w-full text-xs py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-medium"
-                        >
-                          Confirmar pago extra
-                        </button>
-                      )}
-
-                      {isAdminActionable && n.type === "entry_pending" && (
-                        <button
-                          type="button"
-                          onClick={() => handleConfirmEntry(n, p)}
-                          disabled={addMember.isPending}
-                          className="w-full text-xs py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-medium"
-                        >
-                          Confirmar entrada
-                        </button>
-                      )}
+                      <NotificationAdminActions
+                        notification={n}
+                        payload={p}
+                        isAdmin={!!user.is_admin}
+                        onRejectClick={(target) => {
+                          setRejectTarget(target);
+                          setRejectNotes("");
+                        }}
+                      />
 
                       {n.type === "change_request_expired" && (
                         <Link
@@ -370,35 +251,38 @@ export function NotificationBell() {
       )}
 
       {rejectTarget && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4">
-          <div className="bg-surface rounded-2xl border border-white/10 p-5 max-w-sm w-full space-y-3">
-            <h4 className="font-display text-white">Rechazar solicitud</h4>
-            <textarea
-              value={rejectNotes}
-              onChange={(e) => setRejectNotes(e.target.value)}
-              placeholder="Motivo (opcional)..."
-              rows={2}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm resize-none"
-            />
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setRejectTarget(null)}
-                className="flex-1 py-2 rounded-lg border border-white/10 text-muted text-sm"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleRejectConfirm}
-                disabled={rejectCr.isPending}
-                className="flex-1 py-2 rounded-lg bg-red-500 text-white text-sm font-bold"
-              >
-                Rechazar
-              </button>
-            </div>
+        <Modal
+          open={!!rejectTarget}
+          onClose={() => setRejectTarget(null)}
+          title="Rechazar solicitud"
+          size="sm"
+          overlayClassName="z-[60]"
+        >
+          <textarea
+            value={rejectNotes}
+            onChange={(e) => setRejectNotes(e.target.value)}
+            placeholder="Motivo (opcional)..."
+            rows={2}
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm resize-none focus-ring mb-3"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setRejectTarget(null)}
+              className="flex-1 py-2 rounded-lg border border-white/10 text-muted text-sm cursor-pointer focus-ring"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleRejectConfirm}
+              disabled={rejectCr.isPending}
+              className="flex-1 py-2 rounded-lg bg-danger text-white text-sm font-bold cursor-pointer focus-ring disabled:opacity-50"
+            >
+              Rechazar
+            </button>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

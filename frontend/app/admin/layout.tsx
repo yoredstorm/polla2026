@@ -3,7 +3,7 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { Navbar } from "@/components/ui/Navbar";
+import { PageShell } from "@/components/ui/PageShell";
 import { cn } from "@/lib/utils";
 
 const adminTabs = [
@@ -28,20 +28,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoading || !user?.is_admin) {
     return (
-      <div className="min-h-screen">
-        <Navbar />
-        <div className="flex items-center justify-center py-20">
-          <p className="text-muted">Verificando acceso...</p>
-        </div>
-      </div>
+      <PageShell maxWidth="xl" withMobileNav={false}>
+        <p className="text-center text-muted py-20">Verificando acceso...</p>
+      </PageShell>
     );
   }
 
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <div className="border-b border-white/10 bg-surface/60">
-        <div className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto">
+    <PageShell maxWidth="xl" withMobileNav={false} mainClassName="py-6">
+      <div className="border-b border-white/10 bg-surface/60 -mx-4 px-4 mb-6 rounded-xl overflow-x-auto">
+        <div className="flex gap-1 min-w-max">
           {adminTabs.map((tab) => {
             const active = tab.href === "/admin" ? pathname === "/admin" : pathname.startsWith(tab.href);
             return (
@@ -49,7 +45,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 key={tab.href}
                 href={tab.href}
                 className={cn(
-                  "px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap",
+                  "px-4 py-3 text-sm font-medium border-b-2 transition-colors duration-200 whitespace-nowrap cursor-pointer focus-ring",
                   active
                     ? "border-accent text-accent"
                     : "border-transparent text-muted hover:text-white hover:border-white/20",
@@ -61,7 +57,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           })}
         </div>
       </div>
-      <main className="max-w-7xl mx-auto px-4 py-6">{children}</main>
-    </div>
+      {children}
+    </PageShell>
   );
 }

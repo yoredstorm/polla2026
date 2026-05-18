@@ -225,6 +225,62 @@ async def mark_all_read(db: AsyncSession, user_id: uuid.UUID) -> int:
     return len(rows)
 
 
+def _payload_matches(notification: Notification, payload_match: dict[str, str]) -> bool:
+    if not notification.payload:
+        return False
+    try:
+        data = json.loads(notification.payload)
+    except json.JSONDecodeError:
+        return False
+    if not isinstance(data, dict):
+        return False
+    for key, expected in payload_match.items():
+        if str(data.get(key)) != str(expected):
+            return False
+    return True
+
+
+async def resolve_actionable_notifications(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    notification_type: str,
+    payload_match: dict[str, str],
+) -> int:
+    """Mark unread admin actionable notifications matching payload keys as read."""
+    result = await db.execute(
+        select(Notification).where(
+            Notification.type == notification_type,
+            Notification.read_at == None,  # noqa: E711
+        )
+    )
+    rows = result.scalars().all()
+    now = datetime.now(timezone.utc)
+    affected_users: set[uuid.UUID] = set()
+    resolved = 0
+    for n in rows:
+        if not _payload_matches(n, payload_match):
+            continue
+        n.read_at = now
+        affected_users.add(n.user_id)
+        resolved += 1
+    if resolved:
+        await db.flush()
+    if redis and affected_users:
+        for uid in affected_users:
+            unread = await get_unread_count(db, uid)
+            await publish_to_user(redis, uid, {"type": "unread_count", "count": unread})
+            await publish_to_user(
+                redis,
+                uid,
+                {
+                    "type": "notifications_resolved",
+                    "data": {"types": [notification_type], "count": resolved},
+                },
+            )
+    return resolved
+
+
 # ── Event builders ───────────────────────────────────────────────────
 
 def build_change_request_resolved(

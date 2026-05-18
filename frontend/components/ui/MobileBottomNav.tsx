@@ -10,7 +10,7 @@ const tabs = [
   { href: "/fixtures", label: "Partidos", icon: FixturesIcon },
   { href: "/my-bets", label: "Apuestas", icon: BetsIcon },
   { href: "/notifications", label: "Avisos", icon: BellIcon },
-  { href: "/profile", label: "Perfil", icon: ProfileIcon },
+  { href: "/leaderboard", label: "Ranking", icon: TrophyIcon },
 ];
 
 function HomeIcon({ active }: { active: boolean }) {
@@ -45,10 +45,10 @@ function BellIcon({ active }: { active: boolean }) {
   );
 }
 
-function ProfileIcon({ active }: { active: boolean }) {
+function TrophyIcon({ active }: { active: boolean }) {
   return (
     <svg className={cn("w-5 h-5", active ? "text-accent" : "text-muted")} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
     </svg>
   );
 }
@@ -75,7 +75,7 @@ export function MobileBottomNav() {
               key={tab.href}
               href={tab.href}
               className={cn(
-                "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors",
+                "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors duration-200 cursor-pointer focus-ring",
                 active ? "text-accent" : "text-muted",
               )}
             >

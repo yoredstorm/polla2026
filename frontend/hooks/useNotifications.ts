@@ -22,7 +22,7 @@ export function useUnreadCount(enabled = true) {
     queryFn: () => api.get<{ count: number }>("/notifications/unread-count"),
     enabled,
     staleTime: 5_000,
-    refetchInterval: 15_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
   });
 }

@@ -2,7 +2,7 @@
 import { Suspense, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { Navbar } from "@/components/ui/Navbar";
+import { PageShell } from "@/components/ui/PageShell";
 import { BettingSlip } from "@/components/betting/BettingSlip";
 import { useMyBets, useMyChangeRequests, type ChangeRequest } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
@@ -13,12 +13,9 @@ type TabId = "pronosticos" | "retos";
 
 function MyBetsPageFallback() {
   return (
-    <div className="min-h-screen page-with-mobile-nav">
-      <Navbar />
-      <main className="max-w-3xl mx-auto px-4 py-8">
+    <PageShell maxWidth="md">
         <p className="text-muted text-center py-20">Cargando...</p>
-      </main>
-    </div>
+      </PageShell>
   );
 }
 
@@ -56,9 +53,7 @@ function MyBetsPageContent() {
   const currency = polla?.currency ?? "USD";
 
   return (
-    <div className="min-h-screen page-with-mobile-nav">
-      <Navbar />
-      <main className="max-w-3xl mx-auto px-4 py-8">
+    <PageShell maxWidth="md">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
             <h1 className="font-display text-3xl text-white">Mis Apuestas</h1>
@@ -172,8 +167,7 @@ function MyBetsPageContent() {
         ) : (
           <MyChallengesSection />
         )}
-      </main>
-    </div>
+      </PageShell>
   );
 }
 

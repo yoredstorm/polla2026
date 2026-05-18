@@ -1,9 +1,10 @@
 "use client";
-import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { Lock, MapPin } from "lucide-react";
 import type { Fixture } from "@/types/api";
 import { TeamAvatar } from "@/components/betting/TeamAvatar";
+import { MotionSafe } from "@/components/ui/MotionSafe";
 import { cn, formatMatchDate, formatCountdown, isWithin24Hours, getStatusLabel } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { BettingTrendsBar } from "@/components/betting/BettingTrendsBar";
@@ -12,7 +13,6 @@ import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCo
 interface MatchCardProps {
   fixture: Fixture;
   index?: number;
-  /** Destaca tarjetas en la sección de partidos culminados */
   highlightFinished?: boolean;
 }
 
@@ -23,116 +23,121 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
   const showKickoffCountdown = fixture.status === "scheduled" && isWithin24Hours(fixture.match_date);
   const showBettingCountdown =
     fixture.status === "scheduled" && !isLocked && fixture.betting_open && isBettingWindowOpen(fixture);
+  const canBet =
+    !isLocked && !isFinished && fixture.status === "scheduled" && isBettingWindowOpen(fixture);
 
   return (
-    <motion.div
+    <MotionSafe
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className={cn(
-        "relative rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-4",
-        "hover:border-white/20 transition-all duration-200",
-        isLive && "border-danger/50 shadow-lg shadow-danger/10",
-        highlightFinished && isFinished && "border-emerald-500/30 ring-1 ring-emerald-500/20"
-      )}
     >
-      {highlightFinished && isFinished && (
-        <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wide text-emerald-400/90 bg-emerald-500/15 px-2 py-0.5 rounded-full">
-          Final
-        </span>
-      )}
-      {/* Match context header */}
-      <div className="flex items-center gap-2 mb-3 text-muted text-xs">
-        {fixture.league_logo_url && (
-          <Image src={fixture.league_logo_url} alt={fixture.league_name} width={16} height={16} className="object-contain" unoptimized />
+      <Link
+        href={`/fixtures/${fixture.id}`}
+        className={cn(
+          "relative block rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-4 card-interactive",
+          isLive && "border-danger/50 shadow-glow-danger",
+          highlightFinished && isFinished && "border-success/30 ring-1 ring-success/20",
         )}
-        {fixture.group_name ? (
-          <span className="font-medium text-accent/80">{fixture.group_name}</span>
-        ) : (
-          <span>{fixture.league_name}</span>
+      >
+        {highlightFinished && isFinished && (
+          <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-wide text-success/90 bg-success/15 px-2 py-0.5 rounded-full">
+            Final
+          </span>
         )}
-        {fixture.round && <span>· {fixture.round}</span>}
-        {fixture.venue && <span className="ml-auto truncate max-w-[100px]" title={fixture.venue}>📍 {fixture.venue}</span>}
-      </div>
-
-      {/* Teams & Score */}
-      <div className="flex items-center justify-between gap-4">
-        {/* Home team */}
-        <div className="flex flex-col items-center gap-1 flex-1">
-          <TeamAvatar logoUrl={fixture.home_logo_url} teamName={fixture.home_team} size={40} />
-          <span className="font-display text-sm text-center leading-tight">{fixture.home_team}</span>
-        </div>
-
-        {/* Center: score/status */}
-        <div className="flex flex-col items-center gap-1 min-w-[80px]">
-          {isFinished || isLive ? (
-            <div className="font-display text-2xl text-white">
-              {fixture.home_score ?? 0} – {fixture.away_score ?? 0}
-            </div>
+        <div className="flex items-center gap-2 mb-3 text-muted text-xs">
+          {fixture.league_logo_url && (
+            <Image
+              src={fixture.league_logo_url}
+              alt={fixture.league_name}
+              width={16}
+              height={16}
+              className="object-contain"
+              unoptimized
+            />
+          )}
+          {fixture.group_name ? (
+            <span className="font-medium text-accent/80">{fixture.group_name}</span>
           ) : (
-            <div className="font-display text-lg text-muted">VS</div>
+            <span>{fixture.league_name}</span>
           )}
+          {fixture.round && <span>· {fixture.round}</span>}
+          {fixture.venue && (
+            <span className="ml-auto flex items-center gap-0.5 truncate max-w-[120px]" title={fixture.venue}>
+              <MapPin className="w-3 h-3 shrink-0" aria-hidden />
+              {fixture.venue}
+            </span>
+          )}
+        </div>
 
-          {/* Status badge */}
-          <div className={cn("flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
-            isLive ? "bg-danger/20 text-danger" :
-            isFinished ? "bg-muted/20 text-muted" :
-            "bg-accent/10 text-accent"
-          )}>
-            {isLive && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />}
-            {getStatusLabel(fixture.status)}
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col items-center gap-1 flex-1">
+            <TeamAvatar logoUrl={fixture.home_logo_url} teamName={fixture.home_team} size={40} />
+            <span className="font-display text-sm text-center leading-tight">{fixture.home_team}</span>
           </div>
+          <div className="flex flex-col items-center gap-1 min-w-[80px]">
+            {isFinished || isLive ? (
+              <div className="font-display text-2xl text-white">
+                {fixture.home_score ?? 0} – {fixture.away_score ?? 0}
+              </div>
+            ) : (
+              <div className="font-display text-lg text-muted">VS</div>
+            )}
+            <div
+              className={cn(
+                "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
+                isLive ? "bg-danger/20 text-danger" : isFinished ? "bg-muted/20 text-muted" : "bg-accent/10 text-accent",
+              )}
+            >
+              {isLive && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" aria-hidden />}
+              {getStatusLabel(fixture.status)}
+            </div>
+            {isLocked && !isLive && !isFinished && (
+              <span className="flex items-center gap-0.5 text-[10px] text-warning">
+                <Lock className="w-3 h-3" aria-hidden />
+                CERRADO
+              </span>
+            )}
+          </div>
+          <div className="flex flex-col items-center gap-1 flex-1">
+            <TeamAvatar logoUrl={fixture.away_logo_url} teamName={fixture.away_team} size={40} />
+            <span className="font-display text-sm text-center leading-tight">{fixture.away_team}</span>
+          </div>
+        </div>
 
-          {isLocked && !isLive && !isFinished && (
-            <span className="text-[10px] text-warning">🔒 CERRADO</span>
+        <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted">
+          <div className="flex items-center justify-between">
+            <span>{formatMatchDate(fixture.match_date)}</span>
+            {showKickoffCountdown && (
+              <span className="text-warning">{formatCountdown(fixture.match_date)}</span>
+            )}
+          </div>
+          {showBettingCountdown && (
+            <FixtureDeadlineCountdown
+              deadlineMs={getBettingClosesAt(fixture)}
+              label="Cierran apuestas en"
+              compact
+            />
           )}
         </div>
 
-        {/* Away team */}
-        <div className="flex flex-col items-center gap-1 flex-1">
-          <TeamAvatar logoUrl={fixture.away_logo_url} teamName={fixture.away_team} size={40} />
-          <span className="font-display text-sm text-center leading-tight">{fixture.away_team}</span>
-        </div>
-      </div>
-
-      {/* Match date / countdown */}
-      <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted">
-        <div className="flex items-center justify-between">
-          <span>{formatMatchDate(fixture.match_date)}</span>
-          {showKickoffCountdown && (
-            <span className="text-warning">{formatCountdown(fixture.match_date)}</span>
-          )}
-        </div>
-        {showBettingCountdown && (
-          <FixtureDeadlineCountdown
-            deadlineMs={getBettingClosesAt(fixture)}
-            label="Cierran apuestas en"
-            compact
-          />
+        {!isLocked && !isFinished && fixture.status === "scheduled" && fixture.betting_open && (
+          <BettingTrendsBar fixtureId={fixture.id} compact />
         )}
-      </div>
 
-      {!isLocked && !isFinished && fixture.status === "scheduled" && fixture.betting_open && (
-        <BettingTrendsBar fixtureId={fixture.id} compact />
-      )}
-
-      {/* Bet button */}
-      {!isLocked && !isFinished && fixture.status === "scheduled" && isBettingWindowOpen(fixture) && (
-        <Link
-          href={`/fixtures/${fixture.id}`}
-          className="mt-3 block w-full text-center py-2 rounded-lg bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"
+        <span
+          className={cn(
+            "mt-3 block w-full text-center py-2 rounded-lg text-sm font-medium transition-colors duration-200",
+            canBet
+              ? "bg-accent/10 text-accent hover:bg-accent/20"
+              : isFinished
+                ? "bg-white/5 text-muted hover:bg-white/10"
+                : "hidden",
+          )}
         >
-          Apostar
-        </Link>
-      )}
-      {isFinished && (
-        <Link
-          href={`/fixtures/${fixture.id}`}
-          className="mt-3 block w-full text-center py-2 rounded-lg bg-white/5 text-muted text-sm hover:bg-white/10 transition-colors"
-        >
-          Ver resultados
-        </Link>
-      )}
-    </motion.div>
+          {canBet ? "Apostar" : isFinished ? "Ver resultados" : ""}
+        </span>
+      </Link>
+    </MotionSafe>
   );
 }

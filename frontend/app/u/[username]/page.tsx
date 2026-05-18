@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Navbar } from "@/components/ui/Navbar";
+import { PageShell } from "@/components/ui/PageShell";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useUserPublicBets,
@@ -97,24 +97,20 @@ export default function UserPublicProfilePage() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen">
-        <Navbar />
+      <PageShell maxWidth="md">
         <p className="text-center text-muted py-20">Cargando...</p>
-      </div>
+      </PageShell>
     );
   }
 
   if (!user) {
     return (
-      <div className="min-h-screen">
-        <Navbar />
-        <main className="max-w-lg mx-auto px-4 py-20 text-center">
-          <p className="text-white mb-4">Inicia sesión para ver perfiles de apuestas.</p>
-          <Link href="/login" className="text-accent underline">
-            Ir a login
-          </Link>
-        </main>
-      </div>
+      <PageShell maxWidth="sm">
+        <p className="text-white mb-4 text-center">Inicia sesión para ver perfiles de apuestas.</p>
+        <Link href="/login" className="text-accent underline block text-center cursor-pointer focus-ring">
+          Ir a login
+        </Link>
+      </PageShell>
     );
   }
 
@@ -128,9 +124,7 @@ export default function UserPublicProfilePage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <main className="max-w-2xl mx-auto px-4 py-8">
+    <PageShell maxWidth="md">
         {sumLoading || !summary ? (
           <p className="text-muted text-center py-16">Cargando perfil...</p>
         ) : (
@@ -304,7 +298,6 @@ export default function UserPublicProfilePage() {
             onClose={() => setCopyingBet(null)}
           />
         )}
-      </main>
-    </div>
+    </PageShell>
   );
 }

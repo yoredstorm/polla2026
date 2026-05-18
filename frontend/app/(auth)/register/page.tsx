@@ -30,7 +30,7 @@ export default function RegisterPage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat relative"
+      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat relative bg-ambient-mesh"
       style={{ backgroundImage: "url('/background.png')" }}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />

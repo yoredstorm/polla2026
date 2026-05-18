@@ -26,6 +26,7 @@ from app.services.notification_service import (
     notify_all_active_users,
     broadcast_polla_updated,
     broadcast_fixture_updated,
+    resolve_actionable_notifications,
 )
 import structlog
 
@@ -707,7 +708,14 @@ async def add_group_member(
         )
     )
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=409, detail="User is already a member")
+        await resolve_actionable_notifications(
+            db,
+            redis,
+            notification_type="entry_pending",
+            payload_match={"group_id": str(group_id), "user_id": str(body.user_id)},
+        )
+        await db.commit()
+        return {"ok": True, "username": user.username, "already_member": True}
 
     prev_pool = group.prize_pool
     member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=group.entry_fee)
@@ -718,6 +726,12 @@ async def add_group_member(
     }, ip=request.client.host if request.client else None)
     count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
     member_count = int(count_res.scalar() or 0) + 1
+    await resolve_actionable_notifications(
+        db,
+        redis,
+        notification_type="entry_pending",
+        payload_match={"group_id": str(group_id), "user_id": str(body.user_id)},
+    )
     await db.commit()
     await broadcast_polla_updated(
         db,
@@ -874,7 +888,14 @@ async def confirm_extra_bet(
     if not bet:
         raise HTTPException(status_code=404, detail="Bet not found in this group")
     if bet.amount_confirmed:
-        raise HTTPException(status_code=409, detail="Already confirmed")
+        await resolve_actionable_notifications(
+            db,
+            redis,
+            notification_type="extra_bet_pending",
+            payload_match={"group_id": str(group_id), "bet_id": str(bet_id)},
+        )
+        await db.commit()
+        return {"ok": True, "amount": str(bet.amount), "prize_pool": str(group.prize_pool), "already_confirmed": True}
 
     prev_pool = group.prize_pool
     bet.amount_confirmed = True
@@ -895,6 +916,12 @@ async def confirm_extra_bet(
     }, ip=request.client.host if request.client else None)
     count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
     member_count = int(count_res.scalar() or 0)
+    await resolve_actionable_notifications(
+        db,
+        redis,
+        notification_type="extra_bet_pending",
+        payload_match={"group_id": str(group_id), "bet_id": str(bet_id)},
+    )
     await db.commit()
     await broadcast_polla_updated(
         db,
@@ -1250,6 +1277,12 @@ async def approve_change_request(
         payload=payload,
     )
 
+    await resolve_actionable_notifications(
+        db,
+        redis,
+        notification_type="change_request_pending",
+        payload_match={"request_id": str(request_id)},
+    )
     await log_action(db, user_id=admin.id, action="admin_approve_change_request", detail={
         "request_id": str(request_id), "bet_id": str(cr.bet_id), "type": cr.request_type,
         "user_id": str(cr.user_id),
@@ -1319,6 +1352,12 @@ async def reject_change_request(
         payload=payload,
     )
 
+    await resolve_actionable_notifications(
+        db,
+        redis,
+        notification_type="change_request_pending",
+        payload_match={"request_id": str(request_id)},
+    )
     await log_action(db, user_id=admin.id, action="admin_reject_change_request", detail={
         "request_id": str(request_id), "bet_id": str(cr.bet_id), "type": cr.request_type,
         "user_id": str(cr.user_id), "notes": body.admin_notes,

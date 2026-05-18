@@ -34,90 +34,105 @@ export function Navbar() {
 
   return (
     <>
-    <nav className="border-b border-white/10 bg-surface/80 backdrop-blur-md sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/dashboard" className="font-display text-xl text-accent">
-          POLLA DEPORTIVA
-        </Link>
-        <div className="hidden md:flex items-center gap-6">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "text-sm transition-colors",
-                pathname.startsWith(link.href) ? "text-accent" : "text-muted hover:text-white"
-              )}
-            >
-              {link.label}
-            </Link>
-          ))}
-          {user?.is_admin && (
-            <Link
-              href="/admin"
-              className={cn(
-                "text-sm transition-colors",
-                pathname.startsWith("/admin") ? "text-accent" : "text-muted hover:text-white"
-              )}
-            >
-              Admin
-            </Link>
+      <header className="sticky top-0 z-40 px-3 pt-3 md:px-4 md:pt-4 pointer-events-none">
+        <nav
+          className={cn(
+            "pointer-events-auto max-w-7xl mx-auto",
+            "border border-white/10 bg-surface/90 backdrop-blur-md",
+            "rounded-2xl shadow-lg shadow-black/20",
+            "md:top-4",
           )}
-        </div>
-
-        <div className="flex items-center gap-2">
-          <NotificationBell />
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setDropdownOpen((v) => !v)}
-            className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors"
-          >
-            <span className="hidden md:inline">{user?.username}</span>
-            <svg
-              className={cn("w-4 h-4 transition-transform", dropdownOpen && "rotate-180")}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+        >
+          <div className="px-4 h-14 flex items-center justify-between">
+            <Link
+              href="/dashboard"
+              className="font-display text-xl text-accent text-glow-accent focus-ring rounded-lg"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-
-          {dropdownOpen && (
-            <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-surface shadow-xl py-1 z-50">
-              <Link
-                href="/profile"
-                onClick={() => setDropdownOpen(false)}
-                className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors"
-              >
-                Mi perfil
-              </Link>
-              {user?.username && (
+              POLLA DEPORTIVA
+            </Link>
+            <div className="hidden md:flex items-center gap-6">
+              {navLinks.map((link) => (
                 <Link
-                  href={`/u/${encodeURIComponent(user.username)}`}
-                  onClick={() => setDropdownOpen(false)}
-                  className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors"
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1",
+                    pathname.startsWith(link.href) ? "text-accent" : "text-muted hover:text-white",
+                  )}
                 >
-                  Mi pagina publica
+                  {link.label}
+                </Link>
+              ))}
+              {user?.is_admin && (
+                <Link
+                  href="/admin"
+                  className={cn(
+                    "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1",
+                    pathname.startsWith("/admin") ? "text-accent" : "text-muted hover:text-white",
+                  )}
+                >
+                  Admin
                 </Link>
               )}
-              <div className="my-1 border-t border-white/10" />
-              <button
-                onClick={() => {
-                  setDropdownOpen(false);
-                  logout.mutate();
-                }}
-                className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-white/5 transition-colors"
-              >
-                Cerrar sesion
-              </button>
             </div>
-          )}
-        </div>
-        </div>
-      </div>
-    </nav>
-    <MobileBottomNav />
+
+            <div className="flex items-center gap-2">
+              <NotificationBell />
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setDropdownOpen((v) => !v)}
+                  className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors duration-200 cursor-pointer focus-ring rounded-lg px-2 py-1"
+                >
+                  <span className="hidden md:inline">{user?.username}</span>
+                  <svg
+                    className={cn("w-4 h-4 transition-transform", dropdownOpen && "rotate-180")}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {dropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-surface shadow-xl py-1 z-50">
+                    <Link
+                      href="/profile"
+                      onClick={() => setDropdownOpen(false)}
+                      className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                    >
+                      Mi perfil
+                    </Link>
+                    {user?.username && (
+                      <Link
+                        href={`/u/${encodeURIComponent(user.username)}`}
+                        onClick={() => setDropdownOpen(false)}
+                        className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                      >
+                        Mi pagina publica
+                      </Link>
+                    )}
+                    <div className="my-1 border-t border-white/10" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDropdownOpen(false);
+                        logout.mutate();
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-white/5 transition-colors cursor-pointer focus-ring"
+                    >
+                      Cerrar sesion
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </nav>
+      </header>
+      <MobileBottomNav />
     </>
   );
 }

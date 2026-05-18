@@ -9,6 +9,7 @@ import {
   type ChallengeOpponent,
 } from "@/hooks/useChallenges";
 import { useToast } from "@/components/ui/Toast";
+import { Modal } from "@/components/ui/Modal";
 import { ChallengeRules } from "@/components/betting/ChallengeRules";
 import { getApiErrorMessage, maxStakeForUser } from "@/lib/challengeUtils";
 import { cn } from "@/lib/utils";
@@ -66,8 +67,6 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  if (!open) return null;
-
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const username = selected?.username ?? query.trim();
@@ -105,14 +104,8 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={onClose}>
-      <form
-        className="w-full max-w-lg rounded-2xl border border-white/10 bg-surface p-6 space-y-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={submit}
-      >
-        <h2 className="font-display text-2xl text-white text-center">Te reto</h2>
-
+    <Modal open={open} onClose={onClose} title="Te reto" size="md" className="space-y-4">
+      <form onSubmit={submit} className="space-y-4">
         <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
           <div className="flex items-center justify-center gap-4">
             <div className="flex flex-col items-center flex-1">
@@ -163,7 +156,7 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
               setShowSuggestions(true);
             }}
             onFocus={() => setShowSuggestions(true)}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus-ring"
             placeholder="ej. ppimentel"
             autoComplete="off"
           />
@@ -173,7 +166,7 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
                 <li key={o.username}>
                   <button
                     type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 flex justify-between gap-2"
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 flex justify-between gap-2 cursor-pointer"
                     onClick={() => pickOpponent(o)}
                   >
                     <span className="text-white">@{o.username}</span>
@@ -195,7 +188,7 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
             max={effectiveMax || myMax || 1}
             value={stake}
             onChange={(e) => setStake(Math.max(1, parseInt(e.target.value, 10) || 1))}
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus-ring"
           />
           {pts != null && (
             <p className="text-xs text-muted mt-1">
@@ -206,18 +199,22 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
         </div>
 
         <div className="flex gap-2 justify-end pt-2">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-muted">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-muted hover:text-white cursor-pointer focus-ring rounded-lg"
+          >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={create.isPending || effectiveMax < 1}
-            className="px-4 py-2 rounded-xl bg-accent text-background font-bold text-sm disabled:opacity-50"
+            className="px-4 py-2 rounded-xl bg-accent text-background font-bold text-sm disabled:opacity-50 cursor-pointer focus-ring"
           >
             Enviar reto
           </button>
         </div>
       </form>
-    </div>
+    </Modal>
   );
 }

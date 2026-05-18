@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { Navbar } from "@/components/ui/Navbar";
+import { PageShell } from "@/components/ui/PageShell";
 import { useUpdateBetsProfile } from "@/hooks/useUserProfile";
 import { getMe } from "@/lib/auth";
 import { BadgeGrid } from "@/components/gamification/BadgeGrid";
@@ -127,17 +127,14 @@ export default function ProfilePage() {
 
   if (isLoading || !me) {
     return (
-      <div className="min-h-screen page-with-mobile-nav">
-        <Navbar />
+      <PageShell maxWidth="sm">
         <p className="text-center text-muted py-20">Cargando...</p>
-      </div>
+      </PageShell>
     );
   }
 
   return (
-    <div className="min-h-screen page-with-mobile-nav">
-      <Navbar />
-      <main className="max-w-lg mx-auto px-4 py-10">
+    <PageShell maxWidth="sm">
         <h1 className="font-display text-3xl text-white mb-2">Mi perfil</h1>
         <p className="text-sm text-muted mb-8">@{me.username}</p>
 
@@ -301,7 +298,6 @@ export default function ProfilePage() {
             ← Volver al panel
           </Link>
         </p>
-      </main>
-    </div>
+      </PageShell>
   );
 }

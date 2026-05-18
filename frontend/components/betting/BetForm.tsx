@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 import { useToast } from "@/components/ui/Toast";
+import { Modal } from "@/components/ui/Modal";
 
 const betSchema = z.object({
   predicted_home_score: z.number().min(0).max(20),
@@ -346,9 +347,12 @@ export function BetForm({ fixture }: BetFormProps) {
 
       {/* ── Main bet confirm modal ── */}
       {showConfirm && pendingValues && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-sm w-full space-y-4">
-            <h4 className="font-display text-xl text-white">Confirmar Apuesta</h4>
+        <Modal
+          open={showConfirm}
+          onClose={() => setShowConfirm(false)}
+          title="Confirmar Apuesta"
+          size="sm"
+        >
             <div className="text-center py-2">
               <p className="text-muted text-sm mb-1">Tu prediccion</p>
               <p className="font-display text-5xl text-accent">
@@ -384,24 +388,26 @@ export function BetForm({ fixture }: BetFormProps) {
                 {(createBet.error as any)?.error?.message || "Error al guardar"}
               </p>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
 
-      {/* ── Extra prediction form modal ── */}
       {showExtraForm && extraPending && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-sm w-full space-y-5">
-            <div>
-              <h4 className="font-display text-xl text-white">Prediccion extra</h4>
-              <p className="text-xs text-muted mt-1">
-                Elige un marcador diferente. Esta apuesta cuesta{" "}
-                <span className="text-accent font-bold">
-                  {currency} {extraAmount.toFixed(2)}
-                </span>{" "}
-                y el admin debe confirmar tu pago.
-              </p>
-            </div>
+        <Modal
+          open={showExtraForm}
+          onClose={() => {
+            setShowExtraForm(false);
+            setExtraPending(null);
+          }}
+          title="Prediccion extra"
+          size="sm"
+        >
+            <p className="text-xs text-muted mb-4">
+              Elige un marcador diferente. Esta apuesta cuesta{" "}
+              <span className="text-accent font-bold">
+                {currency} {extraAmount.toFixed(2)}
+              </span>{" "}
+              y el admin debe confirmar tu pago.
+            </p>
             <form onSubmit={onExtraSubmit} className="space-y-5">
               <div className="flex items-center justify-center gap-8">
                 <ScoreInput
@@ -436,15 +442,19 @@ export function BetForm({ fixture }: BetFormProps) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
+        </Modal>
       )}
 
-      {/* ── Extra prediction confirm modal ── */}
       {showExtraConfirm && extraPending && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-sm w-full space-y-4">
-            <h4 className="font-display text-xl text-white">Confirmar prediccion extra</h4>
+        <Modal
+          open={showExtraConfirm}
+          onClose={() => {
+            setShowExtraConfirm(false);
+            setShowExtraForm(true);
+          }}
+          title="Confirmar prediccion extra"
+          size="sm"
+        >
             <div className="text-center py-2">
               <p className="text-muted text-sm mb-1">Tu prediccion extra</p>
               <p className="font-display text-5xl text-accent">
@@ -481,8 +491,7 @@ export function BetForm({ fixture }: BetFormProps) {
                 {(createBet.error as any)?.error?.message || "Error al guardar"}
               </p>
             )}
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

@@ -8,6 +8,7 @@ import {
 } from "@/hooks/useAdmin";
 import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/Modal";
 import { getAdminResolveClosesAt, isAdminResolveWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 
@@ -305,9 +306,12 @@ export default function AdminRequestsPage() {
 
       {/* Reject modal */}
       {rejectModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-sm w-full space-y-4">
-            <h3 className="font-display text-lg text-white">Rechazar solicitud</h3>
+        <Modal
+          open={!!rejectModal}
+          onClose={() => setRejectModal(null)}
+          title="Rechazar solicitud"
+          size="sm"
+        >
             <p className="text-sm text-muted">
               Solicitud de{" "}
               <span className="text-white">@{rejectModal.username}</span> para{" "}
@@ -340,8 +344,7 @@ export default function AdminRequestsPage() {
                 {reject.isPending ? "Rechazando..." : "Confirmar rechazo"}
               </button>
             </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

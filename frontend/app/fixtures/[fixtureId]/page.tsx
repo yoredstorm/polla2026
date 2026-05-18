@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { motion } from "framer-motion";
+import { Trophy, Medal } from "lucide-react";
+import { MotionSafe } from "@/components/ui/MotionSafe";
+import { PageShell } from "@/components/ui/PageShell";
+import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { TeamAvatar } from "@/components/betting/TeamAvatar";
-import { Navbar } from "@/components/ui/Navbar";
 import { BetForm } from "@/components/betting/BetForm";
 import { BettingSlip } from "@/components/betting/BettingSlip";
 import { ChallengeModal } from "@/components/betting/ChallengeModal";
@@ -48,22 +50,31 @@ export default function FixtureDetailPage() {
     { enabled: standingsEnabled },
   );
 
-  if (isLoading) return (
-    <div className="min-h-screen"><Navbar /><div className="flex items-center justify-center h-64 text-muted">Cargando...</div></div>
-  );
-  if (!fixture) return (
-    <div className="min-h-screen"><Navbar /><div className="flex items-center justify-center h-64 text-danger">Partido no encontrado</div></div>
-  );
+    if (isLoading) {
+    return (
+      <PageShell maxWidth="md">
+        <MatchCardSkeleton />
+      </PageShell>
+    );
+  }
+  if (!fixture) {
+    return (
+      <PageShell maxWidth="md">
+        <p className="text-center text-danger py-20">Partido no encontrado</p>
+      </PageShell>
+    );
+  }
 
   const topThree = standings?.slice(0, 3) ?? [];
   const rest = standings?.slice(3) ?? [];
   const primaryBet = myBets?.[0];
   const hasBet = (myBets?.length ?? 0) > 0;
 
+  const showBetForm =
+    fixture.status === "scheduled" && !fixture.is_locked && fixture.betting_open && polla?.is_member;
+
   return (
-    <div className="min-h-screen page-with-mobile-nav">
-      <Navbar />
-      <main className="max-w-3xl mx-auto px-4 py-8">
+    <PageShell maxWidth="md" mainClassName="pb-28 md:pb-8">
         <div className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-8 mb-6">
           <div className="text-center mb-4">
             <p className="text-muted text-sm">{fixture.league_name} · {fixture.round}</p>
@@ -192,23 +203,29 @@ export default function FixtureDetailPage() {
               <>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                   {topThree.map((row, idx) => {
-                    const medal = idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉";
+                    const MedalIcon = idx === 0 ? Trophy : Medal;
                     const isMe = row.user_id === user?.id;
                     return (
-                      <motion.div
+                      <MotionSafe
                         key={row.user_id}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: idx * 0.08 }}
                         className={cn(
                           "rounded-xl border p-4 text-center relative",
-                          idx === 0 && "border-yellow-400/50 bg-yellow-500/5 sm:scale-[1.02] sm:-mt-1 shadow-lg shadow-yellow-500/10",
+                          idx === 0 && "border-warning/50 bg-warning/5 shadow-glow-sm",
                           idx === 1 && "border-zinc-400/40 bg-white/[0.04]",
                           idx === 2 && "border-amber-700/50 bg-amber-900/10",
                           isMe && "ring-2 ring-accent/50",
                         )}
                       >
-                        <span className="text-3xl block mb-1">{medal}</span>
+                        <MedalIcon
+                          className={cn(
+                            "w-8 h-8 mx-auto mb-1",
+                            idx === 0 ? "text-warning" : idx === 1 ? "text-muted" : "text-amber-700",
+                          )}
+                          aria-hidden
+                        />
                         <p className={cn("font-display text-lg", isMe ? "text-accent" : "text-white")}>
                           @{row.username} {isMe && "(Tu)"}
                         </p>
@@ -219,7 +236,7 @@ export default function FixtureDetailPage() {
                         {parseFloat(row.amount) > 0 && (
                           <p className="text-xs text-muted mt-1">{formatAmount(row.amount)}</p>
                         )}
-                      </motion.div>
+                      </MotionSafe>
                     );
                   })}
                 </div>
@@ -247,7 +264,22 @@ export default function FixtureDetailPage() {
           </section>
         )}
 
-        <BetForm fixture={fixture} />
+        <div
+          className={cn(
+            showBetForm &&
+              "fixed bottom-[4.5rem] left-0 right-0 z-30 px-4 pb-2 md:relative md:bottom-auto md:inset-auto md:z-auto md:px-0 md:pb-0 md:mb-6",
+          )}
+        >
+          <div
+            className={cn(
+              "max-w-3xl mx-auto",
+              showBetForm &&
+                "rounded-2xl border border-accent/30 bg-surface/95 backdrop-blur-xl p-4 shadow-glow-accent md:shadow-none md:bg-transparent md:border-0 md:p-0",
+            )}
+          >
+            <BetForm fixture={fixture} />
+          </div>
+        </div>
 
         {myBets && myBets.length > 0 && (
           <div className="mt-6">
@@ -259,7 +291,6 @@ export default function FixtureDetailPage() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+    </PageShell>
   );
 }

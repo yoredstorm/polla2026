@@ -73,7 +73,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={login.isPending}
-          className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim transition-colors disabled:opacity-50"
+          className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim transition-colors duration-200 disabled:opacity-50 cursor-pointer focus-ring shadow-glow-sm"
         >
           {login.isPending ? "Iniciando..." : "Iniciar Sesión"}
         </button>
@@ -89,7 +89,7 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat relative"
+      className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat relative bg-ambient-mesh"
       style={{ backgroundImage: "url('/background.png')" }}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />

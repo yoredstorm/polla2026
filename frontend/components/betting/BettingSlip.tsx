@@ -4,6 +4,7 @@ import type { Bet, Fixture } from "@/types/api";
 import { CopyBetModal } from "./CopyBetModal";
 import { useCreateChangeRequest, type ChangeRequest } from "@/hooks/useBets";
 import { useToast } from "@/components/ui/Toast";
+import { Modal } from "@/components/ui/Modal";
 import { getPointsColor, formatAmount, cn, isChangeRequestWindowOpen } from "@/lib/utils";
 import { getChangeRequestClosesAt } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
@@ -223,9 +224,7 @@ function ModifyRequestModal({ bet, onClose }: { bet: Bet; onClose: () => void })
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-sm w-full space-y-4">
-        <h3 className="font-display text-lg text-white">Solicitar modificacion</h3>
+    <Modal open onClose={onClose} title="Solicitar modificacion" size="sm">
         <p className="text-xs text-muted">
           Prediccion actual:{" "}
           <span className="text-white font-bold">
@@ -282,8 +281,7 @@ function ModifyRequestModal({ bet, onClose }: { bet: Bet; onClose: () => void })
             {createRequest.isPending ? "Enviando..." : "Enviar solicitud"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -311,9 +309,7 @@ function DeleteRequestModal({ bet, onClose }: { bet: Bet; onClose: () => void })
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-sm w-full space-y-4">
-        <h3 className="font-display text-lg text-white">Solicitar eliminacion</h3>
+    <Modal open onClose={onClose} title="Solicitar eliminacion" size="sm">
         <p className="text-sm text-muted">
           Se enviara una solicitud al admin para eliminar esta apuesta:{" "}
           <span className="text-white font-bold">
@@ -353,7 +349,6 @@ function DeleteRequestModal({ bet, onClose }: { bet: Bet; onClose: () => void })
             {createRequest.isPending ? "Enviando..." : "Solicitar eliminacion"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

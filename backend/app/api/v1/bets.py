@@ -24,6 +24,7 @@ from app.services.notification_service import (
     notify_admins,
     build_change_request_pending,
     build_extra_bet_pending,
+    broadcast_event,
 )
 
 router = APIRouter(prefix="/bets", tags=["Bets"])
@@ -63,6 +64,12 @@ async def create_bet(
                 body=body,
                 payload=payload,
                 exclude_user_id=current_user.id,
+            )
+        elif bet.amount_confirmed:
+            await broadcast_event(
+                db,
+                redis,
+                {"type": "data_refresh", "data": {"reason": "bet_placed"}},
             )
         return BetOut.model_validate(bet)
     except ValueError as e:

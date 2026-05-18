@@ -8,6 +8,7 @@ import { useMyBets } from "@/hooks/useBets";
 import type { Bet, Fixture } from "@/types/api";
 import { formatAmount, cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
+import { Modal } from "@/components/ui/Modal";
 
 interface Props {
   open: boolean;
@@ -241,24 +242,24 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
     }
   }
 
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="bg-surface border border-white/10 rounded-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/10">
+    <Modal
+      open={open}
+      onClose={onClose}
+      hideCloseButton
+      size="lg"
+      className="p-0 flex flex-col overflow-hidden max-h-[85vh]"
+    >
+        <div className="px-6 py-4 border-b border-white/10 shrink-0 pr-10">
           <h3 className="font-display text-lg text-white">
             Copiar apuestas de @{sourceUsername}
             {step === "confirm" && (
-              <span className="block text-xs text-muted font-sans mt-0.5">Confirmación final</span>
+              <span className="block text-xs text-muted font-sans mt-0.5">Confirmacion final</span>
             )}
           </h3>
-          <button type="button" onClick={onClose} className="text-muted hover:text-white text-xl">
-            &times;
-          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-0">
           {step === "review" && (
             <>
               {isDataLoading ? (
@@ -506,7 +507,6 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
             Cancelar
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { Navbar } from "@/components/ui/Navbar";
+import { Trophy, Medal } from "lucide-react";
+import { PageShell } from "@/components/ui/PageShell";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 
@@ -24,12 +25,10 @@ export default function WinnersPage() {
     queryFn: () => api.get<WinnersResponse | null>("/groups/pool/active/winners"),
   });
 
-  const medals = ["🥇", "🥈", "🥉"];
+  const medalIcons = [Trophy, Medal, Medal];
 
   return (
-    <div className="min-h-screen page-with-mobile-nav">
-      <Navbar />
-      <main className="max-w-3xl mx-auto px-4 py-8">
+    <PageShell maxWidth="md">
         <h1 className="font-display text-3xl text-white mb-2">Podio y premios</h1>
         <p className="text-muted text-sm mb-8">Distribucion 60% / 30% / 10% del pozo acumulado</p>
 
@@ -41,12 +40,21 @@ export default function WinnersPage() {
               {data.currency} {parseFloat(data.prize_pool).toLocaleString("es-PE", { minimumFractionDigits: 2 })}
             </p>
             <div className="space-y-4">
-              {data.winners.map((w) => (
+              {data.winners.map((w) => {
+                const Icon = medalIcons[w.position - 1];
+                return (
                 <div
                   key={w.position}
                   className="flex items-center gap-4 rounded-2xl border border-white/10 bg-glass p-5"
                 >
-                  <span className="text-3xl">{medals[w.position - 1] ?? w.position}</span>
+                  {Icon ? (
+                    <Icon
+                      className={w.position === 1 ? "w-8 h-8 text-warning" : "w-7 h-7 text-muted"}
+                      aria-hidden
+                    />
+                  ) : (
+                    <span className="font-display text-2xl text-muted w-8 text-center">{w.position}</span>
+                  )}
                   <div className="flex-1">
                     <Link href={`/u/${encodeURIComponent(w.username)}`} className="font-display text-xl text-white hover:text-accent">
                       {w.username}
@@ -57,14 +65,14 @@ export default function WinnersPage() {
                     {data.currency} {parseFloat(w.prize_amount).toFixed(2)}
                   </p>
                 </div>
-              ))}
+              );
+              })}
             </div>
           </>
         )}
         <Link href="/dashboard" className="inline-block mt-8 text-sm text-accent hover:underline">
           Volver al inicio
         </Link>
-      </main>
-    </div>
+      </PageShell>
   );
 }

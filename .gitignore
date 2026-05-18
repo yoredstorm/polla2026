@@ -83,7 +83,7 @@ MANIFEST
 *.manifest
 *.spec
 *.ps1
-
+*.md
 #ide
 .cursor/
 # Installer logs

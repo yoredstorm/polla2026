@@ -7,6 +7,7 @@ import {
   useKnownTeams,
 } from "@/hooks/useAdmin";
 import { cn } from "@/lib/utils";
+import { Modal } from "@/components/ui/Modal";
 import { formatMatchDate, getStatusLabel, getStatusColor } from "@/lib/utils";
 
 // ── Settle Modal ────────────────────────────────────────────────────────────
@@ -35,10 +36,8 @@ function SettleModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-md w-full space-y-4">
-        <h3 className="font-display text-xl text-white">Ingresar Resultado</h3>
-        <p className="text-muted text-sm">{fixture.home_team} vs {fixture.away_team}</p>
+    <Modal open onClose={onClose} title="Ingresar Resultado" size="md">
+        <p className="text-muted text-sm mb-4">{fixture.home_team} vs {fixture.away_team}</p>
         <div className="flex items-center justify-center gap-6">
           <div className="flex flex-col items-center gap-1">
             <span className="text-xs text-muted">{fixture.home_team}</span>
@@ -70,8 +69,7 @@ function SettleModal({
           </button>
         </div>
         {settle.isError && <p className="text-danger text-xs text-center">Error al liquidar</p>}
-      </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -164,14 +162,8 @@ function EditModal({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-surface rounded-2xl border border-white/10 p-6 max-w-lg w-full space-y-5 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between">
-          <h3 className="font-display text-xl text-white">Editar Partido</h3>
-          <button onClick={onClose} className="text-muted hover:text-white text-2xl leading-none">×</button>
-        </div>
-
-        <p className="text-xs text-muted bg-white/5 rounded-lg px-3 py-2">
+    <Modal open onClose={onClose} title="Editar Partido" size="md" className="max-h-[90vh] overflow-y-auto">
+        <p className="text-xs text-muted bg-white/5 rounded-lg px-3 py-2 mb-4">
           Ronda: <span className="text-white">{fixture.round}</span>
           {fixture.group_name && <> · Grupo: <span className="text-white">{fixture.group_name}</span></>}
         </p>
@@ -305,8 +297,7 @@ function EditModal({
         {editFixture.isError && (
           <p className="text-danger text-xs text-center">Error al guardar los cambios</p>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }
 

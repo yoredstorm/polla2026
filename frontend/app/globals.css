@@ -5,6 +5,10 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --color-accent: #00ff88;
+    --color-accent-dim: #00cc6a;
+    --glow-accent: 0 0 20px rgba(0, 255, 136, 0.25);
+    --glow-accent-sm: 0 0 12px rgba(0, 255, 136, 0.15);
   }
 
   * {
@@ -28,14 +32,62 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer utilities {
   .bg-glass {
-    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.01) 100%
+    );
+  }
+
+  .text-glow-accent {
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+  }
+
+  .border-glow {
+    box-shadow: var(--glow-accent-sm);
+  }
+
+  .shadow-glow-accent {
+    box-shadow: var(--glow-accent);
+  }
+
+  .card-interactive {
+    @apply cursor-pointer transition-colors duration-200;
+  }
+
+  .card-interactive:hover {
+    @apply border-white/20;
+    box-shadow: var(--glow-accent-sm);
+  }
+
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+
+  .safe-area-pb {
+    padding-bottom: max(0px, env(safe-area-inset-bottom));
   }
 
   @media (max-width: 767px) {
     .page-with-mobile-nav {
-      padding-bottom: 4.5rem;
+      padding-bottom: max(4.5rem, calc(4.5rem + env(safe-area-inset-bottom)));
+    }
+
+    .toast-mobile-offset {
+      bottom: max(5.5rem, calc(5.5rem + env(safe-area-inset-bottom)));
     }
   }
 }

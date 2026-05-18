@@ -1,7 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Navbar } from "@/components/ui/Navbar";
+import { PageShell } from "@/components/ui/PageShell";
+import { Chip } from "@/components/ui/Chip";
 import { MatchCard } from "@/components/betting/MatchCard";
+import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { useFixtures } from "@/hooks/useFixtures";
 import type { FixtureStatus } from "@/types/api";
 
@@ -58,9 +60,7 @@ export default function FixturesPage() {
   }, [finishedData?.data?.length]);
 
   return (
-    <div className="min-h-screen">
-      <Navbar />
-      <main className="max-w-7xl mx-auto px-4 py-8">
+    <PageShell maxWidth="xl">
         <h1 className="font-display text-3xl text-white mb-2">Partidos</h1>
         <p className="text-muted text-sm mb-6">FIFA World Cup 2026</p>
 
@@ -69,39 +69,33 @@ export default function FixturesPage() {
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-muted text-xs uppercase tracking-wider mr-1">Grupo:</span>
             {GROUPS.map((g) => (
-              <button
+              <Chip
                 key={g.id ?? "all"}
+                className="!px-3 !py-1.5 !text-sm"
+                active={groupName === g.id}
                 onClick={() => {
                   setGroupName(g.id);
                   setPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                  groupName === g.id
-                    ? "bg-accent text-background font-bold"
-                    : "bg-white/5 text-muted hover:bg-white/10"
-                }`}
               >
                 {g.label}
-              </button>
+              </Chip>
             ))}
           </div>
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-muted text-xs uppercase tracking-wider mr-1">Estado:</span>
             {STATUSES.map((s) => (
-              <button
+              <Chip
                 key={s.value ?? "all"}
+                className="!px-3 !py-1.5 !text-sm"
+                active={status === s.value}
                 onClick={() => {
                   setStatus(s.value);
                   setPage(1);
                 }}
-                className={`px-3 py-1.5 rounded-full text-sm transition-colors ${
-                  status === s.value
-                    ? "bg-accent text-background font-bold"
-                    : "bg-white/5 text-muted hover:bg-white/10"
-                }`}
               >
                 {s.label}
-              </button>
+              </Chip>
             ))}
           </div>
         </div>
@@ -109,7 +103,11 @@ export default function FixturesPage() {
         <h2 className="text-sm font-medium text-white/90 mb-3">Próximos y en curso</h2>
 
         {isLoading ? (
-          <div className="text-center text-muted py-20">Cargando partidos...</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <MatchCardSkeleton key={i} />
+            ))}
+          </div>
         ) : data?.data.length === 0 ? (
           <div className="text-center text-muted py-12">No hay partidos con estos filtros</div>
         ) : (
@@ -155,7 +153,11 @@ export default function FixturesPage() {
           </p>
 
           {finishedLoading ? (
-            <div className="text-center text-muted py-12">Cargando resultados...</div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[0, 1, 2].map((i) => (
+                <MatchCardSkeleton key={i} />
+              ))}
+            </div>
           ) : !finishedData?.data.length ? (
             <div className="text-center text-muted py-12 rounded-xl border border-white/5 bg-white/[0.02]">
               Aún no hay partidos finalizados para este filtro.
@@ -168,7 +170,6 @@ export default function FixturesPage() {
             </div>
           )}
         </section>
-      </main>
-    </div>
+    </PageShell>
   );
 }
