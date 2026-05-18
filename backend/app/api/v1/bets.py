@@ -69,7 +69,7 @@ async def create_bet(
         error_code = str(e)
         messages = {
             "FIXTURE_NOT_FOUND": "Partido no encontrado",
-            "BET_LOCKED": "Este partido ya no acepta apuestas (cerró una hora antes del inicio o el partido no está programado).",
+            "BET_LOCKED": "Este partido ya no acepta apuestas (cierra 1 minuto antes del inicio o el partido no está programado).",
             "BET_ALREADY_EXISTS": "Ya tienes una apuesta para este partido",
             "BET_ALREADY_EXISTS_IN_GROUP": "Ya tienes una apuesta para este partido",
             "NOT_GROUP_MEMBER": "No eres miembro de este grupo",
@@ -400,7 +400,7 @@ async def create_change_request(
             detail={
                 "error": {
                     "code": "CHANGE_REQUEST_WINDOW_CLOSED",
-                    "message": "No se aceptan solicitudes en la ultima hora antes del partido.",
+                    "message": "No se aceptan solicitudes de cambio en la ultima hora antes del partido.",
                 }
             },
         )

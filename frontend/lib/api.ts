@@ -127,11 +127,15 @@ async function apiRequest<T>(
     },
   });
 
-  // /users/me returning 401 simply means "not logged in" — treat it as a normal empty response.
-  const isAnonymousOk401 =
+  // /users/me returning 401 simply means "not logged in" — no refresh, no error throw.
+  const isMeEndpoint =
     endpoint === "/users/me" || endpoint.startsWith("/users/me?");
 
-  if (response.status === 401 && !endpoint.includes("/auth/") && !isAnonymousOk401) {
+  if (response.status === 401 && isMeEndpoint) {
+    return null as T;
+  }
+
+  if (response.status === 401 && !endpoint.includes("/auth/")) {
     const refreshOk = await tryRefresh();
 
     if (refreshOk) {

@@ -1,7 +1,13 @@
 import uuid
 from datetime import datetime
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
+
 from pydantic import BaseModel, ConfigDict
+
+from app.core.match_timing import fixture_deadline_fields
+
+if TYPE_CHECKING:
+    from app.models.fixture import Fixture
 
 
 class FixtureOut(BaseModel):
@@ -26,6 +32,15 @@ class FixtureOut(BaseModel):
     season: int
     is_locked: bool
     betting_open: bool
+    betting_closes_at: Optional[datetime] = None
+    change_request_closes_at: Optional[datetime] = None
+    admin_resolve_closes_at: Optional[datetime] = None
+
+
+def fixture_to_out(fixture: "Fixture") -> FixtureOut:
+    return FixtureOut.model_validate(
+        {**{c.key: getattr(fixture, c.key) for c in fixture.__table__.columns}, **fixture_deadline_fields(fixture)}
+    )
 
 
 class FixtureFilter(BaseModel):

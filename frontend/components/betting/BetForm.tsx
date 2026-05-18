@@ -7,6 +7,8 @@ import type { Fixture } from "@/types/api";
 import { useCreateBet, useMyBetsForFixture } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
 import { cn } from "@/lib/utils";
+import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
+import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 import { useToast } from "@/components/ui/Toast";
 
 const betSchema = z.object({
@@ -80,18 +82,11 @@ export function BetForm({ fixture }: BetFormProps) {
   const currency = polla?.currency ?? "USD";
   const extraAmount = polla?.per_match_amount ? parseFloat(polla.per_match_amount) : 0;
 
-  /** Same rule as backend `should_lock_fixture`: no new bets from 1h before kickoff. */
-  const bettingCutoffReached = (() => {
-    if (!fixture.match_date) return false;
-    const kickoff = new Date(fixture.match_date).getTime();
-    if (Number.isNaN(kickoff)) return false;
-    return kickoff - 60 * 60 * 1000 <= Date.now();
-  })();
-
   const fixtureOpen =
     !fixture.is_locked &&
-    !bettingCutoffReached &&
-    fixture.status === "scheduled";
+    fixture.status === "scheduled" &&
+    fixture.betting_open &&
+    isBettingWindowOpen(fixture);
 
   const canAddExtra =
     !!polla &&
@@ -304,16 +299,23 @@ export function BetForm({ fixture }: BetFormProps) {
 
       {/* ── Main bet form (shown only when no free bet yet) ── */}
       {!freeBet && (
-        bettingCutoffReached ? (
+        !fixtureOpen ? (
           <div className="rounded-xl border border-warning/30 bg-warning/5 p-5 text-center space-y-2">
             <p className="text-warning font-medium">Este partido ya no acepta nuevas apuestas</p>
             <p className="text-xs text-muted">
-              Las apuestas cerraron una hora antes del inicio del partido.
+              Las apuestas cierran 1 minuto antes del inicio del partido.
             </p>
           </div>
         ) : (
           <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-6">
-            <h3 className="font-display text-xl mb-4 text-white">Realizar Apuesta</h3>
+            <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+              <h3 className="font-display text-xl text-white">Realizar Apuesta</h3>
+              <FixtureDeadlineCountdown
+                deadlineMs={getBettingClosesAt(fixture)}
+                label="Cierran apuestas en"
+                compact
+              />
+            </div>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="flex items-center justify-center gap-8">
                 <ScoreInput

@@ -36,14 +36,20 @@ def _fixture(hours_from_now: float = 0.5) -> Fixture:
 
 
 @pytest.mark.asyncio
-async def test_should_lock_within_one_hour():
-    f = _fixture(hours_from_now=0.5)
+async def test_should_lock_within_one_minute():
+    f = _fixture(hours_from_now=0.5 / 60)
     assert should_lock_fixture(f) is True
 
 
 @pytest.mark.asyncio
+async def test_should_not_lock_two_minutes_before():
+    f = _fixture(hours_from_now=2 / 60)
+    assert should_lock_fixture(f) is False
+
+
+@pytest.mark.asyncio
 async def test_close_fixture_betting_logs_snapshot(db_session):
-    f = _fixture(hours_from_now=0.5)
+    f = _fixture(hours_from_now=0.5 / 60)
     db_session.add(f)
     await db_session.flush()
 

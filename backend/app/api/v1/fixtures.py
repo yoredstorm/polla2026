@@ -12,9 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import CurrentUser, CurrentAdmin, DBSession
 from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
 from app.models.fixture import Fixture
-from app.schemas.fixture import FixtureOut
+from app.core.match_timing import should_lock_fixture
+from app.schemas.fixture import FixtureOut, fixture_to_out
 from app.schemas.common import PaginatedResponse, PaginationMeta
-from app.services.bet_service import should_lock_fixture
 
 router = APIRouter(prefix="/fixtures", tags=["Fixtures"])
 
@@ -99,7 +99,7 @@ async def list_fixtures(
     fixtures = result.scalars().all()
 
     return PaginatedResponse(
-        data=[FixtureOut.model_validate(f) for f in fixtures],
+        data=[fixture_to_out(f) for f in fixtures],
         pagination=PaginationMeta(total=total, page=page, limit=limit, total_pages=-(-total // limit)),
     )
 
@@ -108,7 +108,7 @@ async def list_fixtures(
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def live_fixtures(request: Request, current_user: CurrentUser, db: DBSession):
     result = await db.execute(select(Fixture).where(Fixture.status == "live"))
-    return [FixtureOut.model_validate(f) for f in result.scalars().all()]
+    return [fixture_to_out(f) for f in result.scalars().all()]
 
 
 @router.get("/{fixture_id}/betting-trends")
@@ -140,7 +140,7 @@ async def get_fixture(request: Request, fixture_id: uuid.UUID, current_user: Cur
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": {"code": "FIXTURE_NOT_FOUND", "message": "Fixture not found"}},
         )
-    return FixtureOut.model_validate(fixture)
+    return fixture_to_out(fixture)
 
 
 @router.post("/seed", status_code=status.HTTP_200_OK)

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.audit_log import AuditLog
 from app.models.fixture import Fixture
 from app.services.audit import log_action
-from app.services.bet_service import should_lock_fixture
+from app.core.match_timing import BETTING_CLOSE_BEFORE, should_lock_fixture
 from app.services.betting_trends_service import get_fixture_betting_trends
 import structlog
 
@@ -81,7 +81,7 @@ async def close_fixture_betting(
 
 
 async def close_fixture_betting_if_due(db: AsyncSession, fixture: Fixture) -> bool:
-    """Close when within 1h of kickoff (same rule as should_lock_fixture)."""
+    """Close when within 1 minute of kickoff (same rule as should_lock_fixture)."""
     if fixture.status != "scheduled":
         return False
     if not should_lock_fixture(fixture):
@@ -98,7 +98,7 @@ async def close_due_fixtures_batch(db: AsyncSession) -> int:
         select(Fixture).where(
             Fixture.status == "scheduled",
             Fixture.betting_open == True,  # noqa: E712
-            Fixture.match_date <= now + timedelta(hours=1),
+            Fixture.match_date <= now + BETTING_CLOSE_BEFORE,
         )
     )
     closed = 0

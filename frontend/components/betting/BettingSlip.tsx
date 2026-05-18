@@ -5,6 +5,8 @@ import { CopyBetModal } from "./CopyBetModal";
 import { useCreateChangeRequest, type ChangeRequest } from "@/hooks/useBets";
 import { useToast } from "@/components/ui/Toast";
 import { getPointsColor, formatAmount, cn, isChangeRequestWindowOpen } from "@/lib/utils";
+import { getChangeRequestClosesAt } from "@/lib/matchTiming";
+import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 
 interface BettingSlipProps {
   bet: Bet;
@@ -148,6 +150,16 @@ export function BettingSlip({
         )}
 
         {/* Change request buttons */}
+        {showChangeRequest && !isSettled && !pendingRequest && changeWindowOpen && betFixtureForWindow && (
+          <div className="mt-2">
+            <FixtureDeadlineCountdown
+              deadlineMs={getChangeRequestClosesAt(betFixtureForWindow)}
+              label="Solicitud de cambio hasta"
+              compact
+            />
+          </div>
+        )}
+
         {showChangeRequest && !isSettled && !pendingRequest && changeWindowOpen && (
           <div className="mt-3 flex gap-2 pt-2 border-t border-white/5">
             <button

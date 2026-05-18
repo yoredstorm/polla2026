@@ -1,7 +1,7 @@
 """
 Bet service — scoring logic, locking rules, prize distribution.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 import uuid
@@ -9,12 +9,29 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
 
+from app.core.match_timing import (
+    can_create_change_request_for_fixture,
+    can_resolve_change_request_for_fixture,
+    should_lock_fixture,
+)
 from app.models.bet import Bet
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember
 from app.services.challenge_service import user_has_active_challenge_on_fixture
 from app.schemas.bet import BetCreate
 import structlog
+
+# Re-export for existing imports
+__all__ = [
+    "calculate_points",
+    "is_fixture_bettable",
+    "should_lock_fixture",
+    "can_create_change_request_for_fixture",
+    "can_resolve_change_request_for_fixture",
+    "create_bet",
+    "settle_fixture_bets",
+    "calculate_prize_distribution",
+]
 
 logger = structlog.get_logger(__name__)
 
@@ -49,35 +66,6 @@ def calculate_points(
 def is_fixture_bettable(fixture: Fixture) -> bool:
     """A fixture is bettable if it's not locked, scheduled, and admin has opened betting."""
     return not fixture.is_locked and fixture.status == "scheduled" and fixture.betting_open
-
-
-def should_lock_fixture(fixture: Fixture) -> bool:
-    """Lock fixture 1 hour before match_date."""
-    now = datetime.now(timezone.utc)
-    return fixture.match_date - timedelta(hours=1) <= now
-
-
-def is_change_request_cutoff_passed(fixture: Fixture, *, now: datetime | None = None) -> bool:
-    """
-    True when change requests must be blocked: same instant as locking bets
-    (from 1 hour before kickoff onward).
-    """
-    t = now if now is not None else datetime.now(timezone.utc)
-    return fixture.match_date - timedelta(hours=1) <= t
-
-
-def can_resolve_change_request_for_fixture(fixture: Fixture, *, now: datetime | None = None) -> bool:
-    """Admin may approve/reject only for scheduled fixtures before the 1h cutoff."""
-    if fixture.status != "scheduled":
-        return False
-    return not is_change_request_cutoff_passed(fixture, now=now)
-
-
-def can_create_change_request_for_fixture(fixture: Fixture, *, now: datetime | None = None) -> bool:
-    """User may submit modify/delete request only for scheduled fixtures before the 1h cutoff."""
-    if fixture.status != "scheduled":
-        return False
-    return not is_change_request_cutoff_passed(fixture, now=now)
 
 
 async def create_bet(

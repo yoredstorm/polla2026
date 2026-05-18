@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlalchemy import select, func, and_
 
 from app.api.deps import CurrentAdmin, DBSession, RedisClient
+from app.core.match_timing import ADMIN_RESOLVE_BEFORE
 from app.core.rate_limiter import limiter
 from app.models.bet import Bet
 from app.models.bet_change_request import BetChangeRequest
@@ -338,8 +339,9 @@ async def edit_fixture(
     await db.commit()
     await db.refresh(fixture)
     logger.info("admin_fixture_edited", fixture_id=str(fixture_id), admin=str(admin.id))
-    from app.schemas.fixture import FixtureOut
-    return FixtureOut.model_validate(fixture)
+    from app.schemas.fixture import fixture_to_out
+
+    return fixture_to_out(fixture)
 
 
 # ── Stats / Dashboard ───────────────────────────────────────────────
@@ -1138,6 +1140,11 @@ async def list_change_requests(
                 "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
                 "match_date": r.fixture_match_date.isoformat(),
                 "fixture_status": r.fixture_status,
+                "admin_resolve_closes_at": (
+                    (r.fixture_match_date - ADMIN_RESOLVE_BEFORE).isoformat()
+                    if r.fixture_status == "scheduled"
+                    else None
+                ),
             }
             for r in rows
         ],
@@ -1198,7 +1205,7 @@ async def approve_change_request(
             detail={
                 "error": {
                     "code": "CHANGE_REQUEST_WINDOW_CLOSED",
-                    "message": "Fuera de plazo: no se puede resolver la solicitud (ventana de 1h antes del partido o partido no programado).",
+                    "message": "Fuera de plazo: no se puede resolver la solicitud (cierra 1 minuto antes del partido o partido no programado).",
                 }
             },
         )
@@ -1286,7 +1293,7 @@ async def reject_change_request(
             detail={
                 "error": {
                     "code": "CHANGE_REQUEST_WINDOW_CLOSED",
-                    "message": "Fuera de plazo: no se puede resolver la solicitud (ventana de 1h antes del partido o partido no programado).",
+                    "message": "Fuera de plazo: no se puede resolver la solicitud (cierra 1 minuto antes del partido o partido no programado).",
                 }
             },
         )

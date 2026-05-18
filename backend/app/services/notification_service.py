@@ -339,7 +339,7 @@ def build_change_request_auto_expired_user(
     title = "Solicitud cancelada automaticamente"
     body = (
         f"Tu solicitud de cambio sobre {home_team} vs {away_team} caduco: "
-        "menos de 1 hora para el inicio del partido."
+        "el administrador no respondio antes del cierre (1 minuto antes del partido)."
     )
     payload = {
         "request_id": request_id,
@@ -357,7 +357,7 @@ def build_change_request_auto_expired_admins_batch(
     title = "Solicitudes canceladas por plazo"
     body = (
         f"Se cancelaron automaticamente {count} solicitud(es) de cambio de apuesta "
-        "al entrar en la ventana de 1 hora antes del partido."
+        "al cerrar la ventana de resolucion (1 minuto antes del partido)."
     )
     payload = {"count": count, "request_ids": request_ids}
     return title, body, payload

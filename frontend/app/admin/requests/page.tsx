@@ -7,7 +7,9 @@ import {
   type AdminChangeRequest,
 } from "@/hooks/useAdmin";
 import { useToast } from "@/components/ui/Toast";
-import { cn, isChangeRequestWindowOpen } from "@/lib/utils";
+import { cn } from "@/lib/utils";
+import { getAdminResolveClosesAt, isAdminResolveWindowOpen } from "@/lib/matchTiming";
+import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 
 const STATUS_FILTERS: { value: string | undefined; label: string }[] = [
   { value: undefined, label: "Todos" },
@@ -114,9 +116,13 @@ export default function AdminRequestsPage() {
       ) : (
         <div className="space-y-3">
           {rows.map((req) => {
+            const fixtureTiming = {
+              match_date: req.match_date,
+              status: req.fixture_status,
+              admin_resolve_closes_at: req.admin_resolve_closes_at ?? null,
+            };
             const canAct =
-              req.status === "pending" &&
-              isChangeRequestWindowOpen({ match_date: req.match_date, status: req.fixture_status });
+              req.status === "pending" && isAdminResolveWindowOpen(fixtureTiming);
             const pendingButLocked = req.status === "pending" && !canAct;
 
             return (
@@ -233,9 +239,17 @@ export default function AdminRequestsPage() {
                 </p>
               )}
 
+              {req.status === "pending" && canAct && (
+                <FixtureDeadlineCountdown
+                  deadlineMs={getAdminResolveClosesAt(fixtureTiming)}
+                  label="Debes responder en"
+                  className="text-amber-200/90"
+                />
+              )}
+
               {pendingButLocked && (
                 <p className="text-xs text-amber-300/90 border border-amber-500/20 rounded-lg px-3 py-2 bg-amber-500/5">
-                  Fuera de plazo: no se puede aprobar ni rechazar en la ultima hora antes del partido.
+                  Fuera de plazo: no se puede aprobar ni rechazar (cierra 1 minuto antes del partido).
                   La solicitud pasara a caducada automaticamente en breve.
                 </p>
               )}

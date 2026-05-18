@@ -72,7 +72,7 @@ async def _fixture_betting_close_loop() -> None:
         except Exception:
             logger.exception("fixture_betting_close_loop_failed")
         try:
-            await asyncio.sleep(60)
+            await asyncio.sleep(15)
         except asyncio.CancelledError:
             raise
 
@@ -96,7 +96,7 @@ async def _change_request_expiry_loop() -> None:
         except Exception:
             logger.exception("change_request_expiry_loop_failed")
         try:
-            await asyncio.sleep(60)
+            await asyncio.sleep(15)
         except asyncio.CancelledError:
             raise
 

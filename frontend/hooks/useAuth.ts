@@ -2,17 +2,22 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
 import { getMe, login, logout, register } from "@/lib/auth";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
+
+const PUBLIC_AUTH_ROUTES = ["/login", "/register"];
 
 export function useAuth() {
   const { user, setUser, setLoading, clearUser } = useAuthStore();
   const queryClient = useQueryClient();
   const router = useRouter();
+  const pathname = usePathname();
+  const skipMeFetch = PUBLIC_AUTH_ROUTES.some((r) => pathname?.startsWith(r));
 
   const { data: me, isLoading } = useQuery({
     queryKey: ["me"],
     queryFn: getMe,
+    enabled: !skipMeFetch,
     retry: false,
     staleTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,

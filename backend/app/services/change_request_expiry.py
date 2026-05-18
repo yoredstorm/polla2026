@@ -1,12 +1,13 @@
-"""Expire pending bet change requests when the 1h pre-kickoff window starts."""
+"""Expire pending bet change requests when the admin resolve window closes (1 min before kickoff)."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 import redis.asyncio as aioredis
 
+from app.core.match_timing import ADMIN_RESOLVE_BEFORE
 from app.models.bet import Bet
 from app.models.bet_change_request import BetChangeRequest
 from app.models.fixture import Fixture
@@ -18,7 +19,10 @@ from app.services.notification_service import (
     build_change_request_auto_expired_admins_batch,
 )
 
-AUTO_EXPIRE_NOTES = "Caducada automaticamente: menos de 1 hora para el inicio del partido."
+AUTO_EXPIRE_NOTES = (
+    "Caducada automaticamente: el administrador no respondio antes del cierre "
+    "(1 minuto antes del partido)."
+)
 
 
 async def expire_pending_change_requests(
@@ -27,10 +31,10 @@ async def expire_pending_change_requests(
 ) -> int:
     """
     Mark pending change requests as expired when match is scheduled and
-    match_date - 1h <= now. Notifies each affected user and admins once per batch.
+    admin resolve window has closed (1 minute before kickoff). Notifies each affected user and admins once per batch.
     """
     now = datetime.now(timezone.utc)
-    threshold = now + timedelta(hours=1)
+    threshold = now + ADMIN_RESOLVE_BEFORE
 
     stmt = (
         select(BetChangeRequest, Bet, Fixture)

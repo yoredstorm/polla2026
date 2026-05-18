@@ -13,7 +13,7 @@ Plataforma fullstack para **pollas de pronósticos deportivos**: los participant
 | Funcionalidad | Descripción |
 |---------------|-------------|
 | **Pronósticos por partido** | Marcador local/visitante; una predicción gratuita por partido y apuestas extra opcionales según la polla activa. |
-| **Bloqueo automático** | Los partidos se bloquean ~1 hora antes del inicio; el admin puede abrir/cerrar apuestas manualmente. |
+| **Bloqueo automático** | Apuestas cierran 1 minuto antes del partido; solicitudes de cambio del usuario hasta 1 h antes; el admin resuelve hasta 1 min antes (si no, caducan). |
 | **Puntuación automática** | Al finalizar un partido, el sistema calcula puntos y actualiza rankings. |
 | **Mis apuestas** | Historial, estado de solicitudes de cambio y acciones sobre apuestas propias. |
 | **Solicitudes de cambio** | Pedir modificar o eliminar una apuesta; el admin aprueba o rechaza (con motivo). |

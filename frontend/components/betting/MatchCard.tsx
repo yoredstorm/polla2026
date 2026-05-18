@@ -5,7 +5,9 @@ import Link from "next/link";
 import type { Fixture } from "@/types/api";
 import { TeamAvatar } from "@/components/betting/TeamAvatar";
 import { cn, formatMatchDate, formatCountdown, isWithin24Hours, getStatusLabel } from "@/lib/utils";
+import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { BettingTrendsBar } from "@/components/betting/BettingTrendsBar";
+import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 
 interface MatchCardProps {
   fixture: Fixture;
@@ -18,7 +20,9 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
   const isLive = fixture.status === "live";
   const isFinished = fixture.status === "finished";
   const isLocked = fixture.is_locked;
-  const showCountdown = fixture.status === "scheduled" && isWithin24Hours(fixture.match_date);
+  const showKickoffCountdown = fixture.status === "scheduled" && isWithin24Hours(fixture.match_date);
+  const showBettingCountdown =
+    fixture.status === "scheduled" && !isLocked && fixture.betting_open && isBettingWindowOpen(fixture);
 
   return (
     <motion.div
@@ -92,10 +96,19 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
       </div>
 
       {/* Match date / countdown */}
-      <div className="mt-3 flex items-center justify-between text-xs text-muted">
-        <span>{formatMatchDate(fixture.match_date)}</span>
-        {showCountdown && (
-          <span className="text-warning">{formatCountdown(fixture.match_date)}</span>
+      <div className="mt-3 flex flex-col gap-1.5 text-xs text-muted">
+        <div className="flex items-center justify-between">
+          <span>{formatMatchDate(fixture.match_date)}</span>
+          {showKickoffCountdown && (
+            <span className="text-warning">{formatCountdown(fixture.match_date)}</span>
+          )}
+        </div>
+        {showBettingCountdown && (
+          <FixtureDeadlineCountdown
+            deadlineMs={getBettingClosesAt(fixture)}
+            label="Cierran apuestas en"
+            compact
+          />
         )}
       </div>
 
@@ -104,7 +117,7 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
       )}
 
       {/* Bet button */}
-      {!isLocked && !isFinished && fixture.status === "scheduled" && (
+      {!isLocked && !isFinished && fixture.status === "scheduled" && isBettingWindowOpen(fixture) && (
         <Link
           href={`/fixtures/${fixture.id}`}
           className="mt-3 block w-full text-center py-2 rounded-lg bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition-colors"

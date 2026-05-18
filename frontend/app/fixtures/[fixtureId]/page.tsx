@@ -21,6 +21,8 @@ import {
   useRejectChallenge,
 } from "@/hooks/useChallenges";
 import { formatMatchDate, getStatusLabel, formatAmount, cn } from "@/lib/utils";
+import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
+import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 import { BettingTrendsBar } from "@/components/betting/BettingTrendsBar";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { FixtureSocialSection } from "@/components/social/FixtureSocialSection";
@@ -66,6 +68,14 @@ export default function FixtureDetailPage() {
           <div className="text-center mb-4">
             <p className="text-muted text-sm">{fixture.league_name} · {fixture.round}</p>
             <p className="text-muted text-xs mt-1">{formatMatchDate(fixture.match_date)}</p>
+            {fixture.status === "scheduled" && isBettingWindowOpen(fixture) && (
+              <div className="mt-2 flex justify-center">
+                <FixtureDeadlineCountdown
+                  deadlineMs={getBettingClosesAt(fixture)}
+                  label="Cierran apuestas en"
+                />
+              </div>
+            )}
           </div>
           <div className="flex items-center justify-center gap-8">
             <div className="flex flex-col items-center gap-3">

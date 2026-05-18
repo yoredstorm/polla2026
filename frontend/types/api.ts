@@ -66,6 +66,9 @@ export interface Fixture {
   season: number;
   is_locked: boolean;
   betting_open: boolean;
+  betting_closes_at?: string | null;
+  change_request_closes_at?: string | null;
+  admin_resolve_closes_at?: string | null;
 }
 
 export interface Bet {
