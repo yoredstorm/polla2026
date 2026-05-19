@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
 import { Modal } from "@/components/ui/Modal";
 import {
   useNotifications,
@@ -89,7 +90,9 @@ export default function NotificationsPage() {
   return (
     <PageShell maxWidth="md">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="font-display text-3xl text-white">Notificaciones</h1>
+        <HelpSectionTitle as="h1" helpKey="page.notifications">
+          Notificaciones
+        </HelpSectionTitle>
         {items.some((n) => !n.read_at) && (
           <button
             type="button"

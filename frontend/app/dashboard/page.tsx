@@ -2,7 +2,13 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
+import { HelpTourBanner } from "@/components/help/HelpTourBanner";
+import { useHelpTourRunner } from "@/components/help/HelpTour";
+import { useHelpTour } from "@/hooks/useHelpTour";
 import { MatchCard } from "@/components/betting/MatchCard";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { useFixtures } from "@/hooks/useFixtures";
@@ -56,26 +62,41 @@ export default function DashboardPage() {
   const gapToLeader =
     leader && myEntry ? Math.max(0, leader.total_points - myEntry.total_points) : null;
 
+  const { bannerVisible, dismissBanner, markTourDone } = useHelpTour();
+  const { startTour } = useHelpTourRunner(markTourDone);
+
   return (
     <PageShell maxWidth="xl">
+      <HelpTourBanner visible={bannerVisible} onStart={startTour} onDismiss={dismissBanner} />
+
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-widest text-accent mb-1">Centro del Mundial 2026</p>
-          <h1 className="font-display text-3xl text-white text-glow-accent">Hola, {user?.username}</h1>
+          <HelpSectionTitle as="h1" helpKey="page.dashboard" label="Inicio">
+            Hola, {user?.username}
+          </HelpSectionTitle>
           <p className="text-muted mt-1">Tu hub de pronosticos y competencia</p>
         </div>
-        <Link
-          href="/profile"
-          className="inline-flex items-center justify-center px-4 py-2.5 text-sm rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10 transition-colors duration-200 cursor-pointer focus-ring"
-        >
-          Perfil y privacidad
-        </Link>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <Button type="button" variant="ghost" size="sm" onClick={startTour}>
+            Ver guía del sistema
+          </Button>
+          <Link
+            href="/profile"
+            className="inline-flex items-center justify-center px-4 py-2.5 text-sm rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10 transition-colors duration-200 cursor-pointer focus-ring"
+          >
+            Perfil y privacidad
+          </Link>
+        </div>
       </div>
 
       {totalFixtures > 0 && (
         <Card className="mb-8 p-4 rounded-2xl">
           <div className="flex justify-between text-xs text-muted mb-2">
-            <span>Progreso del torneo</span>
+            <span className="inline-flex items-center gap-1">
+              Progreso del torneo
+              <HelpTooltip helpKey="page.dashboard.progress" label="Progreso del torneo" />
+            </span>
             <span>
               {playedFixtures} / {totalFixtures} partidos ({progressPct}%)
             </span>
@@ -91,6 +112,10 @@ export default function DashboardPage() {
 
       {myEntry && (
         <section className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3 auto-rows-fr">
+          <div className="col-span-2 lg:col-span-4 flex items-center gap-2 -mb-1">
+            <span className="text-xs text-muted uppercase tracking-wide">Tu resumen</span>
+            <HelpTooltip helpKey="page.dashboard.stats" label="Estadísticas" />
+          </div>
           <Card className="p-4 text-center col-span-1 lg:col-span-1" glow>
             <p className="text-xs text-muted">Tu puesto</p>
             <p className="font-display text-4xl text-accent text-glow-accent">#{myEntry.position}</p>
@@ -129,7 +154,9 @@ export default function DashboardPage() {
 
       {hero && (
         <section className="mb-8">
-          <h2 className="font-display text-lg text-white mb-3">Proximo partido</h2>
+          <HelpSectionTitle as="h2" helpKey="page.dashboard.nextMatch" className="mb-3">
+            Proximo partido
+          </HelpSectionTitle>
           <Link
             href={`/fixtures/${hero.id}`}
             className="block rounded-2xl border border-accent/50 bg-gradient-to-r from-accent/15 via-accent/5 to-transparent p-6 shadow-glow-accent card-interactive group"
@@ -153,7 +180,9 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <section>
-            <h2 className="font-display text-xl text-white mb-4">Proximos partidos</h2>
+            <HelpSectionTitle as="h2" helpKey="page.dashboard.upcoming" className="mb-4">
+              Proximos partidos
+            </HelpSectionTitle>
             {fixturesLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[0, 1, 2, 3].map((i) => (
@@ -174,7 +203,9 @@ export default function DashboardPage() {
           </section>
 
           <section>
-            <h2 className="font-display text-xl text-white mb-1">Reglas de puntuacion</h2>
+            <HelpSectionTitle as="h2" helpKey="page.dashboard.scoring" className="mb-1">
+              Reglas de puntuacion
+            </HelpSectionTitle>
             <p className="text-xs text-muted mb-4">Asi se calculan los puntos al liquidar cada partido.</p>
             <div className="grid grid-cols-3 gap-3">
               <Card className="p-4 text-center border-accent/40 bg-accent/5" glow>
@@ -196,6 +227,7 @@ export default function DashboardPage() {
         <div className="space-y-6">
           {polla ? (
             <Card
+              data-help-tour="prize-pool"
               className={cn(
                 "rounded-2xl border-accent/30 bg-gradient-to-br from-accent/10 via-white/[0.03] to-transparent p-5",
                 isAnimating && "shadow-glow-accent",
@@ -205,7 +237,10 @@ export default function DashboardPage() {
               <div className="flex items-center gap-3 mb-3">
                 <PiggyBankIcon className="w-10 h-10 text-accent shrink-0" />
                 <div>
-                  <p className="text-xs text-muted uppercase tracking-wide">Pozo acumulado</p>
+                  <p className="text-xs text-muted uppercase tracking-wide inline-flex items-center gap-1">
+                    Pozo acumulado
+                    <HelpTooltip helpKey="page.dashboard.prizePool" label="Pozo acumulado" />
+                  </p>
                   <p className="text-xs text-muted">{polla.name}</p>
                 </div>
               </div>
@@ -244,7 +279,9 @@ export default function DashboardPage() {
           <ActivityFeed limit={12} className="mb-4" />
 
           <section>
-            <h2 className="font-display text-xl text-white mb-1">Top apostadores</h2>
+            <HelpSectionTitle as="h2" helpKey="page.dashboard.topBettors" className="mb-1">
+              Top apostadores
+            </HelpSectionTitle>
             <Card className="p-4 space-y-3">
               {leaderboard?.length ? (
                 leaderboard.slice(0, 8).map((entry, i) => (

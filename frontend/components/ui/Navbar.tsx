@@ -7,12 +7,14 @@ import { useInactivityTimeout } from "@/hooks/useInactivityTimeout";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { MobileBottomNav } from "@/components/ui/MobileBottomNav";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
+import type { HelpKey } from "@/lib/systemHelp";
 
-const navLinks = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/fixtures", label: "Partidos" },
-  { href: "/my-bets", label: "Mis Apuestas" },
-  { href: "/leaderboard", label: "Ranking" },
+const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string }[] = [
+  { href: "/dashboard", label: "Dashboard", helpKey: "nav.dashboard", tourId: "nav-dashboard" },
+  { href: "/fixtures", label: "Partidos", helpKey: "nav.fixtures", tourId: "nav-fixtures" },
+  { href: "/my-bets", label: "Mis Apuestas", helpKey: "nav.myBets", tourId: "nav-my-bets" },
+  { href: "/leaderboard", label: "Ranking", helpKey: "nav.leaderboard", tourId: "nav-leaderboard" },
 ];
 
 export function Navbar() {
@@ -52,16 +54,22 @@ export function Navbar() {
             </Link>
             <div className="hidden md:flex items-center gap-6">
               {navLinks.map((link) => (
-                <Link
+                <span
                   key={link.href}
-                  href={link.href}
-                  className={cn(
-                    "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1",
-                    pathname.startsWith(link.href) ? "text-accent" : "text-muted hover:text-white",
-                  )}
+                  className="inline-flex items-center gap-0.5"
+                  data-help-tour={link.tourId}
                 >
-                  {link.label}
-                </Link>
+                  <Link
+                    href={link.href}
+                    className={cn(
+                      "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1",
+                      pathname.startsWith(link.href) ? "text-accent" : "text-muted hover:text-white",
+                    )}
+                  >
+                    {link.label}
+                  </Link>
+                  <HelpTooltip helpKey={link.helpKey} label={link.label} side="bottom" />
+                </span>
               ))}
               {user?.is_admin && (
                 <Link

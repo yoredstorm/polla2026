@@ -91,3 +91,56 @@
     }
   }
 }
+
+/* driver.js tour — tema oscuro alineado con la app */
+.polla-driver-popover.driver-popover {
+  background-color: #141820;
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 0.75rem;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+
+.polla-driver-popover .driver-popover-title {
+  font-family: var(--font-display), system-ui, sans-serif;
+  font-size: 1.125rem;
+  color: #fff;
+}
+
+.polla-driver-popover .driver-popover-description {
+  font-size: 0.8125rem;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1.5;
+}
+
+.polla-driver-popover .driver-popover-progress-text {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+}
+
+.polla-driver-popover button {
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  text-shadow: none;
+}
+
+.polla-driver-popover .driver-popover-next-btn,
+.polla-driver-popover .driver-popover-done-btn {
+  background-color: #00ff88;
+  color: #0a0c10;
+  border: none;
+}
+
+.polla-driver-popover .driver-popover-prev-btn {
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.polla-driver-popover .driver-popover-close-btn {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.polla-driver-popover .driver-popover-close-btn:hover {
+  color: #fff;
+}

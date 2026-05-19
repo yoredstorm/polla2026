@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
 import { Chip } from "@/components/ui/Chip";
 import { MatchCard } from "@/components/betting/MatchCard";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
@@ -61,11 +63,16 @@ export default function FixturesPage() {
 
   return (
     <PageShell maxWidth="xl">
-        <h1 className="font-display text-3xl text-white mb-2">Partidos</h1>
+        <HelpSectionTitle as="h1" helpKey="page.fixtures" className="mb-2">
+          Partidos
+        </HelpSectionTitle>
         <p className="text-muted text-sm mb-6">FIFA World Cup 2026</p>
 
-        {/* Filters */}
         <div className="flex flex-col gap-3 mb-6">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-muted text-xs uppercase tracking-wider">Filtros</span>
+            <HelpTooltip helpKey="page.fixtures.filters" label="Filtros de partidos" />
+          </div>
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-muted text-xs uppercase tracking-wider mr-1">Grupo:</span>
             {GROUPS.map((g) => (

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useUserPublicBets,
@@ -131,6 +133,11 @@ export default function UserPublicProfilePage() {
         ) : (
           <>
             <div className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 mb-6">
+              <div className="flex items-center gap-2 mb-4">
+                <HelpSectionTitle as="h1" helpKey="page.publicProfile">
+                  Perfil público
+                </HelpSectionTitle>
+              </div>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <UserAvatar
@@ -168,12 +175,15 @@ export default function UserPublicProfilePage() {
                 </p>
               )}
               {showCopyBtn && (
-                <button
-                  onClick={() => setCopyModalOpen(true)}
-                  className="mt-4 px-4 py-2 rounded-xl bg-accent/20 text-accent border border-accent/30 text-sm font-semibold hover:bg-accent/30 transition-colors"
-                >
-                  Copiar todas las apuestas
-                </button>
+                <div className="mt-4 flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setCopyModalOpen(true)}
+                    className="px-4 py-2 rounded-xl bg-accent/20 text-accent border border-accent/30 text-sm font-semibold hover:bg-accent/30 transition-colors"
+                  >
+                    Copiar todas las apuestas
+                  </button>
+                  <HelpTooltip helpKey="page.publicProfile.copy" label="Copiar apuestas" />
+                </div>
               )}
             </div>
 

@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { LeaderboardListSkeleton } from "@/components/ui/Skeleton";
@@ -48,8 +50,11 @@ export default function LeaderboardPage() {
       )}
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <h1 className="font-display text-3xl text-white text-glow-accent">Ranking</h1>
-        <div className="flex flex-wrap gap-2">
+        <HelpSectionTitle as="h1" helpKey="page.leaderboard">
+          Ranking
+        </HelpSectionTitle>
+        <div className="flex flex-wrap gap-2 items-center">
+          <HelpTooltip helpKey="page.leaderboard.period" label="Período del ranking" />
           <Chip active={view === "global"} onClick={() => { setView("global"); setPage(1); }}>
             Global
           </Chip>
@@ -60,7 +65,10 @@ export default function LeaderboardPage() {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-2">
-        <span className="text-xs text-muted self-center mr-2">Ordenar por</span>
+        <span className="text-xs text-muted self-center mr-2 inline-flex items-center gap-1">
+          Ordenar por
+          <HelpTooltip helpKey="page.leaderboard.sort" label="Orden del ranking" />
+        </span>
         <Chip active={sort === "points"} onClick={() => { setSort("points"); setPage(1); }} className="!px-3 !py-1.5 !text-xs">
           Puntos
         </Chip>

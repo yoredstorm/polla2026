@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Trophy, Medal } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 
@@ -29,7 +30,9 @@ export default function WinnersPage() {
 
   return (
     <PageShell maxWidth="md">
-        <h1 className="font-display text-3xl text-white mb-2">Podio y premios</h1>
+        <HelpSectionTitle as="h1" helpKey="page.winners" className="mb-2">
+          Podio y premios
+        </HelpSectionTitle>
         <p className="text-muted text-sm mb-8">Distribucion 60% / 30% / 10% del pozo acumulado</p>
 
         {isLoading && <p className="text-muted">Cargando...</p>}
