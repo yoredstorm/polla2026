@@ -168,6 +168,8 @@ Genera secretos JWT con `python backend/scripts/generate_secrets.py` (mínimo 32
 docker compose up -d --build
 ```
 
+Los datos persistentes usan volúmenes Docker: `postgres_data` (BD), `uploads_data` (fotos de perfil) y `backup_data` (copias diarias). **No uses `docker compose down -v` en producción** si quieres conservar datos. Detalle y restauración: [docs/BACKUPS.md](docs/BACKUPS.md).
+
 ### 4. Migraciones
 
 ```bash

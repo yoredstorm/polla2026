@@ -1,0 +1,2 @@
+# Midnight daily (container timezone, default America/Lima via TZ env)
+0 0 * * * /usr/local/bin/run-backup.sh >> /var/log/backup.log 2>&1

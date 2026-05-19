@@ -75,6 +75,25 @@ services:
       - backend
       - frontend
 
+  # Backup diario a medianoche (TZ): PostgreSQL + fotos de perfil → volumen backup_data
+  db-backup:
+    build: ./scripts/backup
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: polla_db
+      POSTGRES_USER: polla_user
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-America/Lima}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+    volumes:
+      - backup_data:/backups
+      - uploads_data:/uploads:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   uploads_data:
+  backup_data:
