@@ -87,7 +87,7 @@ export default function LoginPage() {
   return (
     <div
       className="min-h-screen flex items-center justify-center p-4 bg-cover bg-center bg-no-repeat relative bg-ambient-mesh"
-      style={{ backgroundImage: "url('/background.png')" }}
+      style={{ backgroundImage: "url('/image/background.png')" }}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div className="relative z-10 w-full max-w-md">
