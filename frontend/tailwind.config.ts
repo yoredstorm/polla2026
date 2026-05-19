@@ -39,9 +39,16 @@ const config: Config = {
       backdropBlur: {
         xs: "2px",
       },
+      // 👇 Ajustado para usar tu verde neón (#00ff88)
+      textShadow: {
+        'glow-accent': '0 0 10px rgba(0, 255, 136, 0.7)',
+        'glow-accent-intense': '0 0 5px #fff, 0 0 15px #00ff88, 0 0 30px #00ff88',
+      },
     },
   },
-  plugins: [],
+  plugins: [
+    require('tailwindcss-textshadow'),
+  ],
 };
 
 export default config;

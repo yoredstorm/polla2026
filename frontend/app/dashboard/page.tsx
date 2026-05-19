@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Users } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
 import { Card } from "@/components/ui/Card";
 import { MatchCard } from "@/components/betting/MatchCard";
@@ -18,19 +18,180 @@ import { useMyRival } from "@/hooks/useRival";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { cn, formatCountdown } from "@/lib/utils";
 
-function PiggyBankIcon({ className }: { className?: string }) {
+// --- NUEVO COMPONENTE: NeonPiggyBank (SVG Completo + Monedas Mejoradas) ---
+interface NeonPiggyBankProps {
+  amount: string;
+  currency: string;
+  isAnimating?: boolean;
+}
+
+function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
   return (
-    <svg className={className} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-      <ellipse cx="30" cy="35" rx="22" ry="18" fill="currentColor" opacity="0.15" />
-      <ellipse cx="30" cy="35" rx="22" ry="18" stroke="currentColor" strokeWidth="2.5" />
-      <circle cx="21" cy="31" r="2.5" fill="currentColor" />
-      <path d="M52 30c2.5 0 4.5 2 4.5 4.5S54.5 39 52 39h-2" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M26 53v4M34 53v4" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M30 17v-5M30 12a4 4 0 0 1 4-4h6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-      <rect x="27" y="14" width="6" height="4" rx="2" fill="currentColor" opacity="0.3" />
-    </svg>
+    <div className="relative w-full flex justify-center items-center py-8">
+      {/* Estilos locales para la animación y diseño de las monedas */}
+      <style>{`
+        @keyframes dropCoin {
+          0% { transform: translateY(-40px) scale(0.5); opacity: 0; }
+          20% { transform: translateY(-10px) scale(1); opacity: 1; }
+          70% { transform: translateY(30px) scale(1); opacity: 1; }
+          100% { transform: translateY(50px) scale(0.5); opacity: 0; }
+        }
+        
+        .golden-coin {
+          position: absolute;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: radial-gradient(circle, #ffe066 0%, #f5b041 50%, #d4ac0d 100%);
+          border: 2px solid #fef9e7;
+          box-shadow: 0 0 15px rgba(241, 196, 15, 0.8), inset 0 0 5px rgba(255, 255, 255, 0.8);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #9a7d0a;
+          font-weight: bold;
+          font-size: 12px;
+          opacity: 0;
+          z-index: 20;
+        }
+
+        /* --- ESTILOS MEJORADOS PARA MONEDAS ACUMULADAS --- */
+        .coin-inside {
+          position: absolute;
+          width: 28px;               /* Más ancha */
+          height: 10px;              /* Más baja para dar efecto de "echadita" */
+          border-radius: 50%;
+          background: linear-gradient(to bottom, #ffe066 0%, #f5b041 50%, #d4ac0d 100%);
+          border: 1px solid rgba(255,255,255,0.6);
+          border-bottom: 3px solid #b7950b; /* Grosor/canto de la moneda en 3D */
+          opacity: 0.65;             /* Ligeramente translúcidas para mantener el efecto de "dentro del cristal" */
+          box-shadow: 
+            0 3px 5px rgba(0,0,0,0.3), 
+            inset 0 1px 2px rgba(255,255,255,0.8);
+        }
+
+        .animate-coin-1 { animation: dropCoin 1.2s ease-in forwards; }
+        .animate-coin-2 { animation: dropCoin 1.2s ease-in 0.3s forwards; }
+        .animate-coin-3 { animation: dropCoin 1.2s ease-in 0.6s forwards; }
+        
+        .text-glow-pink {
+          text-shadow: 0 0 5px #fff, 0 0 15px #ff87dd, 0 0 30px #ff87dd;
+        }
+      `}</style>
+
+      {/* Contenedor relativo que define el tamaño del chanchito */}
+      <div className="relative w-full max-w-[320px] aspect-[4/3] flex items-center justify-center">
+        
+        {/* Monedas Doradas Animadas */}
+        {isAnimating && (
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 flex justify-center w-full h-full pointer-events-none">
+            <div className="golden-coin animate-coin-1 left-[45%]">$</div>
+            <div className="golden-coin animate-coin-2 left-[55%]">$</div>
+            <div className="golden-coin animate-coin-3 left-[48%]">$</div>
+          </div>
+        )}
+
+        {/* Silueta SVG del Cerdito Cristal */}
+        <svg 
+          viewBox="0 0 240 180" 
+          className="w-full h-full absolute inset-0 z-0 drop-shadow-[0_15px_25px_rgba(0,0,0,0.5)]"
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <defs>
+            <filter id="neon-pink" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="3.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            
+            <linearGradient id="glass-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.1" />
+              <stop offset="50%" stopColor="#ffffff" stopOpacity="0.03" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0.01" />
+            </linearGradient>
+            
+            <radialGradient id="glass-highlight" cx="50%" cy="20%" r="50%">
+              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
+              <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+
+          <g 
+            filter="url(#neon-pink)" 
+            stroke="#ff87dd" 
+            strokeWidth={isAnimating ? "5" : "3"} 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            className="transition-all duration-300 ease-out"
+          >
+            <path d="M 80 140 L 75 160 C 73 165 80 168 85 168 L 90 168 C 95 168 95 160 95 155 L 98 140" fill="url(#glass-fill)"/>
+            <path d="M 160 140 L 155 160 C 153 165 160 168 165 168 L 170 168 C 175 168 175 160 175 155 L 178 140" fill="url(#glass-fill)"/>
+
+            <path d="M 195 90
+                C 195 50, 160 28, 120 28
+                C 70 28, 40 52, 35 82
+                C 30 87, 15 82, 10 87
+                C 5 92, 5 108, 10 113
+                C 15 118, 30 118, 35 113
+                C 45 140, 78 150, 125 150
+                C 172 150, 195 132, 195 90 Z"
+              fill="url(#glass-fill)"/>
+
+            <ellipse cx="12" cy="98" rx="5" ry="12" fill="none" />
+            <circle cx="12" cy="93" r="1.5" fill="#ff87dd" />
+            <circle cx="12" cy="103" r="1.5" fill="#ff87dd" />
+
+            <path d="M 60 45 C 55 30 45 20 35 25 C 30 28 35 40 45 55" fill="url(#glass-fill)" />
+            <path d="M 180 80 C 195 70 205 85 195 95 C 185 105 175 95 185 85" fill="none" />
+            <line x1="100" y1="37" x2="140" y2="37" strokeWidth="4" />
+
+            <path d="M 65 140 L 60 165 C 58 170 65 173 70 173 L 75 173 C 80 173 80 165 80 160 L 83 140" fill="url(#glass-fill)"/>
+            <path d="M 145 140 L 140 165 C 138 170 145 173 150 173 L 155 173 C 160 173 160 165 160 160 L 163 140" fill="url(#glass-fill)"/>
+          </g>
+
+          <ellipse cx="120" cy="50" rx="40" ry="15" fill="url(#glass-highlight)" filter="blur(3px)" />
+        </svg>
+
+        {/* Monedas acumuladas (apiladas con perspectiva) */}
+        <div className="absolute inset-0 z-[1] pointer-events-none">
+          {/* Capa Base (Abajo) */}
+          <div className="coin-inside absolute left-[38%] top-[77%] -rotate-6" />
+          <div className="coin-inside absolute left-[48%] top-[78%] rotate-3" />
+          <div className="coin-inside absolute left-[56%] top-[76%] rotate-12" />
+          
+          {/* Capa Media (Superpuestas) */}
+          <div className="coin-inside absolute left-[43%] top-[73%] rotate-6" />
+          <div className="coin-inside absolute left-[52%] top-[74%] -rotate-3" />
+          
+          {/* Capa Superior (Punta de la montaña) */}
+          <div className="coin-inside absolute left-[47%] top-[70%] rotate-2" />
+        </div>
+
+        {/* Textos de la Cifra */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pt-2 pr-4 z-10 pointer-events-none">
+          <p className="text-[10px] text-white/60 uppercase tracking-widest mb-0.5">Pozo Acumulado</p>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-lg font-medium text-[#ff107a]">{currency}</span>
+            <span
+              className={cn(
+                "font-display text-4xl text-white tabular-nums tracking-tight",
+                "text-glow-pink transition-all duration-300",
+                isAnimating && "scale-110"
+              )}
+            >
+              {amount}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
+// ---------------------------------------------
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -56,13 +217,21 @@ export default function DashboardPage() {
   const gapToLeader =
     leader && myEntry ? Math.max(0, leader.total_points - myEntry.total_points) : null;
 
+  // Formateo de la cifra
+  const formattedAmount = prizeDisplayed != null
+    ? prizeDisplayed.toLocaleString("es-PE", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    : "—";
+
   return (
     <PageShell maxWidth="xl">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-widest text-accent mb-1">Centro del Mundial 2026</p>
-          <h1 className="font-display text-3xl text-white text-glow-accent">Hola, {user?.username}</h1>
-          <p className="text-muted mt-1">Tu hub de pronosticos y competencia</p>
+          <h1 className="font-display text-3xl text-white text-glow-accent">Hola, {user?.first_name}</h1>
+          <p className="text-muted mt-1">Tu hub de pronósticos y competencia</p>
         </div>
         <Link
           href="/profile"
@@ -100,10 +269,10 @@ export default function DashboardPage() {
             <p className="font-display text-4xl text-white">{myEntry.total_points}</p>
           </Card>
           <Card className="p-4 col-span-2 lg:col-span-2 flex flex-col justify-center">
-            <p className="text-xs text-muted">Distancia al lider</p>
+            <p className="text-xs text-muted">Distancia al líder</p>
             <p className="font-display text-xl text-white mt-1">
               {gapToLeader === 0
-                ? "Eres el lider"
+                ? "Eres el líder"
                 : gapToLeader != null
                   ? `${gapToLeader} pts para alcanzar a ${leader?.username}`
                   : "—"}
@@ -129,7 +298,7 @@ export default function DashboardPage() {
 
       {hero && (
         <section className="mb-8">
-          <h2 className="font-display text-lg text-white mb-3">Proximo partido</h2>
+          <h2 className="font-display text-lg text-white mb-3">Próximo partido</h2>
           <Link
             href={`/fixtures/${hero.id}`}
             className="block rounded-2xl border border-accent/50 bg-gradient-to-r from-accent/15 via-accent/5 to-transparent p-6 shadow-glow-accent card-interactive group"
@@ -153,7 +322,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <section>
-            <h2 className="font-display text-xl text-white mb-4">Proximos partidos</h2>
+            <h2 className="font-display text-xl text-white mb-4">Próximos partidos</h2>
             {fixturesLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[0, 1, 2, 3].map((i) => (
@@ -174,8 +343,8 @@ export default function DashboardPage() {
           </section>
 
           <section>
-            <h2 className="font-display text-xl text-white mb-1">Reglas de puntuacion</h2>
-            <p className="text-xs text-muted mb-4">Asi se calculan los puntos al liquidar cada partido.</p>
+            <h2 className="font-display text-xl text-white mb-1">Reglas de puntuación</h2>
+            <p className="text-xs text-muted mb-4">Así se calculan los puntos al liquidar cada partido.</p>
             <div className="grid grid-cols-3 gap-3">
               <Card className="p-4 text-center border-accent/40 bg-accent/5" glow>
                 <p className="font-display text-4xl text-accent mb-2">2</p>
@@ -194,51 +363,42 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-6">
+          {/* --- SECCIÓN ACTUALIZADA DEL POZO (CHANCHITO ROSA) --- */}
           {polla ? (
-            <Card
-              className={cn(
-                "rounded-2xl border-accent/30 bg-gradient-to-br from-accent/10 via-white/[0.03] to-transparent p-5",
-                isAnimating && "shadow-glow-accent",
-              )}
-              glow
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <PiggyBankIcon className="w-10 h-10 text-accent shrink-0" />
-                <div>
-                  <p className="text-xs text-muted uppercase tracking-wide">Pozo acumulado</p>
-                  <p className="text-xs text-muted">{polla.name}</p>
+            <div className="relative">
+              <NeonPiggyBank
+                amount={formattedAmount}
+                currency={currency}
+                isAnimating={isAnimating}
+              />
+
+              <div className="text-center mt-2 space-y-1">
+                <p className="text-sm font-medium text-white">{polla.name}</p>
+                <div className="flex items-center justify-center gap-1.5 text-xs text-muted">
+                  <Users className="w-3.5 h-3.5" />
+                  <span>
+                    {polla.member_count} participante{polla.member_count !== 1 ? "s" : ""}
+                  </span>
                 </div>
+
+                {!polla.is_member && (
+                  <p className="text-xs text-warning mt-3 bg-warning/10 rounded-lg px-3 py-2 inline-block">
+                    No eres miembro aún. Habla con el admin para unirte.
+                  </p>
+                )}
               </div>
-              <p className="font-display text-4xl text-white mb-1">
-                {currency}{" "}
-                <span className="text-accent tabular-nums text-glow-accent">
-                  {prizeDisplayed != null
-                    ? prizeDisplayed.toLocaleString("es-PE", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })
-                    : "—"}
-                </span>
-              </p>
-              <p className="text-xs text-muted">
-                {polla.member_count} participante{polla.member_count !== 1 ? "s" : ""}
-              </p>
-              {!polla.is_member && (
-                <p className="text-xs text-warning mt-3 bg-warning/10 rounded-lg px-3 py-2">
-                  No eres miembro aun. Habla con el admin para unirte.
-                </p>
-              )}
-            </Card>
+            </div>
           ) : (
             <Card className="p-5 flex items-center gap-3">
-              <PiggyBankIcon className="w-10 h-10 text-muted shrink-0" />
-              <p className="text-sm text-muted">Pozo no configurado aun.</p>
+              <div className="w-16 h-10 rounded-full border border-dashed border-muted/50 bg-muted/5"></div>
+              <p className="text-sm text-muted">Pozo no configurado aún.</p>
             </Card>
           )}
 
           <Link href="/winners" className="block text-center text-sm text-accent hover:underline cursor-pointer">
             Ver podio y premios
           </Link>
+          {/* ------------------------------------------------ */}
 
           <FollowingFeed />
           <ActivityFeed limit={12} className="mb-4" />
