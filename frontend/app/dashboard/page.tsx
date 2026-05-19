@@ -88,9 +88,9 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
         }
       `}</style>
 
-      {/* Contenedor relativo que define el tamaño del chanchito */}
+      {/* CONTENEDOR PRINCIPAL DEL CHANCHITO */}
       <div className="relative w-full max-w-[320px] aspect-[4/3] flex items-center justify-center">
-        {/* Monedas Doradas Animadas */}
+        {/* MONEDAS ANIMADAS CAYENDO */}
         {isAnimating && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 flex justify-center w-full h-full pointer-events-none">
             <div className="golden-coin animate-coin-1 left-[45%]">$</div>
@@ -99,7 +99,7 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
           </div>
         )}
 
-        {/* Silueta SVG del Cerdito Cristal */}
+        {/* SVG PRINCIPAL DEL CHANCHITO */}
         <svg
           viewBox="0 0 240 180"
           className="w-full h-full absolute inset-0 z-0 drop-shadow-[0_15px_25px_rgba(0,0,0,0.5)]"
@@ -107,6 +107,7 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
+            {/* Glow neón rosado */}
             <filter id="neon-pink" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="3.5" result="blur" />
               <feMerge>
@@ -115,72 +116,65 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-
+            {/* Gradiente del vidrio */}
             <linearGradient id="glass-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="0.1" />
               <stop offset="50%" stopColor="#ffffff" stopOpacity="0.03" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0.01" />
             </linearGradient>
-
+            {/* Reflejo superior del vidrio */}
             <radialGradient id="glass-highlight" cx="50%" cy="20%" r="50%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
             </radialGradient>
           </defs>
 
+          {/* CUERPO DEL CHANCHITO */}
           <g
             filter="url(#neon-pink)"
             stroke="#ff87dd"
             strokeWidth={isAnimating ? "5" : "3"}
-            strokeLinecap="round"
+            strokeLinecap="round"   
             strokeLinejoin="round"
             className="transition-all duration-300 ease-out"
           >
+            {/* Patas del chanchito */}
             <path
-              d="M 80 140 L 75 160 C 73 165 80 168 85 168 L 90 168 C 95 168 95 160 95 155 L 98 140"
+              d="M 82 168 C 76 168 82 168 85 168 L 90 168 C 95 168 95 160 95 155 L 96 150"
               fill="url(#glass-fill)"
             />
             <path
-              d="M 160 140 L 155 160 C 153 165 160 168 165 168 L 170 168 C 175 168 175 160 175 155 L 178 140"
-              fill="url(#glass-fill)"
-            />
-
-            <path
-              d="M 195 90
-                C 195 50, 160 28, 120 28
-                C 70 28, 40 52, 35 82
-                C 30 87, 15 82, 10 87
-                C 5 92, 5 108, 10 113
-                C 15 118, 30 118, 35 113
-                C 45 140, 78 150, 125 150
-                C 172 150, 195 132, 195 90 Z"
+              d="M 161 168 C 164 168 160 168 165 168 L 170 168 C 175 168 174 161 174 155 L 178 136"
               fill="url(#glass-fill)"
             />
 
+            {/* Cuerpo principal */}
+            <path
+              d="M 195 90 C 195 50 160 28 120 28 C 70 28 40 52 35 82 C 30 87 15 82 10 87 C 5 92 5 108 10 113 C 15 118 30 118 35 113 C 43 133 55 138 64 141 L 60 165 C 58 170 65 173 70 173 L 75 173 C 80 173 80 165 80 160 L 83 145 C 95 150 110 152 126 151 C 136 150 140 149 142 149 L 140 165 C 138 170 145 173 150 173 L 155 173 C 160 173 160 165 160 160 L 162 144 C 174 139 195 128 195 90 Z"
+              fill="url(#glass-fill)"
+            />
+            {/* Hocico */}
             <ellipse cx="12" cy="98" rx="5" ry="12" fill="none" />
-            <circle cx="12" cy="93" r="1.5" fill="#ff87dd" />
-            <circle cx="12" cy="103" r="1.5" fill="#ff87dd" />
 
+            {/* Fosas nasales */}
+            <circle cx="12" cy="94" r="1.5" fill="#ff87dd" />
+            <circle cx="12" cy="102" r="1.5" fill="#ff87dd" />
+
+            {/* Oreja */}
             <path
-              d="M 60 45 C 55 30 45 20 35 25 C 30 28 35 40 45 55"
+              d="M 60 42 C 55 30 45 20 35 25 C 30 28 35 40 45 55"
               fill="url(#glass-fill)"
             />
+            {/* Cola */}
             <path
-              d="M 180 80 C 195 70 205 85 195 95 C 185 105 175 95 185 85"
+              d="M 195 80 C 210 70 224 85 215 95 C 207 105 193 95 204 87"
               fill="none"
             />
+            {/* Ranura superior para monedas */}
             <line x1="100" y1="37" x2="140" y2="37" strokeWidth="4" />
 
-            <path
-              d="M 65 140 L 60 165 C 58 170 65 173 70 173 L 75 173 C 80 173 80 165 80 160 L 83 140"
-              fill="url(#glass-fill)"
-            />
-            <path
-              d="M 145 140 L 140 165 C 138 170 145 173 150 173 L 155 173 C 160 173 160 165 160 160 L 163 140"
-              fill="url(#glass-fill)"
-            />
           </g>
-
+          {/* Reflejo de luz superior */}
           <ellipse
             cx="120"
             cy="50"
