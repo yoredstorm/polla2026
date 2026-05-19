@@ -2,14 +2,23 @@
 import Link from "next/link";
 import { ChevronRight, Users } from "lucide-react";
 import { PageShell } from "@/components/ui/PageShell";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
+import { HelpTourBanner } from "@/components/help/HelpTourBanner";
+import { useHelpTourRunner } from "@/components/help/HelpTour";
+import { useHelpTour } from "@/hooks/useHelpTour";
 import { MatchCard } from "@/components/betting/MatchCard";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { useFixtures } from "@/hooks/useFixtures";
 import { useGlobalLeaderboard } from "@/hooks/useLeaderboard";
 import { useActivePolla } from "@/hooks/useGroups";
 import { useAuth } from "@/hooks/useAuth";
-import { useAnimatedPrizePool, parsePrizePool } from "@/hooks/useAnimatedPrizePool";
+import {
+  useAnimatedPrizePool,
+  parsePrizePool,
+} from "@/hooks/useAnimatedPrizePool";
 import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
 import { BadgeCatalogSection } from "@/components/gamification/BadgeCatalogSection";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
@@ -81,7 +90,6 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
 
       {/* Contenedor relativo que define el tamaño del chanchito */}
       <div className="relative w-full max-w-[320px] aspect-[4/3] flex items-center justify-center">
-        
         {/* Monedas Doradas Animadas */}
         {isAnimating && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 flex justify-center w-full h-full pointer-events-none">
@@ -92,10 +100,10 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
         )}
 
         {/* Silueta SVG del Cerdito Cristal */}
-        <svg 
-          viewBox="0 0 240 180" 
+        <svg
+          viewBox="0 0 240 180"
           className="w-full h-full absolute inset-0 z-0 drop-shadow-[0_15px_25px_rgba(0,0,0,0.5)]"
-          fill="none" 
+          fill="none"
           xmlns="http://www.w3.org/2000/svg"
         >
           <defs>
@@ -107,31 +115,38 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
-            
+
             <linearGradient id="glass-fill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="0.1" />
               <stop offset="50%" stopColor="#ffffff" stopOpacity="0.03" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0.01" />
             </linearGradient>
-            
+
             <radialGradient id="glass-highlight" cx="50%" cy="20%" r="50%">
               <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3" />
               <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
             </radialGradient>
           </defs>
 
-          <g 
-            filter="url(#neon-pink)" 
-            stroke="#ff87dd" 
-            strokeWidth={isAnimating ? "5" : "3"} 
-            strokeLinecap="round" 
+          <g
+            filter="url(#neon-pink)"
+            stroke="#ff87dd"
+            strokeWidth={isAnimating ? "5" : "3"}
+            strokeLinecap="round"
             strokeLinejoin="round"
             className="transition-all duration-300 ease-out"
           >
-            <path d="M 80 140 L 75 160 C 73 165 80 168 85 168 L 90 168 C 95 168 95 160 95 155 L 98 140" fill="url(#glass-fill)"/>
-            <path d="M 160 140 L 155 160 C 153 165 160 168 165 168 L 170 168 C 175 168 175 160 175 155 L 178 140" fill="url(#glass-fill)"/>
+            <path
+              d="M 80 140 L 75 160 C 73 165 80 168 85 168 L 90 168 C 95 168 95 160 95 155 L 98 140"
+              fill="url(#glass-fill)"
+            />
+            <path
+              d="M 160 140 L 155 160 C 153 165 160 168 165 168 L 170 168 C 175 168 175 160 175 155 L 178 140"
+              fill="url(#glass-fill)"
+            />
 
-            <path d="M 195 90
+            <path
+              d="M 195 90
                 C 195 50, 160 28, 120 28
                 C 70 28, 40 52, 35 82
                 C 30 87, 15 82, 10 87
@@ -139,21 +154,41 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
                 C 15 118, 30 118, 35 113
                 C 45 140, 78 150, 125 150
                 C 172 150, 195 132, 195 90 Z"
-              fill="url(#glass-fill)"/>
+              fill="url(#glass-fill)"
+            />
 
             <ellipse cx="12" cy="98" rx="5" ry="12" fill="none" />
             <circle cx="12" cy="93" r="1.5" fill="#ff87dd" />
             <circle cx="12" cy="103" r="1.5" fill="#ff87dd" />
 
-            <path d="M 60 45 C 55 30 45 20 35 25 C 30 28 35 40 45 55" fill="url(#glass-fill)" />
-            <path d="M 180 80 C 195 70 205 85 195 95 C 185 105 175 95 185 85" fill="none" />
+            <path
+              d="M 60 45 C 55 30 45 20 35 25 C 30 28 35 40 45 55"
+              fill="url(#glass-fill)"
+            />
+            <path
+              d="M 180 80 C 195 70 205 85 195 95 C 185 105 175 95 185 85"
+              fill="none"
+            />
             <line x1="100" y1="37" x2="140" y2="37" strokeWidth="4" />
 
-            <path d="M 65 140 L 60 165 C 58 170 65 173 70 173 L 75 173 C 80 173 80 165 80 160 L 83 140" fill="url(#glass-fill)"/>
-            <path d="M 145 140 L 140 165 C 138 170 145 173 150 173 L 155 173 C 160 173 160 165 160 160 L 163 140" fill="url(#glass-fill)"/>
+            <path
+              d="M 65 140 L 60 165 C 58 170 65 173 70 173 L 75 173 C 80 173 80 165 80 160 L 83 140"
+              fill="url(#glass-fill)"
+            />
+            <path
+              d="M 145 140 L 140 165 C 138 170 145 173 150 173 L 155 173 C 160 173 160 165 160 160 L 163 140"
+              fill="url(#glass-fill)"
+            />
           </g>
 
-          <ellipse cx="120" cy="50" rx="40" ry="15" fill="url(#glass-highlight)" filter="blur(3px)" />
+          <ellipse
+            cx="120"
+            cy="50"
+            rx="40"
+            ry="15"
+            fill="url(#glass-highlight)"
+            filter="blur(3px)"
+          />
         </svg>
 
         {/* Monedas acumuladas (apiladas con perspectiva) */}
@@ -162,25 +197,29 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
           <div className="coin-inside absolute left-[38%] top-[77%] -rotate-6" />
           <div className="coin-inside absolute left-[48%] top-[78%] rotate-3" />
           <div className="coin-inside absolute left-[56%] top-[76%] rotate-12" />
-          
+
           {/* Capa Media (Superpuestas) */}
           <div className="coin-inside absolute left-[43%] top-[73%] rotate-6" />
           <div className="coin-inside absolute left-[52%] top-[74%] -rotate-3" />
-          
+
           {/* Capa Superior (Punta de la montaña) */}
           <div className="coin-inside absolute left-[47%] top-[70%] rotate-2" />
         </div>
 
         {/* Textos de la Cifra */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pt-2 pr-4 z-10 pointer-events-none">
-          <p className="text-[10px] text-white/60 uppercase tracking-widest mb-0.5">Pozo Acumulado</p>
+          <p className="text-[10px] text-white/60 uppercase tracking-widest mb-0.5">
+            Pozo Acumulado
+          </p>
           <div className="flex items-baseline gap-1.5">
-            <span className="text-lg font-medium text-[#ff107a]">{currency}</span>
+            <span className="text-lg font-medium text-[#ff107a]">
+              {currency}
+            </span>
             <span
               className={cn(
                 "font-display text-4xl text-white tabular-nums tracking-tight",
                 "text-glow-pink transition-all duration-300",
-                isAnimating && "scale-110"
+                isAnimating && "scale-110",
               )}
             >
               {amount}
@@ -195,7 +234,10 @@ function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data: fixturesData, isLoading: fixturesLoading } = useFixtures({ status: "scheduled", limit: 6 });
+  const { data: fixturesData, isLoading: fixturesLoading } = useFixtures({
+    status: "scheduled",
+    limit: 6,
+  });
   const { data: statsAll } = useFixtures({ limit: 1 });
   const { data: statsFinished } = useFixtures({ status: "finished", limit: 1 });
   const { data: leaderboard } = useGlobalLeaderboard(1, 50, "points", 1);
@@ -203,48 +245,83 @@ export default function DashboardPage() {
   const { data: rivalData } = useMyRival(!!user);
 
   const serverPrize = parsePrizePool(polla?.prize_pool);
-  const { displayed: prizeAnimated, isAnimating } = useAnimatedPrizePool(serverPrize);
+  const { displayed: prizeAnimated, isAnimating } =
+    useAnimatedPrizePool(serverPrize);
   const prizeDisplayed = prizeAnimated ?? serverPrize;
   const currency = polla?.currency ?? "USD";
 
   const totalFixtures = statsAll?.pagination?.total ?? 0;
   const playedFixtures = statsFinished?.pagination?.total ?? 0;
-  const progressPct = totalFixtures > 0 ? Math.round((playedFixtures / totalFixtures) * 100) : 0;
+  const progressPct =
+    totalFixtures > 0 ? Math.round((playedFixtures / totalFixtures) * 100) : 0;
 
   const hero = fixturesData?.data?.[0];
   const myEntry = leaderboard?.find((e) => e.user_id === user?.id);
   const leader = leaderboard?.[0];
   const gapToLeader =
-    leader && myEntry ? Math.max(0, leader.total_points - myEntry.total_points) : null;
+    leader && myEntry
+      ? Math.max(0, leader.total_points - myEntry.total_points)
+      : null;
 
   // Formateo de la cifra
-  const formattedAmount = prizeDisplayed != null
-    ? prizeDisplayed.toLocaleString("es-PE", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })
-    : "—";
+  const formattedAmount =
+    prizeDisplayed != null
+      ? prizeDisplayed.toLocaleString("es-PE", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })
+      : "—";
+
+  const { bannerVisible, dismissBanner, markTourDone } = useHelpTour();
+  const { startTour } = useHelpTourRunner(markTourDone);
 
   return (
     <PageShell maxWidth="xl">
+      <HelpTourBanner
+        visible={bannerVisible}
+        onStart={startTour}
+        onDismiss={dismissBanner}
+      />
+
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <p className="text-xs uppercase tracking-widest text-accent mb-1">Centro del Mundial 2026</p>
-          <h1 className="font-display text-3xl text-white text-glow-accent">Hola, {user?.first_name}</h1>
+          <p className="text-xs uppercase tracking-widest text-accent mb-1">
+            Centro del Mundial 2026
+          </p>
+          <HelpSectionTitle
+            as="h1"
+            helpKey="page.dashboard"
+            label="Inicio"
+            className="font-display text-3xl text-white text-glow-accent"
+          >
+            Hola, {user?.first_name ?? user?.username}
+          </HelpSectionTitle>
+
           <p className="text-muted mt-1">Tu hub de pronósticos y competencia</p>
         </div>
-        <Link
-          href="/profile"
-          className="inline-flex items-center justify-center px-4 py-2.5 text-sm rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10 transition-colors duration-200 cursor-pointer focus-ring"
-        >
-          Perfil y privacidad
-        </Link>
+        <div className="flex flex-wrap gap-2 shrink-0">
+          <Button type="button" variant="ghost" size="sm" onClick={startTour}>
+            Ver guía del sistema
+          </Button>
+          <Link
+            href="/profile"
+            className="inline-flex items-center justify-center px-4 py-2.5 text-sm rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10 transition-colors duration-200 cursor-pointer focus-ring"
+          >
+            Perfil y privacidad
+          </Link>
+        </div>
       </div>
 
       {totalFixtures > 0 && (
         <Card className="mb-8 p-4 rounded-2xl">
           <div className="flex justify-between text-xs text-muted mb-2">
-            <span>Progreso del torneo</span>
+            <span className="inline-flex items-center gap-1">
+              Progreso del torneo
+              <HelpTooltip
+                helpKey="page.dashboard.progress"
+                label="Progreso del torneo"
+              />
+            </span>
             <span>
               {playedFixtures} / {totalFixtures} partidos ({progressPct}%)
             </span>
@@ -260,13 +337,23 @@ export default function DashboardPage() {
 
       {myEntry && (
         <section className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3 auto-rows-fr">
+          <div className="col-span-2 lg:col-span-4 flex items-center gap-2 -mb-1">
+            <span className="text-xs text-muted uppercase tracking-wide">
+              Tu resumen
+            </span>
+            <HelpTooltip helpKey="page.dashboard.stats" label="Estadísticas" />
+          </div>
           <Card className="p-4 text-center col-span-1 lg:col-span-1" glow>
             <p className="text-xs text-muted">Tu puesto</p>
-            <p className="font-display text-4xl text-accent text-glow-accent">#{myEntry.position}</p>
+            <p className="font-display text-4xl text-accent text-glow-accent">
+              #{myEntry.position}
+            </p>
           </Card>
           <Card className="p-4 text-center">
             <p className="text-xs text-muted">Puntos</p>
-            <p className="font-display text-4xl text-white">{myEntry.total_points}</p>
+            <p className="font-display text-4xl text-white">
+              {myEntry.total_points}
+            </p>
           </Card>
           <Card className="p-4 col-span-2 lg:col-span-2 flex flex-col justify-center">
             <p className="text-xs text-muted">Distancia al líder</p>
@@ -280,7 +367,9 @@ export default function DashboardPage() {
           </Card>
           {rivalData?.rival && (
             <Card className="p-4 col-span-2 lg:col-span-4 border-warning/25 bg-warning/5">
-              <p className="text-xs text-warning/80 uppercase tracking-wide mb-1">Tu rival</p>
+              <p className="text-xs text-warning/80 uppercase tracking-wide mb-1">
+                Tu rival
+              </p>
               <UserDisplayName
                 username={rivalData.rival.opponent_username ?? "?"}
                 firstName={rivalData.rival.opponent_first_name}
@@ -289,7 +378,9 @@ export default function DashboardPage() {
               />
               <p className="text-xs text-muted mt-1">
                 {rivalData.rival.wins}V – {rivalData.rival.losses}D
-                {rivalData.rival.draws > 0 ? ` – ${rivalData.rival.draws}E` : ""}
+                {rivalData.rival.draws > 0
+                  ? ` – ${rivalData.rival.draws}E`
+                  : ""}
               </p>
             </Card>
           )}
@@ -298,12 +389,20 @@ export default function DashboardPage() {
 
       {hero && (
         <section className="mb-8">
-          <h2 className="font-display text-lg text-white mb-3">Próximo partido</h2>
+          <HelpSectionTitle
+            as="h2"
+            helpKey="page.dashboard.nextMatch"
+            className="font-display text-lg text-white mb-3"
+          >
+            Próximo partido
+          </HelpSectionTitle>
           <Link
             href={`/fixtures/${hero.id}`}
             className="block rounded-2xl border border-accent/50 bg-gradient-to-r from-accent/15 via-accent/5 to-transparent p-6 shadow-glow-accent card-interactive group"
           >
-            <p className="text-xs text-accent font-medium mb-2">{formatCountdown(hero.match_date)}</p>
+            <p className="text-xs text-accent font-medium mb-2">
+              {formatCountdown(hero.match_date)}
+            </p>
             <p className="font-display text-3xl text-white group-hover:text-glow-accent transition-colors duration-200">
               {hero.home_team} vs {hero.away_team}
             </p>
@@ -322,7 +421,13 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
           <section>
-            <h2 className="font-display text-xl text-white mb-4">Próximos partidos</h2>
+            <HelpSectionTitle
+              as="h2"
+              helpKey="page.dashboard.upcoming"
+              className="font-display text-xl text-white mb-4"
+            >
+              Próximos partidos
+            </HelpSectionTitle>
             {fixturesLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[0, 1, 2, 3].map((i) => (
@@ -332,7 +437,10 @@ export default function DashboardPage() {
             ) : fixturesData?.data.length ? (
               <div className="flex gap-4 overflow-x-auto pb-2 snap-x sm:grid sm:grid-cols-2 sm:overflow-visible">
                 {fixturesData.data.map((fixture, i) => (
-                  <div className="min-w-[280px] snap-start sm:min-w-0" key={fixture.id}>
+                  <div
+                    className="min-w-[280px] snap-start sm:min-w-0"
+                    key={fixture.id}
+                  >
                     <MatchCard fixture={fixture} index={i} />
                   </div>
                 ))}
@@ -343,20 +451,38 @@ export default function DashboardPage() {
           </section>
 
           <section>
-            <h2 className="font-display text-xl text-white mb-1">Reglas de puntuación</h2>
-            <p className="text-xs text-muted mb-4">Así se calculan los puntos al liquidar cada partido.</p>
+            <HelpSectionTitle
+              as="h2"
+              helpKey="page.dashboard.scoring"
+              className="font-display text-xl text-white mb-1"
+            >
+              Reglas de puntuación
+            </HelpSectionTitle>
+
+            <p className="text-xs text-muted mb-4">
+              Así se calculan los puntos al liquidar cada partido.
+            </p>
             <div className="grid grid-cols-3 gap-3">
-              <Card className="p-4 text-center border-accent/40 bg-accent/5" glow>
+              <Card
+                className="p-4 text-center border-accent/40 bg-accent/5"
+                glow
+              >
                 <p className="font-display text-4xl text-accent mb-2">2</p>
-                <p className="text-xs font-bold text-white uppercase tracking-wide">Exacto</p>
+                <p className="text-xs font-bold text-white uppercase tracking-wide">
+                  Exacto
+                </p>
               </Card>
               <Card className="p-4 text-center border-warning/40 bg-warning/5">
                 <p className="font-display text-4xl text-warning mb-2">1</p>
-                <p className="text-xs font-bold text-white uppercase tracking-wide">Ganador</p>
+                <p className="text-xs font-bold text-white uppercase tracking-wide">
+                  Ganador
+                </p>
               </Card>
               <Card className="p-4 text-center">
                 <p className="font-display text-4xl text-muted mb-2">0</p>
-                <p className="text-xs font-bold text-white uppercase tracking-wide">Fallo</p>
+                <p className="text-xs font-bold text-white uppercase tracking-wide">
+                  Fallo
+                </p>
               </Card>
             </div>
           </section>
@@ -365,7 +491,17 @@ export default function DashboardPage() {
         <div className="space-y-6">
           {/* --- SECCIÓN ACTUALIZADA DEL POZO (CHANCHITO ROSA) --- */}
           {polla ? (
-            <div className="relative">
+            <div data-help-tour="prize-pool" className="relative">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <p className="text-xs text-muted uppercase tracking-wide inline-flex items-center gap-1">
+                  Pozo acumulado
+                  <HelpTooltip
+                    helpKey="page.dashboard.prizePool"
+                    label="Pozo acumulado"
+                  />
+                </p>
+              </div>
+
               <NeonPiggyBank
                 amount={formattedAmount}
                 currency={currency}
@@ -374,10 +510,13 @@ export default function DashboardPage() {
 
               <div className="text-center mt-2 space-y-1">
                 <p className="text-sm font-medium text-white">{polla.name}</p>
+
                 <div className="flex items-center justify-center gap-1.5 text-xs text-muted">
                   <Users className="w-3.5 h-3.5" />
+
                   <span>
-                    {polla.member_count} participante{polla.member_count !== 1 ? "s" : ""}
+                    {polla.member_count} participante
+                    {polla.member_count !== 1 ? "s" : ""}
                   </span>
                 </div>
 
@@ -395,7 +534,10 @@ export default function DashboardPage() {
             </Card>
           )}
 
-          <Link href="/winners" className="block text-center text-sm text-accent hover:underline cursor-pointer">
+          <Link
+            href="/winners"
+            className="block text-center text-sm text-accent hover:underline cursor-pointer"
+          >
             Ver podio y premios
           </Link>
           {/* ------------------------------------------------ */}
@@ -404,18 +546,26 @@ export default function DashboardPage() {
           <ActivityFeed limit={12} className="mb-4" />
 
           <section>
-            <h2 className="font-display text-xl text-white mb-1">Top apostadores</h2>
+            <HelpSectionTitle
+              as="h2"
+              helpKey="page.dashboard.topBettors"
+              className="mb-1"
+            >
+              Top apostadores
+            </HelpSectionTitle>
             <Card className="p-4 space-y-3">
               {leaderboard?.length ? (
-                leaderboard.slice(0, 8).map((entry, i) => (
-                  <LeaderboardEntryCard
-                    key={entry.user_id}
-                    entry={entry}
-                    isMe={entry.user_id === user?.id}
-                    rankIndex={i}
-                    compact
-                  />
-                ))
+                leaderboard
+                  .slice(0, 8)
+                  .map((entry, i) => (
+                    <LeaderboardEntryCard
+                      key={entry.user_id}
+                      entry={entry}
+                      isMe={entry.user_id === user?.id}
+                      rankIndex={i}
+                      compact
+                    />
+                  ))
               ) : !leaderboard ? (
                 <MatchCardSkeleton />
               ) : (

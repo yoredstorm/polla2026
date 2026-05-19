@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
 import { Button } from "@/components/ui/Button";
 import { useUpdateBetsProfile, useUpdateProfileName } from "@/hooks/useUserProfile";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
@@ -29,7 +31,10 @@ function BadgesSection() {
   return (
     <div className="rounded-xl border border-white/10 bg-glass p-4">
       <div className="flex items-center justify-between gap-2 mb-3">
-        <h3 className="font-display text-lg text-white">Tus medallas</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-display text-lg text-white">Tus medallas</h3>
+          <HelpTooltip helpKey="page.profile.badges" label="Medallas" />
+        </div>
         <Link href="/dashboard#medallas" className="text-xs text-accent hover:underline shrink-0">
           Ver todas →
         </Link>
@@ -148,7 +153,9 @@ export default function ProfilePage() {
 
   return (
     <PageShell maxWidth="sm">
-        <h1 className="font-display text-3xl text-white mb-2">Mi perfil</h1>
+        <HelpSectionTitle as="h1" helpKey="page.profile" className="mb-2">
+          Mi perfil
+        </HelpSectionTitle>
         <div className="mb-8">
           <UserDisplayName username={me.username} firstName={me.first_name} lastName={me.last_name} />
         </div>
@@ -206,7 +213,10 @@ export default function ProfilePage() {
 
         <section className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 space-y-6">
           <div>
-            <h2 className="font-display text-lg text-white mb-1">Quién ve tus apuestas</h2>
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="font-display text-lg text-white">Quién ve tus apuestas</h2>
+              <HelpTooltip helpKey="page.profile.privacy" label="Privacidad de apuestas" />
+            </div>
             <p className="text-xs text-muted mb-4">
               Afecta solo el detalle en{" "}
               <Link href={`/u/${encodeURIComponent(me.username)}`} className="text-accent hover:underline">
@@ -278,7 +288,10 @@ export default function ProfilePage() {
           )}
 
           <div className="pt-2 border-t border-white/10">
-            <h2 className="font-display text-lg text-white mb-1">Visibilidad de montos</h2>
+            <div className="flex items-center gap-2 mb-1">
+              <h2 className="font-display text-lg text-white">Visibilidad de montos</h2>
+              <HelpTooltip helpKey="page.profile.amounts" label="Visibilidad de montos" />
+            </div>
             <p className="text-xs text-muted mb-4">
               Controla si los demas ven cuanto dinero llevas apostando en tu perfil publico.
             </p>

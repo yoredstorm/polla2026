@@ -3,6 +3,8 @@ import { Suspense, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
 import { Button } from "@/components/ui/Button";
 import { BettingSlip } from "@/components/betting/BettingSlip";
 import { useMyBets, useMyChangeRequests, type ChangeRequest } from "@/hooks/useBets";
@@ -57,7 +59,9 @@ function MyBetsPageContent() {
     <PageShell maxWidth="md">
         <div className="flex items-start justify-between gap-4 mb-6">
           <div>
-            <h1 className="font-display text-3xl text-white">Mis Apuestas</h1>
+            <HelpSectionTitle as="h1" helpKey="page.myBets">
+              Mis Apuestas
+            </HelpSectionTitle>
             <p className="text-sm text-muted mt-1">
               Pronósticos y retos 1v1 con trazabilidad de puntos en el ranking.
             </p>
@@ -95,6 +99,14 @@ function MyBetsPageContent() {
           </div>
         )}
 
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-xs text-muted">Pestañas</span>
+          {tab === "pronosticos" ? (
+            <HelpTooltip helpKey="page.myBets.predictions" label="Pronósticos" />
+          ) : (
+            <HelpTooltip helpKey="page.myBets.challenges" label="Retos 1v1" />
+          )}
+        </div>
         <div className="flex gap-2 mb-6 p-1 rounded-xl bg-white/5 border border-white/10">
           <button
             type="button"

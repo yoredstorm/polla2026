@@ -68,6 +68,7 @@ export function NotificationBell() {
     <div className="relative" ref={panelRef}>
       <button
         type="button"
+        data-help-tour="notifications"
         onClick={() => setOpen((v) => !v)}
         className="relative p-2 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors"
         aria-label="Notificaciones"

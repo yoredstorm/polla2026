@@ -2,7 +2,7 @@
 
 Plataforma fullstack para **pollas de pronósticos deportivos**: los participantes predicen marcadores, compiten en rankings y gestionan apuestas con montos, premios y flujos de aprobación administrativa. Pensada para grupos reales (oficina, amigos, ligas internas) con panel de administración, perfiles públicos y notificaciones en tiempo real.
 
-**Repositorio:** [github.com/yoredstorm/polla2026-miatech](https://github.com/yoredstorm/polla2026-miatech)
+**Repositorio:** [github.com/yoredstorm/polla2026](https://github.com/yoredstorm/polla2026-miatech)
 
 **Guía funcional para documentadores:** [docs/GUIA_SISTEMA.md](docs/GUIA_SISTEMA.md) (menús, tipos de apuesta, flujos y roles).
 
@@ -319,7 +319,7 @@ Copia la salida a `backend/.env` en el servidor. En producción `JWT_SECRET_KEY`
 
 ## Licencia
 
-Proyecto privado — **Miatech / Pablo Pimentel**. Consultar al propietario del repositorio antes de redistribuir o usar en producción sin autorización.
+Proyecto privado — **Pablo Pimentel**. Consultar al propietario del repositorio antes de redistribuir o usar en producción sin autorización.
 
 ---
 

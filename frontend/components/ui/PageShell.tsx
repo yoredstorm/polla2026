@@ -1,3 +1,4 @@
+import { Footer } from "@/components/ui/Footer";
 import { Navbar } from "@/components/ui/Navbar";
 import { cn } from "@/lib/utils";
 
@@ -18,6 +19,7 @@ interface PageShellProps {
   mainClassName?: string;
   withMobileNav?: boolean;
   withNavbar?: boolean;
+  withFooter?: boolean;
   ambient?: boolean;
 }
 
@@ -28,12 +30,13 @@ export function PageShell({
   mainClassName,
   withMobileNav = true,
   withNavbar = true,
+  withFooter = true,
   ambient = true,
 }: PageShellProps) {
   return (
     <div
       className={cn(
-        "min-h-screen relative",
+        "min-h-screen relative flex flex-col",
         withMobileNav && "page-with-mobile-nav",
         ambient && "bg-ambient-mesh",
         className,
@@ -42,13 +45,15 @@ export function PageShell({
       {withNavbar && <Navbar />}
       <main
         className={cn(
-          "mx-auto px-4 py-8 relative z-[1]",
+          "flex-1 mx-auto px-4 py-8 relative z-[1] w-full",
           maxWidthClasses[maxWidth],
           mainClassName,
         )}
       >
         {children}
       </main>
+      {withFooter && <Footer />}
     </div>
   );
 }
+

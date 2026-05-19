@@ -4,6 +4,8 @@ import { useParams } from "next/navigation";
 import { Trophy, Medal } from "lucide-react";
 import { MotionSafe } from "@/components/ui/MotionSafe";
 import { PageShell } from "@/components/ui/PageShell";
+import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/help/HelpTooltip";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { TeamAvatar } from "@/components/betting/TeamAvatar";
 import { BetForm } from "@/components/betting/BetForm";
@@ -120,7 +122,13 @@ export default function FixtureDetailPage() {
 
         <ActivityFeed fixtureId={fixtureId} limit={10} title="Actividad del partido" className="mb-6" />
 
-        <FixtureSocialSection fixtureId={fixtureId} />
+        <div className="mb-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="font-display text-sm text-white">Comentarios del partido</span>
+            <HelpTooltip helpKey="page.fixtureDetail.comments" label="Comentarios" />
+          </div>
+          <FixtureSocialSection fixtureId={fixtureId} />
+        </div>
 
         {fixture.status === "finished" && primaryBet && (
           <section className="rounded-xl border border-accent/30 bg-accent/10 p-4 mb-6">
@@ -154,7 +162,9 @@ export default function FixtureDetailPage() {
 
         {challenges && challenges.length > 0 && (
           <section className="mb-6 space-y-3">
-            <h3 className="font-display text-lg text-white">Duelos</h3>
+            <HelpSectionTitle as="h3" helpKey="page.fixtureDetail.challenge">
+              Duelos
+            </HelpSectionTitle>
             {challenges.map((ch) => (
               <ChallengeCard
                 key={ch.id}
@@ -289,6 +299,10 @@ export default function FixtureDetailPage() {
                 "rounded-2xl border border-accent/30 bg-surface/95 backdrop-blur-xl p-4 shadow-glow-accent md:shadow-none md:bg-transparent md:border-0 md:p-0",
             )}
           >
+            <div className="flex items-center gap-2 mb-2">
+              <span className="font-display text-sm text-white">Tu pronóstico</span>
+              <HelpTooltip helpKey="page.fixtureDetail.bet" label="Pronóstico" />
+            </div>
             <BetForm fixture={fixture} />
           </div>
         </div>

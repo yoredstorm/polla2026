@@ -4,6 +4,7 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
 import { ToastContainer } from "@/components/ui/Toast";
 import { RealtimeSyncProvider } from "@/components/RealtimeSyncProvider";
+import { HelpProvider } from "@/components/help/HelpProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -19,10 +20,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <RealtimeSyncProvider>
-        {children}
-        <ToastContainer />
-      </RealtimeSyncProvider>
+      <HelpProvider>
+        <RealtimeSyncProvider>
+          {children}
+          <ToastContainer />
+        </RealtimeSyncProvider>
+      </HelpProvider>
       {showDevtools && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   );
