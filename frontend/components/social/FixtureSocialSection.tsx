@@ -9,6 +9,7 @@ import {
   type ReactionType,
 } from "@/hooks/useSocial";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { CommentMentionInput } from "@/components/social/CommentMentionInput";
 import { cn } from "@/lib/utils";
 
@@ -142,7 +143,14 @@ export function FixtureSocialSection({ fixtureId }: FixtureSocialSectionProps) {
                   <UserAvatar username={c.username} avatarDisplay={c.avatar_display} size="xs" />
                   <div className="flex-1 min-w-0">
                     <div className="flex justify-between gap-2">
-                      <span className="font-medium text-accent">@{c.username}</span>
+                      <UserDisplayName
+                        username={c.username}
+                        firstName={c.first_name}
+                        lastName={c.last_name}
+                        layout="inline"
+                        showUsername
+                        linkToProfile
+                      />
                       <span className="text-[10px] text-muted shrink-0">
                         {new Date(c.created_at).toLocaleString("es-PE", {
                           day: "2-digit",

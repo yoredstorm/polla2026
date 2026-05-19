@@ -57,6 +57,8 @@ class GroupMemberOut(BaseModel):
 
     user_id: uuid.UUID
     username: str
+    first_name: str | None = None
+    last_name: str | None = None
     joined_at: datetime
     total_points: int
     total_amount_bet: Decimal
@@ -72,6 +74,8 @@ class LeaderboardEntry(BaseModel):
     position: int
     user_id: uuid.UUID
     username: str
+    first_name: str | None = None
+    last_name: str | None = None
     avatar_preset: str | None = None
     avatar_url: str | None = None
     avatar_display: str | None = None
@@ -100,6 +104,8 @@ class GroupFixtureStandingEntry(BaseModel):
 
     user_id: uuid.UUID
     username: str
+    first_name: str | None = None
+    last_name: str | None = None
     predicted_home_score: int
     predicted_away_score: int
     points_earned: Optional[int] = None

@@ -7,6 +7,7 @@ import { useCreateBet, useMyBetsForFixture } from "@/hooks/useBets";
 import { useFixture } from "@/hooks/useFixtures";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
 import { formatAmount, formatMatchDate, cn } from "@/lib/utils";
 
 interface Props {
@@ -147,21 +148,17 @@ export function CopyBetDetailModal({ bet, onClose }: Props) {
           </div>
 
           <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 rounded-lg border border-white/10 text-muted hover:bg-white/5 transition-colors text-sm cursor-pointer focus-ring"
-            >
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              className="flex-1"
               onClick={handleConfirm}
-              disabled={createBet.isPending}
-              className="flex-1 py-2.5 rounded-lg bg-accent text-background font-bold hover:bg-accent-dim disabled:opacity-50 transition-colors text-sm cursor-pointer focus-ring"
+              loading={createBet.isPending}
             >
-              {createBet.isPending ? "Guardando..." : isExtra ? "Copiar como extra" : "Copiar apuesta"}
-            </button>
+              {isExtra ? "Copiar como extra" : "Copiar apuesta"}
+            </Button>
           </div>
         </>
       )}

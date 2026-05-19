@@ -4,6 +4,8 @@ Plataforma fullstack para **pollas de pronósticos deportivos**: los participant
 
 **Repositorio:** [github.com/yoredstorm/polla2026-miatech](https://github.com/yoredstorm/polla2026-miatech)
 
+**Guía funcional para documentadores:** [docs/GUIA_SISTEMA.md](docs/GUIA_SISTEMA.md) (menús, tipos de apuesta, flujos y roles).
+
 ---
 
 ## Características principales

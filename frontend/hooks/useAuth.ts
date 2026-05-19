@@ -58,8 +58,12 @@ export function useAuth() {
   });
 
   const registerMutation = useMutation({
-    mutationFn: ({ username, password }: { username: string; password: string }) =>
-      register(username, password),
+    mutationFn: (payload: {
+      username: string;
+      password: string;
+      first_name: string;
+      last_name: string;
+    }) => register(payload),
     onSuccess: () => {
       router.push("/login");
     },

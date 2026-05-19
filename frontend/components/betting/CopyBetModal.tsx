@@ -7,6 +7,8 @@ import { useMyBets } from "@/hooks/useBets";
 import { useCreateBet } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { formatMatchDate, cn } from "@/lib/utils";
 
 interface Props {
@@ -72,13 +74,9 @@ export function CopyBetModal({ bet, onClose }: Props) {
     return (
       <Modal open onClose={onClose} title="Copiar prediccion" size="sm">
         <p className="text-muted text-sm text-center animate-pulse py-4">Cargando...</p>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full py-2 rounded-lg border border-white/10 text-muted hover:bg-white/5 text-sm cursor-pointer focus-ring"
-        >
+        <Button type="button" variant="secondary" size="lg" onClick={onClose}>
           Cerrar
-        </button>
+        </Button>
       </Modal>
     );
   }
@@ -92,13 +90,9 @@ export function CopyBetModal({ bet, onClose }: Props) {
             El admin debe confirmar tu pago de entrada antes de que puedas apostar.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-full py-2.5 rounded-lg border border-white/10 text-muted hover:bg-white/5 cursor-pointer focus-ring"
-        >
+        <Button type="button" variant="secondary" size="lg" onClick={onClose}>
           Cerrar
-        </button>
+        </Button>
       </Modal>
     );
   }
@@ -163,23 +157,19 @@ export function CopyBetModal({ bet, onClose }: Props) {
           </div>
 
           <div className="px-6 py-4 border-t border-white/10 flex gap-3 shrink-0">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-2.5 rounded-lg border border-white/10 text-muted hover:bg-white/5 transition-colors text-sm cursor-pointer focus-ring"
-            >
+            <Button type="button" variant="secondary" className="flex-1" onClick={onClose}>
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              className="flex-1"
+              disabled={!selectedFixtureId}
               onClick={() => {
                 if (selectedFixtureId) setStep("confirm");
               }}
-              disabled={!selectedFixtureId}
-              className="flex-1 py-2.5 rounded-lg bg-accent text-background font-bold hover:bg-accent-dim disabled:opacity-40 transition-colors text-sm cursor-pointer focus-ring"
             >
               Siguiente →
-            </button>
+            </Button>
           </div>
         </>
       ) : (
@@ -196,12 +186,12 @@ export function CopyBetModal({ bet, onClose }: Props) {
               </p>
             </div>
 
-            <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 text-center">
+            <Card glow className="border-accent/30 bg-accent/5 p-4 text-center">
               <p className="text-xs text-muted uppercase tracking-wide mb-2">Tu prediccion</p>
               <p className="font-display text-5xl text-accent">
                 {bet.predicted_home_score} – {bet.predicted_away_score}
               </p>
-            </div>
+            </Card>
 
             {extraAmount > 0 && (
               <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
@@ -219,24 +209,25 @@ export function CopyBetModal({ bet, onClose }: Props) {
           </div>
 
           <div className="px-6 py-4 border-t border-white/10 flex gap-3 shrink-0">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              className="flex-1"
               onClick={() => {
                 setStep("pick");
                 setError("");
               }}
-              className="flex-1 py-2.5 rounded-lg border border-white/10 text-muted hover:bg-white/5 transition-colors text-sm cursor-pointer focus-ring"
             >
               ← Volver
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              className="flex-1"
               onClick={handleConfirm}
-              disabled={createBet.isPending}
-              className="flex-1 py-2.5 rounded-lg bg-accent text-background font-bold hover:bg-accent-dim disabled:opacity-50 transition-colors text-sm cursor-pointer focus-ring"
+              loading={createBet.isPending}
             >
-              {createBet.isPending ? "Guardando..." : "Confirmar apuesta"}
-            </button>
+              Confirmar apuesta
+            </Button>
           </div>
         </>
       )}

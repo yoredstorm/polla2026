@@ -10,6 +10,9 @@ import {
 } from "@/hooks/useChallenges";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { Card } from "@/components/ui/Card";
 import { ChallengeRules } from "@/components/betting/ChallengeRules";
 import { getApiErrorMessage, maxStakeForUser } from "@/lib/challengeUtils";
 import { cn } from "@/lib/utils";
@@ -106,13 +109,20 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
   return (
     <Modal open={open} onClose={onClose} title="Te reto" size="md" className="space-y-4">
       <form onSubmit={submit} className="space-y-4">
-        <div className="rounded-xl border border-accent/30 bg-accent/5 p-4">
+        <Card glow className="border-accent/30 bg-accent/5 p-4">
           <div className="flex items-center justify-center gap-4">
             <div className="flex flex-col items-center flex-1">
               <div className="w-12 h-12 rounded-full bg-accent/20 border-2 border-accent flex items-center justify-center font-display text-lg text-accent">
                 {(user?.username ?? "?").charAt(0).toUpperCase()}
               </div>
-              <p className="text-sm text-accent mt-1 truncate max-w-[100px]">@{user?.username}</p>
+              <div className="mt-1 max-w-[120px]">
+                <UserDisplayName
+                  username={user?.username ?? "?"}
+                  firstName={user?.first_name}
+                  lastName={user?.last_name}
+                  className="items-center"
+                />
+              </div>
               {pts != null && (
                 <p className="text-[10px] text-muted mt-0.5">{pts.available} disp.</p>
               )}
@@ -133,16 +143,25 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
               >
                 {(selected?.username ?? "?").charAt(0).toUpperCase()}
               </div>
-              <p className="text-sm text-white mt-1 truncate max-w-[100px]">
-                {selected ? `@${selected.username}` : "Rival"}
-              </p>
+              <div className="mt-1 max-w-[120px]">
+                {selected ? (
+                  <UserDisplayName
+                    username={selected.username}
+                    firstName={selected.first_name}
+                    lastName={selected.last_name}
+                    className="items-center"
+                  />
+                ) : (
+                  <p className="text-sm text-white">Rival</p>
+                )}
+              </div>
               {selected && (
                 <p className="text-[10px] text-muted mt-0.5">{selected.available_for_challenge} disp.</p>
               )}
             </div>
           </div>
           <p className="text-center font-display text-xl text-accent mt-3">{stake} pts en juego</p>
-        </div>
+        </Card>
 
         <ChallengeRules compact />
 
@@ -169,8 +188,15 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
                     className="w-full text-left px-3 py-2 text-sm hover:bg-white/10 flex justify-between gap-2 cursor-pointer"
                     onClick={() => pickOpponent(o)}
                   >
-                    <span className="text-white">@{o.username}</span>
-                    <span className="text-muted text-xs">{o.available_for_challenge} pts disp.</span>
+                    <UserDisplayName
+                      username={o.username}
+                      firstName={o.first_name}
+                      lastName={o.last_name}
+                      layout="inline"
+                      showUsername
+                      className="text-sm"
+                    />
+                    <span className="text-muted text-xs shrink-0">{o.available_for_challenge} pts disp.</span>
                   </button>
                 </li>
               ))}
@@ -199,20 +225,16 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
         </div>
 
         <div className="flex gap-2 justify-end pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-muted hover:text-white cursor-pointer focus-ring rounded-lg"
-          >
+          <Button type="button" variant="ghost" onClick={onClose}>
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={create.isPending || effectiveMax < 1}
-            className="px-4 py-2 rounded-xl bg-accent text-background font-bold text-sm disabled:opacity-50 cursor-pointer focus-ring"
+            disabled={effectiveMax < 1}
+            loading={create.isPending}
           >
             Enviar reto
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

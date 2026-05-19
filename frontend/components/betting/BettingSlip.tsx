@@ -5,6 +5,7 @@ import { CopyBetModal } from "./CopyBetModal";
 import { useCreateChangeRequest, type ChangeRequest } from "@/hooks/useBets";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { Card } from "@/components/ui/Card";
 import { getPointsColor, formatAmount, cn, isChangeRequestWindowOpen } from "@/lib/utils";
 import { getChangeRequestClosesAt } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
@@ -53,9 +54,9 @@ export function BettingSlip({
 
   return (
     <>
-      <div
+      <Card
         className={cn(
-          "rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-4",
+          "p-4",
           isSettled && bet.points_earned === 3 && "border-accent/30",
           isSettled && bet.points_earned === 0 && "border-danger/20",
         )}
@@ -177,7 +178,7 @@ export function BettingSlip({
             </button>
           </div>
         )}
-      </div>
+      </Card>
 
       {copying && <CopyBetModal bet={bet} onClose={() => setCopying(false)} />}
       {modifyOpen && (

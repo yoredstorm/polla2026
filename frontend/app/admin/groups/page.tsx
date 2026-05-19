@@ -13,6 +13,7 @@ import {
   useConfirmExtra,
 } from "@/hooks/useAdmin";
 import { cn } from "@/lib/utils";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 // ── Create form ──────────────────────────────────────────────────────
 function CreatePollaForm() {
@@ -274,7 +275,13 @@ function PendingEntriesPanel({ pollaId, currency }: { pollaId: string; currency:
         <tbody>
           {nonMembers.map((u) => (
             <tr key={u.user_id} className="border-b border-white/5 hover:bg-white/5">
-              <td className="px-4 py-3 text-white font-medium">@{u.username}</td>
+              <td className="px-4 py-3">
+                <UserDisplayName
+                  username={u.username}
+                  firstName={u.first_name}
+                  lastName={u.last_name}
+                />
+              </td>
               <td className="px-4 py-3 text-right text-muted text-xs">
                 {new Date(u.registered_at).toLocaleDateString("es-PE")}
               </td>
@@ -336,7 +343,13 @@ function PendingExtrasPanel({ pollaId, currency }: { pollaId: string; currency: 
         <tbody>
           {extras.map((ex) => (
             <tr key={ex.bet_id} className="border-b border-white/5 hover:bg-white/5">
-              <td className="px-4 py-3 text-white font-medium">@{ex.username}</td>
+              <td className="px-4 py-3">
+                <UserDisplayName
+                  username={ex.username}
+                  firstName={ex.first_name}
+                  lastName={ex.last_name}
+                />
+              </td>
               <td className="px-4 py-3 text-center">
                 <span className="font-display text-accent text-base">
                   {ex.predicted_home_score} – {ex.predicted_away_score}
@@ -434,7 +447,13 @@ function MembersPanel({ pollaId, currency }: { pollaId: string; currency: string
             <tbody>
               {members.map((m) => (
                 <tr key={m.user_id} className="border-b border-white/5 hover:bg-white/5">
-                  <td className="px-4 py-3 text-white font-medium">@{m.username}</td>
+                  <td className="px-4 py-3">
+                    <UserDisplayName
+                      username={m.username}
+                      firstName={m.first_name}
+                      lastName={m.last_name}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-right font-bold text-accent">{m.total_points}</td>
                   <td className="px-4 py-3 text-right text-muted">
                     {currency} {parseFloat(m.total_amount_bet).toFixed(2)}

@@ -5,7 +5,10 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { PageShell } from "@/components/ui/PageShell";
-import { useUpdateBetsProfile } from "@/hooks/useUserProfile";
+import { Button } from "@/components/ui/Button";
+import { useUpdateBetsProfile, useUpdateProfileName } from "@/hooks/useUserProfile";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { fullName } from "@/lib/userDisplay";
 import { getMe } from "@/lib/auth";
 import { BadgeGrid } from "@/components/gamification/BadgeGrid";
 import { AvatarPicker } from "@/components/profile/AvatarPicker";
@@ -57,8 +60,18 @@ export default function ProfilePage() {
     retry: false,
   });
   const updateProfile = useUpdateBetsProfile();
+  const updateName = useUpdateProfileName();
   const [flash, setFlash] = useState<string | null>(null);
   const [lastCode, setLastCode] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
+  useEffect(() => {
+    if (me) {
+      setFirstName(me.first_name ?? "");
+      setLastName(me.last_name ?? "");
+    }
+  }, [me?.id, me?.first_name, me?.last_name]);
 
   const isPrivate = (me?.bets_profile_visibility ?? "public") === "invite_only";
   const showAmounts = me?.show_bet_amounts !== false;
@@ -136,11 +149,60 @@ export default function ProfilePage() {
   return (
     <PageShell maxWidth="sm">
         <h1 className="font-display text-3xl text-white mb-2">Mi perfil</h1>
-        <p className="text-sm text-muted mb-8">@{me.username}</p>
+        <div className="mb-8">
+          <UserDisplayName username={me.username} firstName={me.first_name} lastName={me.last_name} />
+        </div>
+
+        {!fullName(me.first_name, me.last_name) && (
+          <p className="mb-6 text-sm text-amber-200/90 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+            Completa tu nombre y apellido para que otros participantes te reconozcan en apuestas y ranking.
+          </p>
+        )}
 
         <div className="mb-6">
           <AvatarPicker user={me} />
         </div>
+
+        <section className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 space-y-4 mb-6">
+          <h2 className="font-display text-lg text-white">Tu nombre</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm text-muted mb-1 block">Nombre</label>
+              <input
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted mb-1 block">Apellido</label>
+              <input
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            loading={updateName.isPending}
+            onClick={async () => {
+              setFlash(null);
+              try {
+                await updateName.mutateAsync({
+                  first_name: firstName.trim(),
+                  last_name: lastName.trim(),
+                });
+                setFlash("Nombre actualizado.");
+              } catch {
+                setFlash("No se pudo guardar el nombre.");
+              }
+            }}
+          >
+            Guardar nombre
+          </Button>
+        </section>
 
         <section className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 space-y-6">
           <div>
@@ -200,14 +262,15 @@ export default function ProfilePage() {
                   ? "activo (el valor no se guarda en texto en el servidor)."
                   : "se generará al elegir Privado o con el botón de abajo."}
               </p>
-              <button
+              <Button
                 type="button"
-                disabled={updateProfile.isPending}
+                variant="secondary"
+                size="lg"
+                loading={updateProfile.isPending}
                 onClick={() => void onNewCode()}
-                className="w-full px-4 py-2.5 rounded-xl bg-white/10 text-sm text-white hover:bg-white/15 disabled:opacity-50"
               >
                 Generar nuevo código
-              </button>
+              </Button>
               <p className="text-xs text-amber-200/90">
                 Al generar uno nuevo, el código anterior deja de funcionar para quien lo tuviera.
               </p>

@@ -96,6 +96,8 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
         select(
             User.id.label("user_id"),
             User.username.label("username"),
+            User.first_name.label("first_name"),
+            User.last_name.label("last_name"),
             User.avatar_preset.label("avatar_preset"),
             User.avatar_url.label("avatar_url"),
             User.bets_profile_visibility.label("bets_profile_visibility"),
@@ -116,6 +118,8 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
         .group_by(
             User.id,
             User.username,
+            User.first_name,
+            User.last_name,
             User.avatar_preset,
             User.avatar_url,
             User.bets_profile_visibility,
@@ -177,6 +181,8 @@ async def _fetch_leaderboard_page(
                 position=pos,
                 user_id=row.user_id,
                 username=row.username,
+                first_name=getattr(row, "first_name", None),
+                last_name=getattr(row, "last_name", None),
                 avatar_preset=getattr(row, "avatar_preset", None),
                 avatar_url=getattr(row, "avatar_url", None),
                 avatar_display=avatar_display_path(
@@ -253,6 +259,8 @@ async def get_group_leaderboard(
                 position=0,
                 user_id=user.id,
                 username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
                 avatar_preset=user.avatar_preset,
                 avatar_url=user.avatar_url,
                 avatar_display=avatar_display_path(user.avatar_preset, user.avatar_url),

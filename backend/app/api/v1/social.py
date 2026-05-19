@@ -226,13 +226,20 @@ async def _challenges_by_fixture_user(
     return best
 
 
-def _challenge_feed_fields(ch: Challenge, bet_user_id: uuid.UUID, usernames: dict[uuid.UUID, str]) -> dict:
+def _challenge_feed_fields(
+    ch: Challenge,
+    bet_user_id: uuid.UUID,
+    users_by_id: dict[uuid.UUID, User],
+) -> dict:
     opponent_id = ch.challenged_id if ch.challenger_id == bet_user_id else ch.challenger_id
+    opp = users_by_id.get(opponent_id)
     return {
         "challenge_id": str(ch.id),
         "challenge_status": ch.status,
         "challenge_stake": ch.stake_points,
-        "challenge_opponent_username": usernames.get(opponent_id),
+        "challenge_opponent_username": opp.username if opp else None,
+        "challenge_opponent_first_name": opp.first_name if opp else None,
+        "challenge_opponent_last_name": opp.last_name if opp else None,
         "challenge_result": duel_result_for_user(ch, bet_user_id),
     }
 
@@ -262,6 +269,8 @@ async def following_bets_feed(
             Bet.predicted_away_score,
             Bet.created_at,
             User.username,
+            User.first_name,
+            User.last_name,
             User.avatar_preset,
             User.avatar_url,
             Fixture.home_team,
@@ -284,10 +293,10 @@ async def following_bets_feed(
     for ch in challenge_map.values():
         for uid in (ch.challenger_id, ch.challenged_id):
             opponent_ids.add(uid)
-    usernames: dict[uuid.UUID, str] = {}
+    users_by_id: dict[uuid.UUID, User] = {}
     if opponent_ids:
-        un_res = await db.execute(select(User.id, User.username).where(User.id.in_(opponent_ids)))
-        usernames = {row[0]: row[1] for row in un_res.all()}
+        un_res = await db.execute(select(User).where(User.id.in_(opponent_ids)))
+        users_by_id = {u.id: u for u in un_res.scalars().all()}
 
     out = []
     for r in rows:
@@ -295,6 +304,8 @@ async def following_bets_feed(
             "bet_id": str(r.id),
             "fixture_id": str(r.fixture_id),
             "username": r.username,
+            "first_name": r.first_name,
+            "last_name": r.last_name,
             "avatar_display": avatar_display_path(r.avatar_preset, r.avatar_url),
             "predicted_home_score": r.predicted_home_score,
             "predicted_away_score": r.predicted_away_score,
@@ -306,7 +317,7 @@ async def following_bets_feed(
         }
         ch = challenge_map.get((r.fixture_id, r.user_id))
         if ch:
-            item["challenge"] = _challenge_feed_fields(ch, r.user_id, usernames)
+            item["challenge"] = _challenge_feed_fields(ch, r.user_id, users_by_id)
         out.append(item)
     return {"data": out}
 
@@ -331,6 +342,8 @@ async def list_fixture_comments(
             FixtureComment.created_at,
             FixtureComment.user_id,
             User.username,
+            User.first_name,
+            User.last_name,
             User.avatar_preset,
             User.avatar_url,
         )
@@ -351,6 +364,8 @@ async def list_fixture_comments(
                 "id": str(r.id),
                 "body": r.body,
                 "username": r.username,
+                "first_name": r.first_name,
+                "last_name": r.last_name,
                 "user_id": str(r.user_id),
                 "is_mine": r.user_id == current_user.id,
                 "created_at": r.created_at.isoformat(),

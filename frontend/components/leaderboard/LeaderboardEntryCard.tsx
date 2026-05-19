@@ -1,23 +1,13 @@
 "use client";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { getBadgeChipClass } from "@/lib/badges";
 import type { BadgeOut, LeaderboardEntry } from "@/types/api";
 import { UserAvatar } from "@/components/ui/UserAvatar";
-
-const BADGE_COLORS: Record<string, string> = {
-  oracle: "bg-violet-500/20 text-violet-200 border-violet-500/30",
-  invicto: "bg-emerald-500/20 text-emerald-200 border-emerald-500/30",
-  madrugador: "bg-sky-500/20 text-sky-200 border-sky-500/30",
-  snaiper: "bg-rose-500/20 text-rose-200 border-rose-500/30",
-  relampago: "bg-yellow-500/20 text-yellow-200 border-yellow-500/30",
-  challenge_king: "bg-amber-500/25 text-amber-100 border-amber-500/40",
-  challenge_cursed: "bg-red-500/15 text-red-200 border-red-500/30",
-  podium: "bg-yellow-500/25 text-yellow-100 border-yellow-500/40",
-  hat_trick: "bg-orange-500/20 text-orange-200 border-orange-500/30",
-};
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 function BadgeChip({ badge }: { badge: BadgeOut }) {
-  const color = BADGE_COLORS[badge.id] ?? "bg-white/10 text-muted border-white/15";
+  const color = getBadgeChipClass(badge.id);
   return (
     <span
       title={badge.description}
@@ -82,15 +72,14 @@ export function LeaderboardEntryCard({ entry, isMe, rankIndex, compact }: Leader
         <div className="flex items-center gap-2 flex-wrap">
           <UserAvatar username={entry.username} avatarDisplay={entry.avatar_display} size="sm" />
           <Link href={`/u/${encodeURIComponent(entry.username)}`} className="group min-w-0">
-            <p
-              className={cn(
-                "font-medium truncate group-hover:text-accent transition-colors",
-                compact ? "text-sm" : "",
-                isMe ? "text-accent" : "text-white",
-              )}
-            >
-              @{entry.username} {isMe && "(Tú)"}
-            </p>
+            <UserDisplayName
+              username={entry.username}
+              firstName={entry.first_name}
+              lastName={entry.last_name}
+              nameClassName={cn("group-hover:text-accent", isMe && "text-accent")}
+              layout="inline"
+            />
+            {isMe && <span className="text-accent text-xs ml-1">(Tú)</span>}
           </Link>
           {!compact && (
             <span

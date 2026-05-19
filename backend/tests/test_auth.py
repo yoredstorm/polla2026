@@ -8,20 +8,26 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_register_success(client: AsyncClient):
-    response = await client.post("/api/v1/auth/register", json={
-        "username": "testuser",
-        "password": "SecurePass1",
-    })
+    from tests.conftest import register_payload
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=register_payload("testuser"),
+    )
     assert response.status_code == 201
     data = response.json()
     assert data["username"] == "testuser"
+    assert data["first_name"] == "Test"
+    assert data["last_name"] == "User"
     assert data.get("email") in (None, "")
     assert "hashed_password" not in data
 
 
 @pytest.mark.asyncio
 async def test_register_duplicate_returns_409(client: AsyncClient):
-    payload = {"username": "dupuser", "password": "SecurePass1"}
+    from tests.conftest import register_payload
+
+    payload = register_payload("dupuser")
     await client.post("/api/v1/auth/register", json=payload)
     response = await client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 409
@@ -29,11 +35,47 @@ async def test_register_duplicate_returns_409(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_register_weak_password_returns_422(client: AsyncClient):
-    response = await client.post("/api/v1/auth/register", json={
-        "username": "weakuser",
-        "password": "weak",
-    })
+    from tests.conftest import register_payload
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json=register_payload("weakuser", password="weak"),
+    )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_register_requires_names(client: AsyncClient):
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"username": "noname", "password": "SecurePass1"},
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_patch_profile_name(client: AsyncClient):
+    from tests.conftest import register_payload
+
+    reg = await client.post(
+        "/api/v1/auth/register",
+        json=register_payload("profileuser", first_name="Old", last_name="Name"),
+    )
+    assert reg.status_code == 201
+    login = await client.post(
+        "/api/v1/auth/login",
+        json={"username": "profileuser", "password": "SecurePass1"},
+    )
+    assert login.status_code == 200
+    patch = await client.patch(
+        "/api/v1/users/me/profile",
+        json={"first_name": "Nuevo", "last_name": "Apellido"},
+        cookies=login.cookies,
+    )
+    assert patch.status_code == 200
+    data = patch.json()
+    assert data["first_name"] == "Nuevo"
+    assert data["last_name"] == "Apellido"
 
 
 @pytest.mark.asyncio

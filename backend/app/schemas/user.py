@@ -1,13 +1,27 @@
 from typing import Literal
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, field_validator, ConfigDict
+from pydantic import BaseModel, field_validator, ConfigDict, model_validator
 import re
+
+from app.lib.user_display import validate_person_name
 
 
 class UserRegister(BaseModel):
     username: str
     password: str
+    first_name: str
+    last_name: str
+
+    @field_validator("first_name")
+    @classmethod
+    def validate_first_name(cls, v: str) -> str:
+        return validate_person_name(v, "first_name")
+
+    @field_validator("last_name")
+    @classmethod
+    def validate_last_name(cls, v: str) -> str:
+        return validate_person_name(v, "last_name")
 
     @field_validator("username")
     @classmethod
@@ -61,11 +75,31 @@ class AvatarUpdate(BaseModel):
     preset: str | None = None
 
 
+class ProfileNameUpdate(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+
+    @model_validator(mode="after")
+    def both_or_neither(self):
+        if (self.first_name is None) != (self.last_name is None):
+            raise ValueError("first_name and last_name must be provided together")
+        return self
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def validate_names(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        return validate_person_name(v)
+
+
 class UserOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     username: str
+    first_name: str | None = None
+    last_name: str | None = None
     email: str | None = None
     is_active: bool
     is_verified: bool
@@ -82,6 +116,8 @@ class UserOut(BaseModel):
 class PublicUserSummary(BaseModel):
     user_id: uuid.UUID
     username: str
+    first_name: str | None = None
+    last_name: str | None = None
     bets_profile_visibility: Literal["public", "invite_only"]
     total_bets: int | None = None
     show_bet_amounts: bool = True

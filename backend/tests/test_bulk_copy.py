@@ -14,10 +14,12 @@ from app.models.bet import Bet
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember
 async def _register_and_login(client: AsyncClient, username: str = "bulk_user"):
+    from tests.conftest import register_payload
+
     pw = "BulkPass1!"
     await client.post(
         "/api/v1/auth/register",
-        json={"username": username, "password": pw},
+        json=register_payload(username, password=pw),
     )
     resp = await client.post("/api/v1/auth/login", json={"username": username, "password": pw})
     assert resp.status_code == 200

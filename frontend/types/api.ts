@@ -3,6 +3,8 @@ export type BetsProfileVisibility = "public" | "invite_only";
 export interface User {
   id: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   email?: string | null;
   is_active: boolean;
   is_verified: boolean;
@@ -19,6 +21,8 @@ export interface User {
 export interface PublicUserSummary {
   user_id: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   bets_profile_visibility: BetsProfileVisibility;
   total_bets: number | null;
   show_bet_amounts?: boolean;
@@ -93,11 +97,15 @@ export interface Bet {
 /** Group bet list includes username from API */
 export interface BetWithUser extends Bet {
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
 }
 
 export interface GroupFixtureStandingEntry {
   user_id: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   predicted_home_score: number;
   predicted_away_score: number;
   points_earned: number | null;
@@ -126,6 +134,8 @@ export interface Group {
 export interface GroupMember {
   user_id: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   joined_at: string;
   total_points: number;
   total_amount_bet: string;
@@ -141,6 +151,8 @@ export interface LeaderboardEntry {
   position: number;
   user_id: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   avatar_preset?: string | null;
   avatar_url?: string | null;
   avatar_display?: string | null;

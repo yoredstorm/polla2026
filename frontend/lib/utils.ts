@@ -12,7 +12,7 @@ export function formatMatchDate(dateStr: string): string {
 
 export function formatCountdown(dateStr: string): string {
   const date = new Date(dateStr);
-  if (isPast(date)) return "Started";
+  if (isPast(date)) return "En curso";
   return formatDistanceToNow(date, { addSuffix: true });
 }
 

@@ -91,6 +91,8 @@ async def register(request: Request, data: UserRegister, db: DBSession, redis: R
 
     user = User(
         username=data.username,
+        first_name=data.first_name,
+        last_name=data.last_name,
         email=None,
         hashed_password=hash_password(data.password),
     )

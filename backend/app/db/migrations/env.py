@@ -32,11 +32,20 @@ def do_run_migrations(connection: Connection) -> None:
         context.run_migrations()
 
 
+def _asyncpg_connect_args(url: str) -> dict:
+    """Local Postgres (and asyncpg on Windows) often needs SSL disabled."""
+    if "localhost" in url or "127.0.0.1" in url:
+        return {"ssl": False}
+    return {}
+
+
 async def run_async_migrations() -> None:
+    url = config.get_main_option("sqlalchemy.url") or ""
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=_asyncpg_connect_args(url),
     )
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

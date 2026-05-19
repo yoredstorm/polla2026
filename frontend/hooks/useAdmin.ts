@@ -174,7 +174,17 @@ export function useGroupMembers(groupId: string | null) {
   return useQuery({
     queryKey: ["admin", "group-members", groupId],
     queryFn: () =>
-      api.get<{ user_id: string; username: string; joined_at: string; total_points: number; total_amount_bet: string }[]>(
+      api.get<
+        {
+          user_id: string;
+          username: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          joined_at: string;
+          total_points: number;
+          total_amount_bet: string;
+        }[]
+      >(
         `/admin/groups/${groupId}/members`,
       ),
     enabled: !!groupId,
@@ -236,7 +246,15 @@ export function useNonMembers(groupId: string | null) {
   return useQuery({
     queryKey: ["admin", "non-members", groupId],
     queryFn: () =>
-      api.get<{ user_id: string; username: string; registered_at: string }[]>(
+      api.get<
+        {
+          user_id: string;
+          username: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          registered_at: string;
+        }[]
+      >(
         `/admin/groups/${groupId}/non-members`,
       ),
     enabled: !!groupId,
@@ -248,7 +266,20 @@ export function usePendingExtras(groupId: string | null) {
   return useQuery({
     queryKey: ["admin", "pending-extras", groupId],
     queryFn: () =>
-      api.get<{ bet_id: string; user_id: string; username: string; fixture_id: string; amount: string; predicted_home_score: number; predicted_away_score: number; created_at: string }[]>(
+      api.get<
+        {
+          bet_id: string;
+          user_id: string;
+          username: string;
+          first_name?: string | null;
+          last_name?: string | null;
+          fixture_id: string;
+          amount: string;
+          predicted_home_score: number;
+          predicted_away_score: number;
+          created_at: string;
+        }[]
+      >(
         `/admin/groups/${groupId}/pending-extras`,
       ),
     enabled: !!groupId,
@@ -319,6 +350,8 @@ export interface AdminChangeRequest {
   id: string;
   user_id: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   bet_id: string;
   request_type: "modify" | "delete";
   new_predicted_home_score: number | null;

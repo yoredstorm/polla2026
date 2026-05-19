@@ -10,6 +10,12 @@ export interface Challenge {
   challenged_id: string;
   challenger_username: string | null;
   challenged_username: string | null;
+  challenger_first_name?: string | null;
+  challenger_last_name?: string | null;
+  challenged_first_name?: string | null;
+  challenged_last_name?: string | null;
+  opponent_first_name?: string | null;
+  opponent_last_name?: string | null;
   challenger_avatar_display?: string | null;
   challenged_avatar_display?: string | null;
   stake_points: number;
@@ -32,6 +38,8 @@ export interface Challenge {
 
 export interface ChallengeOpponent {
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   total_points: number;
   available_for_challenge: number;
 }

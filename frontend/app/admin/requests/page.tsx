@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { getAdminResolveClosesAt, isAdminResolveWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 const STATUS_FILTERS: { value: string | undefined; label: string }[] = [
   { value: undefined, label: "Todos" },
@@ -197,7 +198,13 @@ export default function AdminRequestsPage() {
               </div>
 
               <div className="flex items-center gap-4 text-sm flex-wrap">
-                <span className="text-muted">@{req.username}</span>
+                <UserDisplayName
+                  username={req.username}
+                  firstName={req.first_name}
+                  lastName={req.last_name}
+                  layout="inline"
+                  showUsername
+                />
                 <span className="text-muted text-xs">{formatDate(req.created_at)}</span>
                 <span className="text-muted text-xs">Partido: {formatDate(req.match_date)}</span>
               </div>
@@ -314,7 +321,14 @@ export default function AdminRequestsPage() {
         >
             <p className="text-sm text-muted">
               Solicitud de{" "}
-              <span className="text-white">@{rejectModal.username}</span> para{" "}
+              <UserDisplayName
+                username={rejectModal.username}
+                firstName={rejectModal.first_name}
+                lastName={rejectModal.last_name}
+                layout="inline"
+                showUsername
+              />{" "}
+              para{" "}
               {rejectModal.request_type === "modify" ? "modificar" : "eliminar"} su apuesta.
             </p>
             <div>

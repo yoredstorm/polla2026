@@ -13,8 +13,13 @@ export async function login(username: string, password: string) {
   return api.post("/auth/login", { username, password });
 }
 
-export async function register(username: string, password: string) {
-  return api.post("/auth/register", { username, password });
+export async function register(payload: {
+  username: string;
+  password: string;
+  first_name: string;
+  last_name: string;
+}) {
+  return api.post("/auth/register", payload);
 }
 
 export async function logout() {

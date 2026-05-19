@@ -9,9 +9,12 @@ from httpx import AsyncClient
 # ─── helpers ────────────────────────────────────────────────────────────────
 
 async def _register(client: AsyncClient, username="alice", password="AlicePass1!"):
-    return await client.post("/api/v1/auth/register", json={
-        "username": username, "password": password,
-    })
+    from tests.conftest import register_payload
+
+    return await client.post(
+        "/api/v1/auth/register",
+        json=register_payload(username, password=password, first_name="Alice", last_name="Wonder"),
+    )
 
 
 async def _login(client: AsyncClient, username="alice", password="AlicePass1!"):

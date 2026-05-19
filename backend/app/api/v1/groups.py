@@ -83,6 +83,8 @@ class WinnerEntry(BaseModel):
     position: int
     user_id: str
     username: str
+    first_name: str | None = None
+    last_name: str | None = None
     total_points: int
     prize_amount: str
 
@@ -117,6 +119,8 @@ async def get_active_polla_winners(request: Request, current_user: CurrentUser, 
                 position=pos,
                 user_id=str(entry.user_id),
                 username=entry.username,
+                first_name=entry.first_name,
+                last_name=entry.last_name,
                 total_points=entry.total_points,
                 prize_amount=str(distribution[pos]),
             )
@@ -215,6 +219,8 @@ async def group_members(request: Request, group_id: uuid.UUID, current_user: Cur
         GroupMemberOut(
             user_id=member.user_id,
             username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
             joined_at=member.joined_at,
             total_points=member.total_points,
             total_amount_bet=member.total_amount_bet,
@@ -266,17 +272,19 @@ async def group_fixture_standings(
         )
 
     result = await db.execute(
-        select(Bet, User.username)
+        select(Bet, User.username, User.first_name, User.last_name)
         .join(User, Bet.user_id == User.id)
         .where(and_(Bet.group_id == group_id, Bet.fixture_id == fixture_id))
         .order_by(nulls_last(desc(Bet.points_earned)), Bet.created_at.desc())
     )
     rows = []
-    for bet, username in result.all():
+    for bet, username, first_name, last_name in result.all():
         rows.append(
             GroupFixtureStandingEntry(
                 user_id=bet.user_id,
                 username=username,
+                first_name=first_name,
+                last_name=last_name,
                 predicted_home_score=bet.predicted_home_score,
                 predicted_away_score=bet.predicted_away_score,
                 points_earned=bet.points_earned,
@@ -292,13 +300,15 @@ async def group_bets(request: Request, group_id: uuid.UUID, current_user: Curren
     # A01: Only visible to group members
     await _assert_member(db, group_id, current_user.id)
     result = await db.execute(
-        select(Bet, User.username)
+        select(Bet, User.username, User.first_name, User.last_name)
         .join(User, Bet.user_id == User.id)
         .where(Bet.group_id == group_id)
         .order_by(nulls_last(desc(Bet.points_earned)), Bet.created_at.desc())
     )
     out: list[BetWithUserOut] = []
-    for bet, username in result.all():
+    for bet, username, first_name, last_name in result.all():
         base = BetOut.model_validate(bet).model_dump()
-        out.append(BetWithUserOut(**base, username=username))
+        out.append(
+            BetWithUserOut(**base, username=username, first_name=first_name, last_name=last_name)
+        )
     return out

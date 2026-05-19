@@ -9,9 +9,11 @@ from app.models.user import User
 
 
 async def _register(client: AsyncClient, username: str, password: str = "SecurePass1!"):
+    from tests.conftest import register_payload
+
     return await client.post(
         "/api/v1/auth/register",
-        json={"username": username, "password": password},
+        json=register_payload(username, password=password),
     )
 
 

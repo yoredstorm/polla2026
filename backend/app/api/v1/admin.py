@@ -664,7 +664,15 @@ async def list_group_members(
     db: DBSession,
 ):
     q = (
-        select(User.id, User.username, GroupMember.joined_at, GroupMember.total_points, GroupMember.total_amount_bet)
+        select(
+            User.id,
+            User.username,
+            User.first_name,
+            User.last_name,
+            GroupMember.joined_at,
+            GroupMember.total_points,
+            GroupMember.total_amount_bet,
+        )
         .join(GroupMember, GroupMember.user_id == User.id)
         .where(GroupMember.group_id == group_id)
         .order_by(GroupMember.joined_at.asc())
@@ -674,6 +682,8 @@ async def list_group_members(
         {
             "user_id": str(r.id),
             "username": r.username,
+            "first_name": r.first_name,
+            "last_name": r.last_name,
             "joined_at": r.joined_at.isoformat(),
             "total_points": r.total_points,
             "total_amount_bet": str(r.total_amount_bet),
@@ -813,13 +823,19 @@ async def list_non_members(
     """Users registered but NOT yet members of this group (pending entry confirmation)."""
     member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
     q = (
-        select(User.id, User.username, User.created_at)
+        select(User.id, User.username, User.first_name, User.last_name, User.created_at)
         .where(User.is_active == True, User.id.not_in(member_ids_q))
         .order_by(User.created_at.desc())
     )
     rows = (await db.execute(q)).all()
     return [
-        {"user_id": str(r.id), "username": r.username, "registered_at": r.created_at.isoformat()}
+        {
+            "user_id": str(r.id),
+            "username": r.username,
+            "first_name": r.first_name,
+            "last_name": r.last_name,
+            "registered_at": r.created_at.isoformat(),
+        }
         for r in rows
     ]
 
@@ -838,6 +854,8 @@ async def list_pending_extras(
             Bet.id, Bet.user_id, Bet.fixture_id, Bet.amount, Bet.created_at,
             Bet.predicted_home_score, Bet.predicted_away_score,
             User.username,
+            User.first_name,
+            User.last_name,
         )
         .join(User, Bet.user_id == User.id)
         .where(
@@ -855,6 +873,8 @@ async def list_pending_extras(
             "bet_id": str(r.id),
             "user_id": str(r.user_id),
             "username": r.username,
+            "first_name": r.first_name,
+            "last_name": r.last_name,
             "fixture_id": str(r.fixture_id),
             "amount": str(r.amount),
             "predicted_home_score": r.predicted_home_score,
@@ -1110,6 +1130,8 @@ async def list_change_requests(
             BetChangeRequest.created_at,
             BetChangeRequest.resolved_at,
             User.username.label("username"),
+            User.first_name.label("first_name"),
+            User.last_name.label("last_name"),
             Bet.predicted_home_score.label("original_home"),
             Bet.predicted_away_score.label("original_away"),
             Bet.fixture_id,
@@ -1147,6 +1169,8 @@ async def list_change_requests(
                 "id": str(r.id),
                 "user_id": str(r.user_id),
                 "username": r.username,
+                "first_name": r.first_name,
+                "last_name": r.last_name,
                 "bet_id": str(r.bet_id),
                 "request_type": r.request_type,
                 "new_predicted_home_score": r.new_predicted_home_score,

@@ -4,14 +4,20 @@ import type { Challenge } from "@/hooks/useChallenges";
 import { challengeStatusLabel } from "@/lib/challengeUtils";
 import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { Button } from "@/components/ui/Button";
 
 function Fighter({
   username,
+  firstName,
+  lastName,
   avatarDisplay,
   highlight,
   isWinner,
 }: {
   username: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
   avatarDisplay?: string | null;
   highlight?: boolean;
   isWinner?: boolean;
@@ -29,9 +35,13 @@ function Fighter({
           )}
         />
       </div>
-      <p className={cn("text-sm font-medium truncate max-w-full", highlight ? "text-accent" : "text-white")}>
-        @{username ?? "?"}
-      </p>
+      <UserDisplayName
+        username={username ?? "?"}
+        firstName={firstName}
+        lastName={lastName}
+        className="items-center max-w-full"
+        nameClassName={cn("text-sm", highlight ? "text-accent" : "text-white")}
+      />
     </div>
   );
 }
@@ -84,6 +94,8 @@ export function ChallengeCard({
       <div className="flex items-center gap-3">
         <Fighter
           username={ch.challenger_username}
+          firstName={ch.challenger_first_name}
+          lastName={ch.challenger_last_name}
           avatarDisplay={ch.challenger_avatar_display}
           highlight={ch.challenger_id === currentUserId}
           isWinner={ch.status === "settled" && ch.winner_id === ch.challenger_id}
@@ -94,6 +106,8 @@ export function ChallengeCard({
         </div>
         <Fighter
           username={ch.challenged_username}
+          firstName={ch.challenged_first_name}
+          lastName={ch.challenged_last_name}
           avatarDisplay={ch.challenged_avatar_display}
           highlight={ch.challenged_id === currentUserId}
           isWinner={ch.status === "settled" && ch.winner_id === ch.challenged_id}
@@ -114,22 +128,24 @@ export function ChallengeCard({
             <p className="text-xs text-warning text-center">Primero haz tu pronostico en este partido para aceptar.</p>
           )}
           <div className="flex gap-2 justify-center">
-            <button
+            <Button
               type="button"
-              disabled={!hasBet || acceptPending}
+              size="sm"
+              disabled={!hasBet}
+              loading={acceptPending}
               onClick={onAccept}
-              className="px-4 py-2 rounded-xl bg-accent text-background text-xs font-bold disabled:opacity-40"
             >
-              {acceptPending ? "..." : "Aceptar duelo"}
-            </button>
-            <button
+              Aceptar duelo
+            </Button>
+            <Button
               type="button"
-              disabled={rejectPending}
+              size="sm"
+              variant="danger"
+              loading={rejectPending}
               onClick={onReject}
-              className="px-4 py-2 rounded-xl border border-danger/50 text-danger text-xs font-bold disabled:opacity-40"
             >
               Rechazar
-            </button>
+            </Button>
           </div>
         </div>
       )}

@@ -17,6 +17,8 @@ export interface FixtureComment {
   id: string;
   body: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   user_id: string;
   is_mine: boolean;
   created_at: string;
@@ -29,6 +31,8 @@ export interface FollowingBetChallenge {
   challenge_status: string;
   challenge_stake: number;
   challenge_opponent_username?: string | null;
+  challenge_opponent_first_name?: string | null;
+  challenge_opponent_last_name?: string | null;
   challenge_result: string;
 }
 
@@ -36,6 +40,8 @@ export interface FollowingBetItem {
   bet_id: string;
   fixture_id: string;
   username: string;
+  first_name?: string | null;
+  last_name?: string | null;
   avatar_display?: string | null;
   predicted_home_score: number;
   predicted_away_score: number;

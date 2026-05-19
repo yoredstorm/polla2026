@@ -15,6 +15,7 @@ import { BadgeCatalogSection } from "@/components/gamification/BadgeCatalogSecti
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { FollowingFeed } from "@/components/social/FollowingFeed";
 import { useMyRival } from "@/hooks/useRival";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { cn, formatCountdown } from "@/lib/utils";
 
 function PiggyBankIcon({ className }: { className?: string }) {
@@ -111,7 +112,12 @@ export default function DashboardPage() {
           {rivalData?.rival && (
             <Card className="p-4 col-span-2 lg:col-span-4 border-warning/25 bg-warning/5">
               <p className="text-xs text-warning/80 uppercase tracking-wide mb-1">Tu rival</p>
-              <p className="font-display text-lg text-white">@{rivalData.rival.opponent_username ?? "?"}</p>
+              <UserDisplayName
+                username={rivalData.rival.opponent_username ?? "?"}
+                firstName={rivalData.rival.opponent_first_name}
+                lastName={rivalData.rival.opponent_last_name}
+                className="font-display text-lg"
+              />
               <p className="text-xs text-muted mt-1">
                 {rivalData.rival.wins}V – {rivalData.rival.losses}D
                 {rivalData.rival.draws > 0 ? ` – ${rivalData.rival.draws}E` : ""}

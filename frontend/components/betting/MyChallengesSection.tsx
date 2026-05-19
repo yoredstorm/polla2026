@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMyChallenges, type Challenge } from "@/hooks/useChallenges";
 import { ChallengeHistoryCard } from "@/components/betting/ChallengeHistoryCard";
 import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/Card";
 
 type Filter = "all" | "won" | "lost" | "open";
 
@@ -98,7 +99,7 @@ export function MyChallengesSection() {
       {isLoading ? (
         <p className="text-muted text-center py-12">Cargando retos...</p>
       ) : !challenges?.length ? (
-        <div className="rounded-xl border border-white/10 bg-glass p-8 text-center">
+        <Card className="p-8 text-center">
           <p className="text-muted mb-2">Aún no tienes retos 1v1</p>
           <p className="text-xs text-muted mb-4">
             Apuesta un partido y reta a otro jugador desde la ficha del encuentro.
@@ -106,7 +107,7 @@ export function MyChallengesSection() {
           <Link href="/fixtures" className="text-accent text-sm hover:underline">
             Ver partidos →
           </Link>
-        </div>
+        </Card>
       ) : filtered.length === 0 ? (
         <p className="text-muted text-center py-8 text-sm">No hay retos en este filtro.</p>
       ) : (

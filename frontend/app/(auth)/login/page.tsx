@@ -6,6 +6,7 @@ import { z } from "zod";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { Button } from "@/components/ui/Button";
 
 const loginSchema = z.object({
   username: z
@@ -70,13 +71,9 @@ function LoginForm() {
             {(login.error as any)?.error?.message || "Error al iniciar sesión"}
           </p>
         )}
-        <button
-          type="submit"
-          disabled={login.isPending}
-          className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim transition-colors duration-200 disabled:opacity-50 cursor-pointer focus-ring shadow-glow-sm"
-        >
-          {login.isPending ? "Iniciando..." : "Iniciar Sesión"}
-        </button>
+        <Button type="submit" size="lg" loading={login.isPending}>
+          Iniciar Sesión
+        </Button>
         <p className="text-center text-muted text-sm">
           ¿No tienes cuenta?{" "}
           <Link href="/register" className="text-accent hover:underline">Regístrate</Link>

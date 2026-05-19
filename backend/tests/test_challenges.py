@@ -25,8 +25,10 @@ from app.services.bet_service import settle_fixture_bets
 
 
 async def _register(client: AsyncClient, username: str) -> tuple:
+    from tests.conftest import register_payload
+
     pw = "Challenge1!"
-    await client.post("/api/v1/auth/register", json={"username": username, "password": pw})
+    await client.post("/api/v1/auth/register", json=register_payload(username, password=pw))
     resp = await client.post("/api/v1/auth/login", json={"username": username, "password": pw})
     assert resp.status_code == 200
     me = await client.get("/api/v1/users/me", cookies=resp.cookies)

@@ -60,3 +60,5 @@ class BetWithUserOut(BetOut):
     """Bet with owning username (group bet lists)."""
 
     username: str
+    first_name: str | None = None
+    last_name: str | None = None

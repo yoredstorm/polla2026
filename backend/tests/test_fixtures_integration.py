@@ -25,11 +25,11 @@ async def _seed_fixtures(db: AsyncSession):
 
 
 async def _register_and_login(client: AsyncClient, idx: int = 0):
+    from tests.conftest import register_payload
+
     pw = "FxPass1!"
     uname = f"fx_user{idx}"
-    await client.post("/api/v1/auth/register", json={
-        "username": uname, "password": pw,
-    })
+    await client.post("/api/v1/auth/register", json=register_payload(uname, password=pw))
     resp = await client.post("/api/v1/auth/login", json={"username": uname, "password": pw})
     assert resp.status_code == 200
     return resp.cookies

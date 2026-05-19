@@ -3,10 +3,18 @@ import Link from "next/link";
 import { useFollowingFeed, type FollowingBetChallenge } from "@/hooks/useSocial";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { challengeStatusLabel } from "@/lib/challengeUtils";
+import { userLabel } from "@/lib/userDisplay";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { cn } from "@/lib/utils";
 
 function challengeBadge(ch: FollowingBetChallenge) {
-  const rival = ch.challenge_opponent_username ? `@${ch.challenge_opponent_username}` : "rival";
+  const rival = ch.challenge_opponent_username
+    ? userLabel(
+        ch.challenge_opponent_first_name,
+        ch.challenge_opponent_last_name,
+        ch.challenge_opponent_username,
+      )
+    : "rival";
   const stake = ch.challenge_stake;
 
   if (ch.challenge_result === "won") {
@@ -67,8 +75,15 @@ export function FollowingFeed() {
               >
                 <UserAvatar username={item.username} avatarDisplay={item.avatar_display} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm text-white truncate">
-                    <span className="text-accent font-medium">@{item.username}</span>
+                  <p className="text-sm text-white truncate flex items-center gap-1 flex-wrap">
+                    <UserDisplayName
+                      username={item.username}
+                      firstName={item.first_name}
+                      lastName={item.last_name}
+                      layout="inline"
+                      showUsername
+                      linkToProfile
+                    />
                     <span className="text-muted"> · </span>
                     {item.home_team} vs {item.away_team}
                   </p>

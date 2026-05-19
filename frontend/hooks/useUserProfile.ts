@@ -77,3 +77,18 @@ export function useUpdateBetsProfile() {
     },
   });
 }
+
+export function useUpdateProfileName() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { first_name: string; last_name: string }) =>
+      api.patch<User>("/users/me/profile", body),
+    onSuccess: (data) => {
+      qc.setQueryData(["me"], data);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["me"] });
+      qc.invalidateQueries({ queryKey: ["leaderboard"] });
+    },
+  });
+}

@@ -28,6 +28,7 @@ import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCo
 import { BettingTrendsBar } from "@/components/betting/BettingTrendsBar";
 import { ActivityFeed } from "@/components/activity/ActivityFeed";
 import { FixtureSocialSection } from "@/components/social/FixtureSocialSection";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 export default function FixtureDetailPage() {
   const params = useParams();
@@ -226,9 +227,13 @@ export default function FixtureDetailPage() {
                           )}
                           aria-hidden
                         />
-                        <p className={cn("font-display text-lg", isMe ? "text-accent" : "text-white")}>
-                          @{row.username} {isMe && "(Tu)"}
-                        </p>
+                        <UserDisplayName
+                          username={row.username}
+                          firstName={row.first_name}
+                          lastName={row.last_name}
+                          nameClassName={cn("font-display text-lg", isMe && "text-accent")}
+                        />
+                        {isMe && <span className="text-accent text-xs">(Tú)</span>}
                         <p className="text-white font-display text-xl mt-2">
                           {row.predicted_home_score} – {row.predicted_away_score}
                         </p>
@@ -247,8 +252,15 @@ export default function FixtureDetailPage() {
                       return (
                         <div key={row.user_id} className={cn("flex items-center justify-between px-4 py-3 text-sm", isMe && "bg-accent/5")}>
                           <span className="text-muted w-8">{i + 4}</span>
-                          <span className={cn("flex-1 font-medium", isMe ? "text-accent" : "text-white")}>
-                            @{row.username} {isMe && "(Tu)"}
+                          <span className="flex-1 min-w-0">
+                            <UserDisplayName
+                              username={row.username}
+                              firstName={row.first_name}
+                              lastName={row.last_name}
+                              nameClassName={isMe ? "text-accent" : undefined}
+                              layout="inline"
+                            />
+                            {isMe && <span className="text-accent text-xs ml-1">(Tú)</span>}
                           </span>
                           <span className="text-white font-display w-20 text-center">
                             {row.predicted_home_score}–{row.predicted_away_score}

@@ -3,6 +3,7 @@ import { Suspense, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PageShell } from "@/components/ui/PageShell";
+import { Button } from "@/components/ui/Button";
 import { BettingSlip } from "@/components/betting/BettingSlip";
 import { useMyBets, useMyChangeRequests, type ChangeRequest } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
@@ -142,23 +143,27 @@ function MyBetsPageContent() {
                 </div>
                 {data && data.pagination.total_pages > 1 && (
                   <div className="flex justify-center gap-3 mt-8">
-                    <button
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
                       disabled={page === 1}
                       onClick={() => setPage((p) => p - 1)}
-                      className="px-4 py-2 rounded-lg bg-white/5 text-muted hover:bg-white/10 disabled:opacity-30"
                     >
                       ← Anterior
-                    </button>
+                    </Button>
                     <span className="px-4 py-2 text-muted">
                       {page} / {data.pagination.total_pages}
                     </span>
-                    <button
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
                       disabled={page >= data.pagination.total_pages}
                       onClick={() => setPage((p) => p + 1)}
-                      className="px-4 py-2 rounded-lg bg-white/5 text-muted hover:bg-white/10 disabled:opacity-30"
                     >
                       Siguiente →
-                    </button>
+                    </Button>
                   </div>
                 )}
               </>

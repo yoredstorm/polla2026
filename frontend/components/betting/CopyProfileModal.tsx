@@ -9,6 +9,8 @@ import type { Bet, Fixture } from "@/types/api";
 import { formatAmount, cn } from "@/lib/utils";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 interface Props {
   open: boolean;
@@ -444,7 +446,7 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
                   );
                 })}
               </ul>
-              <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 text-sm space-y-1">
+              <Card glow className="border-accent/30 bg-accent/5 p-4 text-sm space-y-1">
                 <p className="text-white font-medium">Resumen</p>
                 <p className="text-muted">
                   {freeCount} gratis · {extrasCount} extra{extrasCount !== 1 && "s"}
@@ -463,7 +465,7 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
                     Cada extra quedará pendiente hasta que el admin confirme el pago.
                   </p>
                 )}
-              </div>
+              </Card>
             </>
           )}
 
@@ -471,41 +473,28 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
 
         <div className="px-6 py-4 border-t border-white/10 flex justify-end gap-3">
           {step === "review" && items.length > 0 && polla?.is_member && !isDataLoading && (
-            <button
-              type="button"
-              onClick={() => setStep("confirm")}
-              className="px-5 py-2 rounded-xl bg-accent text-background font-bold text-sm hover:bg-accent-dim transition-colors"
-            >
+            <Button type="button" onClick={() => setStep("confirm")}>
               Continuar ({payloadPreview.length} apuesta{payloadPreview.length !== 1 && "s"})
-            </button>
+            </Button>
           )}
           {step === "confirm" && (
             <>
-              <button
+              <Button
                 type="button"
+                variant="secondary"
                 onClick={() => setStep("review")}
                 disabled={bulkCopy.isPending}
-                className="px-5 py-2 rounded-xl bg-white/10 text-muted font-medium text-sm hover:bg-white/20 transition-colors disabled:opacity-50"
               >
                 Volver
-              </button>
-              <button
-                type="button"
-                onClick={handleCopy}
-                disabled={bulkCopy.isPending}
-                className="px-5 py-2 rounded-xl bg-accent text-background font-bold text-sm hover:bg-accent-dim transition-colors disabled:opacity-50"
-              >
-                {bulkCopy.isPending ? "Copiando..." : "Copiar ahora"}
-              </button>
+              </Button>
+              <Button type="button" onClick={handleCopy} loading={bulkCopy.isPending}>
+                Copiar ahora
+              </Button>
             </>
           )}
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2 rounded-xl bg-white/10 text-muted font-medium text-sm hover:bg-white/20 transition-colors"
-          >
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
-          </button>
+          </Button>
         </div>
     </Modal>
   );

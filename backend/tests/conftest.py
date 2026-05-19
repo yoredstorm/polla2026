@@ -18,6 +18,20 @@ from app.core.rate_limiter import limiter
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+def register_payload(
+    username: str,
+    password: str = "SecurePass1",
+    first_name: str = "Test",
+    last_name: str = "User",
+) -> dict:
+    return {
+        "username": username,
+        "password": password,
+        "first_name": first_name,
+        "last_name": last_name,
+    }
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     loop = asyncio.get_event_loop_policy().new_event_loop()

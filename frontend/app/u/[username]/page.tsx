@@ -18,6 +18,7 @@ import type { BadgeOut } from "@/types/api";
 import { CopyProfileModal } from "@/components/betting/CopyProfileModal";
 import { FollowButton } from "@/components/social/FollowButton";
 import { UserAvatar } from "@/components/ui/UserAvatar";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { CopyBetDetailModal } from "@/components/betting/CopyBetDetailModal";
 import type { Bet } from "@/types/api";
 
@@ -137,7 +138,14 @@ export default function UserPublicProfilePage() {
                     avatarDisplay={summary.avatar_display}
                     size="lg"
                   />
-                  <h1 className="font-display text-3xl text-white truncate">@{summary.username}</h1>
+                  <div className="min-w-0">
+                    <UserDisplayName
+                      username={summary.username}
+                      firstName={summary.first_name}
+                      lastName={summary.last_name}
+                      nameClassName="font-display text-2xl sm:text-3xl"
+                    />
+                  </div>
                 </div>
                 {!isMe && <FollowButton username={summary.username} />}
               </div>

@@ -35,6 +35,8 @@ class ChallengeCreateIn(BaseModel):
 
 class OpponentOut(BaseModel):
     username: str
+    first_name: str | None = None
+    last_name: str | None = None
     total_points: int
     available_for_challenge: int
 
@@ -47,6 +49,12 @@ class ChallengeOut(BaseModel):
     challenged_id: str
     challenger_username: str | None = None
     challenged_username: str | None = None
+    challenger_first_name: str | None = None
+    challenger_last_name: str | None = None
+    challenged_first_name: str | None = None
+    challenged_last_name: str | None = None
+    opponent_first_name: str | None = None
+    opponent_last_name: str | None = None
     challenger_avatar_display: str | None = None
     challenged_avatar_display: str | None = None
     stake_points: int
@@ -87,6 +95,24 @@ def _map_challenge(
         challenged_id=str(ch.challenged_id),
         challenger_username=ch_user.get("username"),
         challenged_username=cd_user.get("username"),
+        challenger_first_name=ch_user.get("first_name"),
+        challenger_last_name=ch_user.get("last_name"),
+        challenged_first_name=cd_user.get("first_name"),
+        challenged_last_name=cd_user.get("last_name"),
+        opponent_first_name=(
+            cd_user.get("first_name")
+            if viewer_id == ch.challenger_id
+            else ch_user.get("first_name")
+            if viewer_id
+            else None
+        ),
+        opponent_last_name=(
+            cd_user.get("last_name")
+            if viewer_id == ch.challenger_id
+            else ch_user.get("last_name")
+            if viewer_id
+            else None
+        ),
         challenger_avatar_display=ch_user.get("avatar_display"),
         challenged_avatar_display=cd_user.get("avatar_display"),
         stake_points=ch.stake_points,
@@ -124,14 +150,21 @@ async def _user_meta(db, *user_ids: uuid.UUID) -> dict[uuid.UUID, dict]:
     if not user_ids:
         return {}
     res = await db.execute(
-        select(User.id, User.username, User.avatar_preset, User.avatar_url).where(
-            User.id.in_(user_ids)
-        )
+        select(
+            User.id,
+            User.username,
+            User.first_name,
+            User.last_name,
+            User.avatar_preset,
+            User.avatar_url,
+        ).where(User.id.in_(user_ids))
     )
     out: dict[uuid.UUID, dict] = {}
-    for uid, username, preset, url in res.all():
+    for uid, username, first_name, last_name, preset, url in res.all():
         out[uid] = {
             "username": username,
+            "first_name": first_name,
+            "last_name": last_name,
             "avatar_display": avatar_display_path(preset, url),
         }
     return out

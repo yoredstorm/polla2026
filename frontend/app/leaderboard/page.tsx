@@ -10,6 +10,7 @@ import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryC
 import { LeaderboardPodium } from "@/components/leaderboard/LeaderboardPodium";
 import { useMyRival } from "@/hooks/useRival";
 import { Card } from "@/components/ui/Card";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 const PAGE_SIZE = 20;
 const MIN_WAGERS = 1;
@@ -33,7 +34,12 @@ export default function LeaderboardPage() {
       {rivalData?.rival && (
         <Card className="mb-6 p-4 border-warning/25 bg-warning/5">
           <p className="text-xs text-warning/80 uppercase tracking-wide mb-1">Rival frecuente</p>
-          <p className="font-display text-xl text-white">@{rivalData.rival.opponent_username}</p>
+          <UserDisplayName
+            username={rivalData.rival.opponent_username ?? "?"}
+            firstName={rivalData.rival.opponent_first_name}
+            lastName={rivalData.rival.opponent_last_name}
+            className="font-display text-xl"
+          />
           <p className="text-sm text-muted mt-1">
             Historial: {rivalData.rival.wins} victorias, {rivalData.rival.losses} derrotas
             {rivalData.rival.draws > 0 ? `, ${rivalData.rival.draws} empates` : ""}

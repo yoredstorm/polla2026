@@ -632,23 +632,31 @@ async def search_challenge_opponents(
         return []
 
     pattern = f"%{term}%"
+    from sqlalchemy import or_
+
     res = await db.execute(
-        select(User.id, User.username, GroupMember.total_points)
+        select(User.id, User.username, User.first_name, User.last_name, GroupMember.total_points)
         .join(GroupMember, GroupMember.user_id == User.id)
         .where(
             GroupMember.group_id == group.id,
             User.id != user_id,
             User.is_active == True,  # noqa: E712
-            User.username.ilike(pattern),
+            or_(
+                User.username.ilike(pattern),
+                User.first_name.ilike(pattern),
+                User.last_name.ilike(pattern),
+            ),
         )
         .limit(min(limit, 20))
     )
     out: list[dict[str, int | str]] = []
-    for uid, username, total_points in res.all():
+    for uid, username, first_name, last_name, total_points in res.all():
         avail = await available_points(db, uid, group.id)
         out.append(
             {
                 "username": username,
+                "first_name": first_name,
+                "last_name": last_name,
                 "total_points": int(total_points or 0),
                 "available_for_challenge": avail,
             }
@@ -696,6 +704,8 @@ async def get_h2h_stats(
     return {
         "opponent_id": str(opponent_id),
         "opponent_username": opp.username if opp else None,
+        "opponent_first_name": opp.first_name if opp else None,
+        "opponent_last_name": opp.last_name if opp else None,
         "wins": wins,
         "losses": losses,
         "draws": draws,

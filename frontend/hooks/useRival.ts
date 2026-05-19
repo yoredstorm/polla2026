@@ -5,6 +5,8 @@ import api from "@/lib/api";
 export interface RivalInfo {
   opponent_id: string;
   opponent_username: string | null;
+  opponent_first_name?: string | null;
+  opponent_last_name?: string | null;
   wins: number;
   losses: number;
   draws: number;

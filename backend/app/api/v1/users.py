@@ -17,6 +17,7 @@ from app.schemas.user import (
     AvatarUpdate,
     BetsProfileMeResponse,
     BetsProfileUpdate,
+    ProfileNameUpdate,
     PublicUserSummary,
     UserOut,
 )
@@ -47,6 +48,8 @@ def _public_summary(target: User, **kwargs) -> PublicUserSummary:
     return PublicUserSummary(
         user_id=target.id,
         username=target.username,
+        first_name=target.first_name,
+        last_name=target.last_name,
         bets_profile_visibility=target.bets_profile_visibility,  # type: ignore[arg-type]
         avatar_preset=target.avatar_preset,
         avatar_url=target.avatar_url,
@@ -253,6 +256,32 @@ async def get_user_public_bets(
         data=[BetOut.model_validate(b) for b in bets],
         pagination=PaginationMeta(total=total, page=page, limit=limit, total_pages=-(-total // limit) if total else 0),
     )
+
+
+@router.patch("/me/profile", response_model=UserOut)
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def update_my_profile(
+    request: Request,
+    data: ProfileNameUpdate,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    if data.first_name is not None and data.last_name is not None:
+        current_user.first_name = data.first_name
+        current_user.last_name = data.last_name
+
+        from app.services.audit import log_action
+
+        await log_action(
+            db,
+            user_id=current_user.id,
+            action="profile_name_updated",
+            detail={},
+            ip=request.client.host if request.client else None,
+        )
+        await db.commit()
+        await db.refresh(current_user)
+    return _user_out(current_user)
 
 
 @router.patch("/me/bets-profile", response_model=BetsProfileMeResponse)

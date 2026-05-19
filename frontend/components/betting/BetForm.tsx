@@ -11,6 +11,8 @@ import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
 import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
 const betSchema = z.object({
   predicted_home_score: z.number().min(0).max(20),
@@ -227,7 +229,7 @@ export function BetForm({ fixture }: BetFormProps) {
     <div className="space-y-4">
       {/* ── Existing free bet ── */}
       {freeBet && (
-        <div className="rounded-xl border border-accent/20 bg-accent/5 p-5 space-y-3">
+        <Card glow className="border-accent/20 bg-accent/5 p-5 space-y-3">
           <div className="flex items-center gap-3">
             <span className="text-2xl">✅</span>
             <div>
@@ -295,7 +297,7 @@ export function BetForm({ fixture }: BetFormProps) {
               </p>
             </div>
           )}
-        </div>
+        </Card>
       )}
 
       {/* ── Main bet form (shown only when no free bet yet) ── */}
@@ -308,7 +310,7 @@ export function BetForm({ fixture }: BetFormProps) {
             </p>
           </div>
         ) : (
-          <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-6">
+          <Card className="p-6">
             <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
               <h3 className="font-display text-xl text-white">Realizar Apuesta</h3>
               <FixtureDeadlineCountdown
@@ -334,14 +336,11 @@ export function BetForm({ fixture }: BetFormProps) {
               <p className="text-xs text-muted text-center">
                 Exacto (goles + ganador) = 2pts · Solo ganador = 1pt · Fallo = 0pts
               </p>
-              <button
-                type="submit"
-                className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim transition-colors"
-              >
+              <Button type="submit" size="lg">
                 Apostar
-              </button>
+              </Button>
             </form>
-          </div>
+          </Card>
         )
       )}
 
@@ -369,19 +368,22 @@ export function BetForm({ fixture }: BetFormProps) {
               Una vez guardada, no podras editar esta apuesta.
             </p>
             <div className="flex gap-3">
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
                 onClick={() => setShowConfirm(false)}
-                className="flex-1 py-2 rounded-lg border border-white/10 text-muted hover:bg-white/5"
               >
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
                 onClick={confirmMainBet}
-                disabled={createBet.isPending}
-                className="flex-1 py-2 rounded-lg bg-accent text-background font-bold hover:bg-accent-dim disabled:opacity-50"
+                loading={createBet.isPending}
               >
-                {createBet.isPending ? "Guardando..." : "Confirmar"}
-              </button>
+                Confirmar
+              </Button>
             </div>
             {createBet.isError && (
               <p className="text-danger text-xs text-center">
@@ -427,19 +429,17 @@ export function BetForm({ fixture }: BetFormProps) {
                 />
               </div>
               <div className="flex gap-3">
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  className="flex-1"
                   onClick={() => { setShowExtraForm(false); setExtraPending(null); }}
-                  className="flex-1 py-2 rounded-lg border border-white/10 text-muted hover:bg-white/5"
                 >
                   Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex-1 py-2 rounded-lg bg-accent text-background font-bold hover:bg-accent-dim"
-                >
+                </Button>
+                <Button type="submit" className="flex-1">
                   Siguiente →
-                </button>
+                </Button>
               </div>
             </form>
         </Modal>
@@ -472,19 +472,22 @@ export function BetForm({ fixture }: BetFormProps) {
               </p>
             </div>
             <div className="flex gap-3">
-              <button
+              <Button
+                type="button"
+                variant="secondary"
+                className="flex-1"
                 onClick={() => { setShowExtraConfirm(false); setShowExtraForm(true); }}
-                className="flex-1 py-2 rounded-lg border border-white/10 text-muted hover:bg-white/5"
               >
                 ← Volver
-              </button>
-              <button
+              </Button>
+              <Button
+                type="button"
+                className="flex-1"
                 onClick={confirmExtraBet}
-                disabled={createBet.isPending}
-                className="flex-1 py-2 rounded-lg bg-accent text-background font-bold hover:bg-accent-dim disabled:opacity-50"
+                loading={createBet.isPending}
               >
-                {createBet.isPending ? "Guardando..." : "Confirmar"}
-              </button>
+                Confirmar
+              </Button>
             </div>
             {createBet.isError && (
               <p className="text-danger text-xs text-center">

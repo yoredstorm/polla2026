@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Challenge } from "@/hooks/useChallenges";
 import { challengeStatusLabel } from "@/lib/challengeUtils";
 import { cn } from "@/lib/utils";
+import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 const RESULT_STYLES: Record<string, { label: string; className: string }> = {
   won: { label: "Ganado", className: "bg-emerald-500/20 text-emerald-200 border-emerald-500/30" },
@@ -73,7 +74,13 @@ export function ChallengeHistoryCard({ challenge: ch }: { challenge: Challenge }
 
       <p className="text-xs text-muted mb-3">
         {ch.is_challenger ? "Retaste a" : "Te retó"}{" "}
-        <span className="text-white/90">@{ch.opponent_username ?? "?"}</span>
+        <UserDisplayName
+          username={ch.opponent_username ?? "?"}
+          firstName={ch.opponent_first_name}
+          lastName={ch.opponent_last_name}
+          layout="inline"
+          showUsername
+        />
         {" · "}
         <span className="text-accent font-medium">{ch.stake_points} pts</span> en juego
       </p>
@@ -89,7 +96,17 @@ export function ChallengeHistoryCard({ challenge: ch }: { challenge: Challenge }
           <span className="text-amber-200/90">Bloqueados al aceptar: −{ch.stake_points} pts c/u</span>
         )}
         {ch.status === "pending_accept" && ch.is_challenger && (
-          <span className="text-muted">Esperando que @{ch.opponent_username} acepte</span>
+          <span className="text-muted inline-flex items-center gap-1 flex-wrap">
+            Esperando que
+            <UserDisplayName
+              username={ch.opponent_username ?? "?"}
+              firstName={ch.opponent_first_name}
+              lastName={ch.opponent_last_name}
+              layout="inline"
+              showUsername
+            />
+            acepte
+          </span>
         )}
         {delta != null && (
           <span
