@@ -44,17 +44,8 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./backend:/app
       - uploads_data:/app/uploads
-    command:
-      - uvicorn
-      - app.main:app
-      - --host
-      - "0.0.0.0"
-      - --port
-      - "8000"
-      - --proxy-headers
-      - --reload
+    restart: unless-stopped
 
   # Frontend directo: en algunos equipos Windows, "localhost" resuelve a IPv6 (::1) y el
   # puerto publicado no responde en el navegador. Usa http://127.0.0.1:3000 si pasa eso.
