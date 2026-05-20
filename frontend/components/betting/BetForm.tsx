@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { Fixture } from "@/types/api";
 import { useCreateBet, useMyBetsForFixture } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
+import { PaymentEntryBlock } from "@/components/payment/PaymentEntryBlock";
 import { cn } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
@@ -199,30 +200,7 @@ export function BetForm({ fixture }: BetFormProps) {
 
   // ── Polla exists but user is not a confirmed member ──────────────
   if (!polla.is_member) {
-    return (
-      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-3">
-        <div className="flex items-center gap-3">
-          <span className="text-3xl">🔒</span>
-          <div>
-            <p className="text-amber-300 font-semibold">Pago de entrada pendiente</p>
-            <p className="text-amber-200/70 text-sm mt-0.5">
-              El admin debe confirmar tu pago de entrada antes de que puedas apostar.
-            </p>
-          </div>
-        </div>
-        {parseFloat(polla.entry_fee) > 0 && (
-          <div className="rounded-lg bg-amber-500/10 px-4 py-2.5 text-sm">
-            <span className="text-amber-200/80">Monto de entrada: </span>
-            <span className="text-white font-bold">
-              {currency} {parseFloat(polla.entry_fee).toFixed(2)}
-            </span>
-          </div>
-        )}
-        <p className="text-xs text-amber-200/50">
-          Una vez confirmado, podras realizar tus apuestas.
-        </p>
-      </div>
-    );
+    return <PaymentEntryBlock polla={polla} currency={currency} />;
   }
 
   return (

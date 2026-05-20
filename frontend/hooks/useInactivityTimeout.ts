@@ -1,5 +1,7 @@
 "use client";
 import { useEffect, useRef, useCallback } from "react";
+import { getApiBase } from "@/lib/api";
+import { buildApiUrl } from "@/lib/apiBase";
 
 const INACTIVITY_MS = 15 * 60 * 1000; // 15 minutes
 const DEBOUNCE_MS = 5_000; // debounce activity resets to every 5s
@@ -20,13 +22,10 @@ export function useInactivityTimeout(enabled: boolean) {
     const path = window.location.pathname;
     if (path.startsWith("/login") || path.startsWith("/register")) return;
 
-    fetch(
-      `${
-        process.env.NEXT_PUBLIC_API_URL ||
-        `${window.location.protocol}//${window.location.hostname}:8000`
-      }/api/v1/auth/logout`,
-      { method: "POST", credentials: "include" },
-    )
+    fetch(buildApiUrl(getApiBase(), "/auth/logout"), {
+      method: "POST",
+      credentials: "include",
+    })
       .catch(() => {})
       .finally(() => {
         window.location.href = "/login?reason=inactivity";

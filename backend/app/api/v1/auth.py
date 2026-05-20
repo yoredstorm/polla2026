@@ -86,7 +86,12 @@ async def register(request: Request, data: UserRegister, db: DBSession, redis: R
     if existing_username.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail={"error": {"code": "USER_EXISTS", "message": "Registration failed. Please try different credentials."}},
+            detail={
+                "error": {
+                    "code": "USER_EXISTS",
+                    "message": "Ese nombre de usuario ya está registrado. Elige otro nickname.",
+                }
+            },
         )
 
     user = User(

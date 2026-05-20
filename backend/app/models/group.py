@@ -24,9 +24,15 @@ class Group(Base):
     fixed_bet_amount: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     challenge_max_stake: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
+    payment_contact_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    payment_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    payment_qr_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     owner: Mapped["User"] = relationship("User", back_populates="owned_groups")
+    entry_proofs: Mapped[list["GroupEntryProof"]] = relationship(
+        "GroupEntryProof", back_populates="group", lazy="select"
+    )
     members: Mapped[list["GroupMember"]] = relationship("GroupMember", back_populates="group", lazy="select")
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="group", lazy="select")
 
@@ -42,3 +48,21 @@ class GroupMember(Base):
 
     group: Mapped["Group"] = relationship("Group", back_populates="members")
     user: Mapped["User"] = relationship("User", back_populates="group_memberships")
+
+
+class GroupEntryProof(Base):
+    __tablename__ = "group_entry_proofs"
+
+    group_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("groups.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    file_path: Mapped[str] = mapped_column(String(255), nullable=False)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    group: Mapped["Group"] = relationship("Group", back_populates="entry_proofs")
+    user: Mapped["User"] = relationship("User")

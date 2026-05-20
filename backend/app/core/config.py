@@ -51,6 +51,11 @@ class Settings(BaseSettings):
     AVATAR_UPLOAD_DIR: str = "/app/uploads/avatars"
     AVATAR_MAX_BYTES: int = 1_048_576
 
+    # Payment QR and entry proof uploads
+    PAYMENT_QR_UPLOAD_DIR: str = "/app/uploads/payment-qr"
+    ENTRY_PROOF_UPLOAD_DIR: str = "/app/uploads/entry-proofs"
+    PAYMENT_MAX_BYTES: int = 2_097_152
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors(cls, v: str) -> str:

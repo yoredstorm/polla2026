@@ -4,12 +4,16 @@ Groups router — OWASP A01: members only see group data if they belong.
 import uuid
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
+from app.core.cors_utils import apply_cors_headers
 from sqlalchemy import select, and_, func, desc, nulls_last
 
-from app.api.deps import CurrentUser, DBSession
+from app.api.deps import CurrentUser, DBSession, RedisClient
 from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
-from app.models.group import Group, GroupMember
+from app.models.group import Group, GroupMember, GroupEntryProof
 from app.models.bet import Bet
 from app.models.user import User
 from app.models.fixture import Fixture
@@ -24,6 +28,14 @@ from app.schemas.group import (
 from app.schemas.bet import BetOut, BetWithUserOut
 from app.services.group_service import create_group, join_group, get_group_leaderboard
 from app.services.bet_service import calculate_prize_distribution
+from app.services.audit import log_action
+from app.services.notification_service import build_entry_pending, notify_admins
+from app.services.payment_upload_service import (
+    payment_qr_data_url,
+    payment_qr_public_url,
+    resolve_readable_path,
+    save_entry_proof,
+)
 
 from decimal import Decimal
 from pydantic import BaseModel
@@ -40,16 +52,39 @@ class ActivePollaOut(BaseModel):
     per_match_amount: Decimal | None
     is_member: bool
     member_count: int
+    payment_contact_name: str | None = None
+    payment_phone: str | None = None
+    payment_qr_url: str | None = None
+    payment_qr_data_url: str | None = None
+    has_uploaded_proof: bool = False
+
+
+async def _get_active_group(db: DBSession) -> Group | None:
+    result = await db.execute(
+        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+    )
+    return result.scalar_one_or_none()
+
+
+async def _user_has_proof(db: DBSession, group_id: uuid.UUID, user_id: uuid.UUID) -> bool:
+    res = await db.execute(
+        select(GroupEntryProof).where(
+            and_(GroupEntryProof.group_id == group_id, GroupEntryProof.user_id == user_id)
+        )
+    )
+    return res.scalar_one_or_none() is not None
+
+
+def _active_polla_payment_fields(group: Group) -> tuple[str | None, str | None, str | None]:
+    qr_url = payment_qr_public_url(group.id) if group.payment_qr_path else None
+    return group.payment_contact_name, group.payment_phone, qr_url
 
 
 @router.get("/pool/active", response_model=ActivePollaOut | None)
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSession):
     """Returns the first active group (the 'polla') and whether current user is a member."""
-    result = await db.execute(
-        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)
-    )
-    group = result.scalar_one_or_none()
+    group = await _get_active_group(db)
     if not group:
         return None
 
@@ -67,6 +102,14 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
     if group.fixed_bet_amount and group.fixed_bet_amount > 0:
         per_match = group.fixed_bet_amount
 
+    contact_name, phone, qr_url = _active_polla_payment_fields(group)
+    has_proof = False
+    qr_data_url: str | None = None
+    if not is_member:
+        has_proof = await _user_has_proof(db, group.id, current_user.id)
+        if group.payment_qr_path:
+            qr_data_url = payment_qr_data_url(group.payment_qr_path)
+
     return ActivePollaOut(
         id=group.id,
         name=group.name,
@@ -76,7 +119,95 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         per_match_amount=per_match,
         is_member=is_member,
         member_count=member_count,
+        payment_contact_name=contact_name,
+        payment_phone=phone,
+        payment_qr_url=qr_url,
+        payment_qr_data_url=qr_data_url,
+        has_uploaded_proof=has_proof,
     )
+
+
+@router.get("/payment-qr/{group_id}")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_payment_qr(
+    request: Request,
+    group_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    """Serve payment QR for the active polla (authenticated users)."""
+    group = await _get_active_group(db)
+    if not group or group.id != group_id:
+        raise HTTPException(status_code=404, detail="Payment QR not found")
+    if not group.payment_qr_path:
+        raise HTTPException(status_code=404, detail="Payment QR not configured")
+    path = resolve_readable_path(group.payment_qr_path)
+    response = FileResponse(path, media_type="image/jpeg")
+    return apply_cors_headers(request, response)
+
+
+@router.post("/pool/active/entry-proof", status_code=201)
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def upload_entry_proof(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    redis: RedisClient,
+    file: UploadFile = File(...),
+):
+    """Upload entry payment proof while not yet a member of the active polla."""
+    group = await _get_active_group(db)
+    if not group:
+        raise HTTPException(status_code=404, detail="No active polla")
+
+    member_res = await db.execute(
+        select(GroupMember).where(
+            and_(GroupMember.group_id == group.id, GroupMember.user_id == current_user.id)
+        )
+    )
+    if member_res.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="Already a member")
+
+    file_path = await save_entry_proof(group.id, current_user.id, file)
+    existing = await db.execute(
+        select(GroupEntryProof).where(
+            and_(GroupEntryProof.group_id == group.id, GroupEntryProof.user_id == current_user.id)
+        )
+    )
+    proof = existing.scalar_one_or_none()
+    if proof:
+        proof.file_path = file_path
+        proof.uploaded_at = datetime.now(timezone.utc)
+    else:
+        proof = GroupEntryProof(
+            group_id=group.id,
+            user_id=current_user.id,
+            file_path=file_path,
+        )
+        db.add(proof)
+    await db.flush()
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="entry_proof_uploaded",
+        detail={
+            "group_id": str(group.id),
+            "user_id": str(current_user.id),
+            "username": current_user.username,
+        },
+        ip=request.client.host if request.client else None,
+    )
+    title, body, payload = build_entry_pending(
+        username=current_user.username,
+        user_id=str(current_user.id),
+        group_id=str(group.id),
+        has_proof=True,
+    )
+    await notify_admins(
+        db, redis, type="entry_pending", title=title, body=body, payload=payload,
+    )
+    await db.commit()
+    return {"ok": True, "has_uploaded_proof": True}
 
 
 class WinnerEntry(BaseModel):

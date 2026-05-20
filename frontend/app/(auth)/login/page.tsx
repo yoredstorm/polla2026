@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
+import { AuthErrorAlert } from "@/components/ui/AuthErrorAlert";
 
 const loginSchema = z.object({
   username: z
@@ -66,11 +67,7 @@ function LoginForm() {
           />
           {errors.password && <p className="text-danger text-xs mt-1">{errors.password.message}</p>}
         </div>
-        {login.isError && (
-          <p className="text-danger text-sm text-center">
-            {(login.error as any)?.error?.message || "Error al iniciar sesión"}
-          </p>
-        )}
+        {login.isError && <AuthErrorAlert error={login.error} />}
         <Button type="submit" size="lg" loading={login.isPending}>
           Iniciar Sesión
         </Button>

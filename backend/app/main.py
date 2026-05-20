@@ -12,10 +12,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 
 from app.core.config import settings
+from app.core.cors_utils import cors_headers_for_request
 from app.core.middlewares import SecurityHeadersMiddleware, RequestLoggingMiddleware
 from app.core.rate_limiter import limiter
 from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges, social
@@ -175,10 +177,7 @@ app = FastAPI(
 # Rate limiter state
 app.state.limiter = limiter
 
-# Middleware stack (order matters: outermost first)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RequestLoggingMiddleware)
-app.add_middleware(SlowAPIMiddleware)
+# Middleware: first registered = outermost. CORS must wrap SlowAPI/errors so every response has ACAO.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.get_cors_origins(),  # A05: Strict whitelist
@@ -186,6 +185,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
 )
+app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(RequestLoggingMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # Sentry integration (A09)
 if settings.SENTRY_DSN:
@@ -202,11 +204,27 @@ if settings.SENTRY_DSN:
         ).scrub_sentry_event(event, hint),
     )
 
-# Rate limit exceeded handler
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    detail = exc.detail
+    if isinstance(detail, dict) and "error" in detail:
+        content = detail
+    elif isinstance(detail, dict):
+        content = {"error": {"code": "HTTP_ERROR", "message": str(detail)}}
+    else:
+        content = {"error": {"code": "HTTP_ERROR", "message": str(detail)}}
+    return JSONResponse(
+        status_code=exc.status_code,
+        headers=cors_headers_for_request(request),
+        content=content,
+    )
+
+
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     return JSONResponse(
         status_code=429,
+        headers=cors_headers_for_request(request),
         content={"error": {"code": "RATE_LIMIT_EXCEEDED", "message": "Too many requests. Please slow down.", "detail": str(exc.detail)}},
     )
 
@@ -216,6 +234,7 @@ async def generic_exception_handler(request: Request, exc: Exception):
     logger.error("unhandled_exception", error=str(exc), path=request.url.path)
     return JSONResponse(
         status_code=500,
+        headers=cors_headers_for_request(request),
         content={"error": {"code": "INTERNAL_ERROR", "message": "An internal error occurred"}},
     )
 

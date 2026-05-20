@@ -514,11 +514,6 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                {!polla.is_member && (
-                  <p className="text-xs text-warning mt-3 bg-warning/10 rounded-lg px-3 py-2 inline-block">
-                    No eres miembro aún. Habla con el admin para unirte.
-                  </p>
-                )}
               </div>
             </div>
           ) : (

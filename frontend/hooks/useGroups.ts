@@ -1,6 +1,6 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/api";
+import api, { getApiBase } from "@/lib/api";
 import type { ActivePolla, Group, GroupMember, LeaderboardEntry, BetWithUser, GroupFixtureStandingEntry } from "@/types/api";
 
 export function useActivePolla() {
@@ -83,5 +83,29 @@ export function useJoinGroup() {
   return useMutation({
     mutationFn: (invite_code: string) => api.post<Group>("/groups/join", { invite_code }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["groups"] }),
+  });
+}
+
+export function useUploadEntryProof() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${getApiBase()}/api/v1/groups/pool/active/entry-proof`, {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw err;
+      }
+      return res.json() as Promise<{ ok: boolean; has_uploaded_proof: boolean }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pool", "active"] });
+      qc.invalidateQueries({ queryKey: ["admin", "non-members"] });
+    },
   });
 }

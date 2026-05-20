@@ -11,9 +11,16 @@ import {
   useNonMembers,
   usePendingExtras,
   useConfirmExtra,
+  useUploadPaymentQr,
 } from "@/hooks/useAdmin";
 import { cn } from "@/lib/utils";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import {
+  AdminPaymentSettingsFields,
+  AdminPaymentSettingsView,
+} from "@/components/payment/AdminPaymentSettings";
+import { AdminProofLightbox } from "@/components/payment/AdminProofLightbox";
+import type { AdminNonMember } from "@/types/api";
 
 // ── Create form ──────────────────────────────────────────────────────
 function CreatePollaForm() {
@@ -23,20 +30,35 @@ function CreatePollaForm() {
   const [currency, setCurrency] = useState("PEN");
   const [extra, setExtra] = useState("");
   const [maxStake, setMaxStake] = useState("5");
+  const [paymentContact, setPaymentContact] = useState("Tesorería Polla 2026");
+  const [paymentPhone, setPaymentPhone] = useState("+51 999 888 777");
+  const [qrFile, setQrFile] = useState<File | null>(null);
+  const uploadQr = useUploadPaymentQr();
   const [error, setError] = useState("");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!name.trim() || !entry) { setError("Nombre y monto de entrada son requeridos."); return; }
+    const entryNum = parseFloat(entry) || 0;
+    if (entryNum > 0 && (!paymentContact.trim() || !paymentPhone.trim())) {
+      setError("Nombre del titular y teléfono son requeridos cuando hay entrada.");
+      return;
+    }
     try {
-      await create.mutateAsync({
+      const created = await create.mutateAsync({
         name: name.trim(),
-        entry_fee: parseFloat(entry) || 0,
+        entry_fee: entryNum,
         currency,
         per_match_amount: extra ? parseFloat(extra) : undefined,
         challenge_max_stake: Math.max(1, Math.min(20, parseInt(maxStake, 10) || 5)),
+        payment_contact_name: paymentContact.trim() || undefined,
+        payment_phone: paymentPhone.trim() || undefined,
       });
+      if (qrFile && created?.id) {
+        await uploadQr.mutateAsync({ groupId: created.id, file: qrFile });
+      }
+      setQrFile(null);
     } catch (e: any) {
       setError(e?.detail || "Error al crear la polla.");
     }
@@ -96,6 +118,14 @@ function CreatePollaForm() {
             Evita transferencias de puntos entre amigos; además cada jugador solo puede apostar hasta el 50% de sus puntos disponibles.
           </p>
         </div>
+        <AdminPaymentSettingsFields
+          contactName={paymentContact}
+          phone={paymentPhone}
+          onContactNameChange={setPaymentContact}
+          onPhoneChange={setPaymentPhone}
+          qrFile={qrFile}
+          onQrFileChange={setQrFile}
+        />
         {error && <p className="text-danger text-xs">{error}</p>}
         <button type="submit" disabled={create.isPending}
           className="w-full py-3 rounded-xl bg-accent text-background font-bold hover:bg-accent-dim disabled:opacity-50 transition-colors">
@@ -114,6 +144,10 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
   const [formExtra, setFormExtra] = useState(polla.fixed_bet_amount ?? "");
   const [formCurrency, setFormCurrency] = useState(polla.currency ?? "PEN");
   const [formMaxStake, setFormMaxStake] = useState(String(polla.challenge_max_stake ?? 10));
+  const [formPaymentContact, setFormPaymentContact] = useState(polla.payment_contact_name ?? "");
+  const [formPaymentPhone, setFormPaymentPhone] = useState(polla.payment_phone ?? "");
+  const [formQrFile, setFormQrFile] = useState<File | null>(null);
+  const uploadQr = useUploadPaymentQr();
 
   function save() {
     const extraVal = formExtra ? parseFloat(formExtra) : 0;
@@ -125,8 +159,19 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
         bet_amount_mode: "single_entry",
         fixed_bet_amount: extraVal,
         challenge_max_stake: Math.max(1, Math.min(20, parseInt(formMaxStake, 10) || 10)),
+        payment_contact_name: formPaymentContact.trim() || undefined,
+        payment_phone: formPaymentPhone.trim() || undefined,
       },
-      { onSuccess: () => { setEditing(false); onSaved(); } },
+      {
+        onSuccess: async () => {
+          if (formQrFile) {
+            await uploadQr.mutateAsync({ groupId: polla.id, file: formQrFile });
+            setFormQrFile(null);
+          }
+          setEditing(false);
+          onSaved();
+        },
+      },
     );
   }
 
@@ -182,6 +227,12 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
             <p className="text-xs text-muted uppercase tracking-wide mb-1">Máximo pts por duelo</p>
             <p className="text-lg font-bold text-white">{polla.challenge_max_stake ?? 10} pts</p>
           </div>
+          <AdminPaymentSettingsView
+            groupId={polla.id}
+            paymentContactName={polla.payment_contact_name}
+            paymentPhone={polla.payment_phone}
+            paymentQrUrl={polla.payment_qr_url}
+          />
         </div>
       ) : (
         <div className="space-y-3 pt-2 border-t border-white/10">
@@ -219,6 +270,14 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
               placeholder="Ej: 5"
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent placeholder:text-muted/50" />
           </div>
+          <AdminPaymentSettingsFields
+            contactName={formPaymentContact}
+            phone={formPaymentPhone}
+            onContactNameChange={setFormPaymentContact}
+            onPhoneChange={setFormPaymentPhone}
+            qrFile={formQrFile}
+            onQrFileChange={setFormQrFile}
+          />
           <button onClick={save} disabled={patch.isPending}
             className="w-full py-2 rounded-lg bg-accent text-background font-bold text-sm hover:bg-accent-dim disabled:opacity-50 transition-colors">
             {patch.isPending ? "Guardando..." : "Guardar cambios"}
@@ -240,12 +299,13 @@ function Badge({ count }: { count: number }) {
 }
 
 // ── Non-members panel ────────────────────────────────────────────────
-function PendingEntriesPanel({ pollaId, currency }: { pollaId: string; currency: string }) {
+function PendingEntriesPanel({ pollaId }: { pollaId: string; currency: string }) {
   const { data: nonMembers, isLoading } = useNonMembers(pollaId);
   const addMember = useAddGroupMember();
   const [success, setSuccess] = useState<Record<string, boolean>>({});
+  const [lightboxUser, setLightboxUser] = useState<AdminNonMember | null>(null);
 
-  async function confirm(userId: string, username: string) {
+  async function confirm(userId: string) {
     try {
       await addMember.mutateAsync({ groupId: pollaId, userId });
       setSuccess((s) => ({ ...s, [userId]: true }));
@@ -268,6 +328,7 @@ function PendingEntriesPanel({ pollaId, currency }: { pollaId: string; currency:
         <thead>
           <tr className="border-b border-white/10 bg-white/5 text-muted text-xs uppercase">
             <th className="text-left px-4 py-3">Usuario</th>
+            <th className="text-center px-4 py-3">Comprobante</th>
             <th className="text-right px-4 py-3">Se registro</th>
             <th className="px-4 py-3"></th>
           </tr>
@@ -281,20 +342,40 @@ function PendingEntriesPanel({ pollaId, currency }: { pollaId: string; currency:
                   firstName={u.first_name}
                   lastName={u.last_name}
                 />
+                {u.has_proof && (
+                  <span className="ml-2 text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300">
+                    Comprobante
+                  </span>
+                )}
+              </td>
+              <td className="px-4 py-3 text-center">
+                {u.has_proof ? (
+                  <button
+                    type="button"
+                    onClick={() => setLightboxUser(u)}
+                    className="text-xs px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 cursor-pointer transition-colors"
+                  >
+                    Ver
+                  </button>
+                ) : (
+                  <span className="text-xs text-muted">Sin comprobante</span>
+                )}
               </td>
               <td className="px-4 py-3 text-right text-muted text-xs">
                 {new Date(u.registered_at).toLocaleDateString("es-PE")}
               </td>
               <td className="px-4 py-3 text-right">
                 {success[u.user_id] ? (
-                  <span className="text-xs text-emerald-400">Agregado ✓</span>
+                  <span className="text-xs text-emerald-400">Agregado</span>
                 ) : (
                   <button
-                    onClick={() => confirm(u.user_id, u.username)}
+                    type="button"
+                    title="Válido si el pago llegó por WhatsApp u otro medio"
+                    onClick={() => void confirm(u.user_id)}
                     disabled={addMember.isPending}
-                    className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors font-medium"
+                    className="text-xs px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 transition-colors font-medium cursor-pointer"
                   >
-                    ✓ Confirmar pago
+                    Confirmar pago
                   </button>
                 )}
               </td>
@@ -302,6 +383,21 @@ function PendingEntriesPanel({ pollaId, currency }: { pollaId: string; currency:
           ))}
         </tbody>
       </table>
+      {lightboxUser && (
+        <AdminProofLightbox
+          open={!!lightboxUser}
+          onClose={() => setLightboxUser(null)}
+          groupId={pollaId}
+          userId={lightboxUser.user_id}
+          username={lightboxUser.username}
+          firstName={lightboxUser.first_name}
+          lastName={lightboxUser.last_name}
+          confirming={addMember.isPending}
+          onConfirm={() => {
+            void confirm(lightboxUser.user_id).then(() => setLightboxUser(null));
+          }}
+        />
+      )}
     </div>
   );
 }

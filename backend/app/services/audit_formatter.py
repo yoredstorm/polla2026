@@ -24,6 +24,7 @@ ACTION_LABELS_ES: dict[str, str] = {
     "bulk_copy": "Copia masiva",
     "bet_change_request": "Solicitud de cambio",
     "admin_confirm_entry": "Confirmar entrada",
+    "entry_proof_uploaded": "Comprobante de entrada subido",
     "admin_confirm_extra": "Confirmar apuesta extra",
     "admin_approve_change_request": "Aprobar solicitud",
     "admin_reject_change_request": "Rechazar solicitud",
@@ -219,7 +220,20 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
         polla = ctx.group_label(d.get("group_id")) or "Polla"
         jugador = ctx.user_label(d.get("member_user_id")) or "Usuario"
         fee = d.get("entry_fee", "")
-        return f"{polla} · Entrada confirmada para {jugador} · Cuota {fee}"
+        had_proof = d.get("had_proof") is True or d.get("confirmed_with_proof") is True
+        soporte = (
+            "Aceptado con comprobante en la app"
+            if had_proof
+            else "Aceptado sin comprobante en la app (ej. pago por WhatsApp)"
+        )
+        uploaded = d.get("proof_uploaded_at")
+        extra = f" · Subido: {uploaded}" if uploaded else ""
+        return f"{polla} · Entrada confirmada para {jugador} · Cuota {fee} · {soporte}{extra}"
+
+    if action == "entry_proof_uploaded":
+        polla = ctx.group_label(d.get("group_id")) or "Polla"
+        jugador = ctx.user_label(d.get("user_id")) or d.get("username") or "Usuario"
+        return f"{polla} · {jugador} subió comprobante de pago de entrada"
 
     if action == "admin_confirm_extra":
         bet = ctx.bets.get(str(d.get("bet_id"))) if d.get("bet_id") else None

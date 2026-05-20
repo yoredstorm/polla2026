@@ -5,8 +5,10 @@ import uuid
 from decimal import Decimal
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
-from pydantic import BaseModel
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import FileResponse
+from app.core.cors_utils import apply_cors_headers
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func, and_
 
 from app.api.deps import CurrentAdmin, DBSession, RedisClient
@@ -15,11 +17,18 @@ from app.core.rate_limiter import limiter
 from app.models.bet import Bet
 from app.models.bet_change_request import BetChangeRequest
 from app.models.fixture import Fixture
-from app.models.group import Group, GroupMember
+from app.models.group import Group, GroupMember, GroupEntryProof
 from app.models.user import User
 from app.services.bet_service import settle_fixture_bets, can_resolve_change_request_for_fixture
 from app.services.audit import log_action
+from app.services.payment_upload_service import (
+    payment_qr_public_url,
+    resolve_readable_path,
+    save_group_payment_qr,
+)
 from app.services.notification_service import (
+    notify_admins,
+    build_entry_pending,
     create_notification,
     build_change_request_resolved,
     build_fixture_finished,
@@ -77,6 +86,16 @@ class AdminGroupPatch(BaseModel):
     fixed_bet_amount: Optional[Decimal] = None
     is_active: Optional[bool] = None
     challenge_max_stake: Optional[int] = None
+    payment_contact_name: Optional[str] = None
+    payment_phone: Optional[str] = None
+
+
+def _group_payment_dict(group: Group) -> dict:
+    return {
+        "payment_contact_name": group.payment_contact_name,
+        "payment_phone": group.payment_phone,
+        "payment_qr_url": payment_qr_public_url(group.id) if group.payment_qr_path else None,
+    }
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────
@@ -513,6 +532,15 @@ class CreatePollaIn(BaseModel):
     currency: str = "PEN"
     per_match_amount: Decimal | None = None
     challenge_max_stake: int = 10
+    payment_contact_name: str | None = None
+    payment_phone: str | None = None
+
+    @field_validator("payment_contact_name", "payment_phone", mode="before")
+    @classmethod
+    def strip_payment_text(cls, v):
+        if v is None or v == "":
+            return None
+        return str(v).strip() or None
 
 
 @router.post("/groups", status_code=201)
@@ -525,7 +553,12 @@ async def create_polla(
 ):
     """Create the global polla. Admin becomes the owner."""
     from app.models.group import Group
-    from app.core.security import generate_invite_code
+    if body.entry_fee > 0:
+        if not body.payment_contact_name or not body.payment_phone:
+            raise HTTPException(
+                status_code=400,
+                detail="payment_contact_name and payment_phone are required when entry_fee > 0",
+            )
     group = Group(
         name=body.name,
         owner_id=admin.id,
@@ -536,6 +569,8 @@ async def create_polla(
         is_active=True,
         prize_pool=Decimal("0"),
         challenge_max_stake=max(1, min(20, body.challenge_max_stake)),
+        payment_contact_name=body.payment_contact_name,
+        payment_phone=body.payment_phone,
     )
     db.add(group)
     await db.commit()
@@ -549,7 +584,34 @@ async def create_polla(
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,
         "challenge_max_stake": group.challenge_max_stake,
+        **_group_payment_dict(group),
     }
+
+
+@router.post("/groups/{group_id}/payment-qr", status_code=200)
+@limiter.limit(ADMIN_RATE)
+async def upload_group_payment_qr(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+    file: UploadFile = File(...),
+):
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    group = result.scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    group.payment_qr_path = await save_group_payment_qr(group_id, file)
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_upload_payment_qr",
+        detail={"group_id": str(group_id)},
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    await db.refresh(group)
+    return {"ok": True, "payment_qr_url": payment_qr_public_url(group_id)}
 
 
 @router.get("/groups")
@@ -590,6 +652,7 @@ async def list_groups(
                 "challenge_max_stake": g.challenge_max_stake,
                 "member_count": member_counts.get(g.id, 0),
                 "created_at": g.created_at.isoformat(),
+                **_group_payment_dict(g),
             }
             for g in rows
         ],
@@ -630,6 +693,12 @@ async def patch_group(
         val = max(1, min(20, body.challenge_max_stake))
         changes["challenge_max_stake"] = str(val)
         group.challenge_max_stake = val
+    if body.payment_contact_name is not None:
+        changes["payment_contact_name"] = body.payment_contact_name
+        group.payment_contact_name = body.payment_contact_name or None
+    if body.payment_phone is not None:
+        changes["payment_phone"] = body.payment_phone
+        group.payment_phone = body.payment_phone or None
     if changes:
         await log_action(
             db,
@@ -648,6 +717,7 @@ async def patch_group(
         "bet_amount_mode": group.bet_amount_mode,
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,
+        **_group_payment_dict(group),
     }
 
 
@@ -727,12 +797,26 @@ async def add_group_member(
         await db.commit()
         return {"ok": True, "username": user.username, "already_member": True}
 
+    proof_res = await db.execute(
+        select(GroupEntryProof).where(
+            and_(GroupEntryProof.group_id == group_id, GroupEntryProof.user_id == body.user_id)
+        )
+    )
+    proof_row = proof_res.scalar_one_or_none()
+    had_proof = proof_row is not None
+
     prev_pool = group.prize_pool
     member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=group.entry_fee)
     db.add(member)
     group.prize_pool += group.entry_fee
     await log_action(db, user_id=admin.id, action="admin_confirm_entry", detail={
-        "group_id": str(group_id), "member_user_id": str(body.user_id), "entry_fee": str(group.entry_fee),
+        "group_id": str(group_id),
+        "member_user_id": str(body.user_id),
+        "username": user.username,
+        "entry_fee": str(group.entry_fee),
+        "had_proof": had_proof,
+        "confirmed_with_proof": had_proof,
+        "proof_uploaded_at": proof_row.uploaded_at.isoformat() if proof_row else None,
     }, ip=request.client.host if request.client else None)
     count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
     member_count = int(count_res.scalar() or 0) + 1
@@ -828,6 +912,20 @@ async def list_non_members(
         .order_by(User.created_at.desc())
     )
     rows = (await db.execute(q)).all()
+    user_ids = [r.id for r in rows]
+    proof_map: dict[uuid.UUID, GroupEntryProof] = {}
+    if user_ids:
+        proofs = (
+            await db.execute(
+                select(GroupEntryProof).where(
+                    and_(
+                        GroupEntryProof.group_id == group_id,
+                        GroupEntryProof.user_id.in_(user_ids),
+                    )
+                )
+            )
+        ).scalars().all()
+        proof_map = {p.user_id: p for p in proofs}
     return [
         {
             "user_id": str(r.id),
@@ -835,9 +933,33 @@ async def list_non_members(
             "first_name": r.first_name,
             "last_name": r.last_name,
             "registered_at": r.created_at.isoformat(),
+            "has_proof": r.id in proof_map,
+            "proof_uploaded_at": proof_map[r.id].uploaded_at.isoformat() if r.id in proof_map else None,
         }
         for r in rows
     ]
+
+
+@router.get("/groups/{group_id}/entry-proofs/{user_id}")
+@limiter.limit(ADMIN_RATE)
+async def get_entry_proof(
+    request: Request,
+    group_id: uuid.UUID,
+    user_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    result = await db.execute(
+        select(GroupEntryProof).where(
+            and_(GroupEntryProof.group_id == group_id, GroupEntryProof.user_id == user_id)
+        )
+    )
+    proof = result.scalar_one_or_none()
+    if not proof:
+        raise HTTPException(status_code=404, detail="Entry proof not found")
+    path = resolve_readable_path(proof.file_path)
+    response = FileResponse(path, media_type="image/jpeg")
+    return apply_cors_headers(request, response)
 
 
 @router.get("/groups/{group_id}/pending-extras")

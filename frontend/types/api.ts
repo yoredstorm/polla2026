@@ -40,6 +40,22 @@ export interface ActivePolla {
   per_match_amount: string | null;
   is_member: boolean;
   member_count: number;
+  payment_contact_name?: string | null;
+  payment_phone?: string | null;
+  payment_qr_url?: string | null;
+  /** Base64 data URL — avoids a second cross-origin fetch for the QR image */
+  payment_qr_data_url?: string | null;
+  has_uploaded_proof?: boolean;
+}
+
+export interface AdminNonMember {
+  user_id: string;
+  username: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  registered_at: string;
+  has_proof: boolean;
+  proof_uploaded_at: string | null;
 }
 
 export interface BetsProfileMeResponse {

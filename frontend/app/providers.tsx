@@ -5,6 +5,7 @@ import { useState } from "react";
 import { ToastContainer } from "@/components/ui/Toast";
 import { RealtimeSyncProvider } from "@/components/RealtimeSyncProvider";
 import { HelpProvider } from "@/components/help/HelpProvider";
+import { PaymentFlowProvider } from "@/components/payment/PaymentFlowProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({
@@ -22,8 +23,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <HelpProvider>
         <RealtimeSyncProvider>
-          {children}
-          <ToastContainer />
+          <PaymentFlowProvider>
+            {children}
+            <ToastContainer />
+          </PaymentFlowProvider>
         </RealtimeSyncProvider>
       </HelpProvider>
       {showDevtools && <ReactQueryDevtools initialIsOpen={false} />}

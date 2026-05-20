@@ -5,6 +5,7 @@ import { z } from "zod";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
+import { AuthErrorAlert } from "@/components/ui/AuthErrorAlert";
 
 const nameField = z
   .string()
@@ -93,12 +94,7 @@ export default function RegisterPage() {
               )}
             </div>
           ))}
-          {registerMutation.isError && (
-            <p className="text-danger text-sm text-center">
-              {(registerMutation.error as { error?: { message?: string } })?.error?.message ||
-                "Error al registrarse"}
-            </p>
-          )}
+          {registerMutation.isError && <AuthErrorAlert error={registerMutation.error} />}
           <Button type="submit" size="lg" loading={registerMutation.isPending}>
             Crear cuenta
           </Button>

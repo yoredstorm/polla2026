@@ -1,5 +1,6 @@
 import { Footer } from "@/components/ui/Footer";
 import { Navbar } from "@/components/ui/Navbar";
+import { PaymentGlobalNotice } from "@/components/payment/PaymentGlobalNotice";
 import { cn } from "@/lib/utils";
 
 type MaxWidth = "sm" | "md" | "lg" | "xl" | "full";
@@ -50,6 +51,7 @@ export function PageShell({
           mainClassName,
         )}
       >
+        {withNavbar && <PaymentGlobalNotice />}
         {children}
       </main>
       {withFooter && <Footer />}

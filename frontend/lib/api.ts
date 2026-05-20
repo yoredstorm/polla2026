@@ -3,21 +3,33 @@
  * Security: credentials: "include" sends cookies automatically.
  * Tokens are NEVER stored in localStorage (XSS prevention).
  *
- * If NEXT_PUBLIC_API_URL is unset in the browser bundle, requests use the same hostname
- * as the page with port 8000 (e.g. UI at http://127.0.0.1:3000 → API at http://127.0.0.1:8000).
- * That avoids mixing localhost + 127.0.0.1 (different host → cookies / CORS break).
+ * If NEXT_PUBLIC_API_URL is unset: dev (Next :3000) → API on :8000; nginx (:80/:443) → same origin /api.
+ * Avoid mixing localhost + 127.0.0.1 (different host → cookies / CORS break).
  */
 /** Max `limit` accepted by most list endpoints (admin users, change requests, etc.). */
 export const API_MAX_PAGE_LIMIT = 100;
 
+import { buildApiUrl, resolveApiBase } from "@/lib/apiBase";
+
+export { buildApiUrl } from "@/lib/apiBase";
+
 export function getApiBase(): string {
   const configured = process.env.NEXT_PUBLIC_API_URL;
   if (typeof window !== "undefined") {
-    if (configured) return configured;
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8000`;
+    return resolveApiBase({
+      configured,
+      protocol: window.location.protocol.replace(":", ""),
+      hostname: window.location.hostname,
+      port: window.location.port,
+      origin: window.location.origin,
+    });
   }
-  return configured || "http://localhost:8000";
+  return resolveApiBase({
+    configured,
+    protocol: "http",
+    hostname: "localhost",
+    port: "8000",
+  });
 }
 
 // Deduplicates concurrent refresh calls — only ONE in-flight refresh at a time.
@@ -27,7 +39,7 @@ let _redirecting = false;
 
 async function tryRefresh(): Promise<boolean> {
   if (_refreshPromise) return _refreshPromise;
-  _refreshPromise = fetch(`${getApiBase()}/api/v1/auth/refresh`, {
+  _refreshPromise = fetch(buildApiUrl(getApiBase(), "/auth/refresh"), {
     method: "POST",
     credentials: "include",
   })
@@ -40,7 +52,7 @@ async function tryRefresh(): Promise<boolean> {
 export async function ensureFreshSession(): Promise<boolean> {
   if (typeof window === "undefined" || _redirecting) return false;
   try {
-    const meRes = await fetch(`${getApiBase()}/api/v1/users/me`, {
+    const meRes = await fetch(buildApiUrl(getApiBase(), "/users/me"), {
       credentials: "include",
       cache: "no-store",
     });
@@ -58,7 +70,7 @@ function redirectToLogin() {
   if (path.startsWith("/login") || path.startsWith("/register")) return;
   _redirecting = true;
   // Clear dead cookies via the public logout endpoint, then navigate.
-  fetch(`${getApiBase()}/api/v1/auth/logout`, { method: "POST", credentials: "include" })
+  fetch(buildApiUrl(getApiBase(), "/auth/logout"), { method: "POST", credentials: "include" })
     .catch(() => {})
     .finally(() => {
       window.location.href = "/login";
@@ -70,32 +82,69 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
 }
 
+type ApiErrorMeta = { status: number; url: string };
+
+function throwApiError(
+  partial: { code: string; message: string },
+  meta: ApiErrorMeta,
+): never {
+  throw { error: { ...partial, status: meta.status, url: meta.url } };
+}
+
 /** FastAPI returns HTTPException bodies as `{ detail: ... }`. Normalize so callers can use `err.error.message`. */
-function throwNormalizedApiError(body: unknown): never {
+function throwNormalizedApiError(body: unknown, meta: ApiErrorMeta): never {
   if (body && typeof body === "object") {
     const b = body as Record<string, unknown>;
     if (b.error && typeof b.error === "object") {
-      throw body;
+      const e = b.error as Record<string, unknown>;
+      throwApiError(
+        {
+          code: String(e.code ?? "API_ERROR"),
+          message: String(e.message ?? "Error del servidor"),
+        },
+        meta,
+      );
     }
     const detail = b.detail;
     if (detail && typeof detail === "object" && !Array.isArray(detail)) {
       const d = detail as Record<string, unknown>;
       if (d.error && typeof d.error === "object") {
-        throw { error: d.error };
+        const e = d.error as Record<string, unknown>;
+        throwApiError(
+          {
+            code: String(e.code ?? "API_ERROR"),
+            message: String(e.message ?? "Error del servidor"),
+          },
+          meta,
+        );
       }
     }
     if (typeof detail === "string") {
-      throw { error: { code: "HTTP_ERROR", message: detail } };
+      throwApiError({ code: "HTTP_ERROR", message: detail }, meta);
     }
     if (Array.isArray(detail)) {
       const msgs = detail
         .map((item: { msg?: string }) => (typeof item?.msg === "string" ? item.msg : null))
         .filter(Boolean) as string[];
-      const message = msgs.length > 0 ? msgs.join("; ") : "Error de validacion";
-      throw { error: { code: "VALIDATION_ERROR", message } };
+      const message = msgs.length > 0 ? msgs.join("; ") : "Error de validación";
+      throwApiError({ code: "VALIDATION_ERROR", message }, meta);
     }
   }
-  throw { error: { code: "UNKNOWN_ERROR", message: "An error occurred" } };
+
+  if (meta.status === 405) {
+    throwApiError(
+      {
+        code: "METHOD_NOT_ALLOWED",
+        message: "Método no permitido en esta URL (probable configuración incorrecta del API).",
+      },
+      meta,
+    );
+  }
+
+  throwApiError(
+    { code: "NOT_JSON_RESPONSE", message: "Respuesta inesperada del servidor (sin detalle JSON)." },
+    meta,
+  );
 }
 
 async function apiRequest<T>(
@@ -107,8 +156,7 @@ async function apiRequest<T>(
 
   const { params, ...fetchOptions } = options;
 
-  const apiBase = getApiBase();
-  let url = `${apiBase}/api/v1${endpoint}`;
+  let url = buildApiUrl(getApiBase(), endpoint);
   if (params) {
     const searchParams = new URLSearchParams();
     Object.entries(params).forEach(([k, v]) => {
@@ -118,14 +166,25 @@ async function apiRequest<T>(
     if (qs) url += `?${qs}`;
   }
 
-  const response = await fetch(url, {
-    ...fetchOptions,
-    credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...fetchOptions.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...fetchOptions,
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        ...fetchOptions.headers,
+      },
+    });
+  } catch {
+    throwApiError(
+      {
+        code: "NETWORK_ERROR",
+        message: "No se pudo conectar con el servidor.",
+      },
+      { status: 0, url },
+    );
+  }
 
   // /users/me returning 401 simply means "not logged in" — no refresh, no error throw.
   const isMeEndpoint =
@@ -145,8 +204,8 @@ async function apiRequest<T>(
         headers: { "Content-Type": "application/json", ...fetchOptions.headers },
       });
       if (!retryResponse.ok) {
-        const errorBody = await retryResponse.json().catch(() => ({}));
-        throwNormalizedApiError(errorBody);
+        const errorBody = await retryResponse.json().catch(() => null);
+        throwNormalizedApiError(errorBody, { status: retryResponse.status, url });
       }
       return retryResponse.json();
     } else {
@@ -156,8 +215,8 @@ async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    const errorBody = await response.json().catch(() => ({}));
-    throwNormalizedApiError(errorBody);
+    const errorBody = await response.json().catch(() => null);
+    throwNormalizedApiError(errorBody, { status: response.status, url });
   }
 
   if (response.status === 204) return undefined as T;

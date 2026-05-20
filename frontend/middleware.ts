@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { resolveApiBase } from "@/lib/apiBase";
 
 /** Rutas accesibles sin sesión */
 const UNAUTH_ALLOWED_PREFIXES = ["/login", "/register", "/u/"];
@@ -7,10 +8,14 @@ const UNAUTH_ALLOWED_PREFIXES = ["/login", "/register", "/u/"];
 const AUTH_ENTRY_PREFIXES = ["/login", "/register"];
 
 function apiBaseFromRequest(request: NextRequest): string {
-  const configured = process.env.NEXT_PUBLIC_API_URL;
-  if (configured) return configured.replace(/\/$/, "");
-  const { protocol, hostname } = request.nextUrl;
-  return `${protocol}//${hostname}:8000`;
+  const { protocol, hostname, port } = request.nextUrl;
+  return resolveApiBase({
+    configured: process.env.NEXT_PUBLIC_API_URL,
+    protocol: protocol.replace(":", ""),
+    hostname,
+    port,
+    origin: request.nextUrl.origin,
+  });
 }
 
 export async function middleware(request: NextRequest) {

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { BettingSlip } from "@/components/betting/BettingSlip";
 import { useMyBets, useMyChangeRequests, type ChangeRequest } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
+import { PaymentEntryBlock } from "@/components/payment/PaymentEntryBlock";
 import { MyChallengesSection } from "@/components/betting/MyChallengesSection";
 import { cn } from "@/lib/utils";
 
@@ -69,9 +70,7 @@ function MyBetsPageContent() {
           {polla && (
             <div className="text-right shrink-0">
               {!polla.is_member ? (
-                <div className="text-xs bg-amber-500/10 border border-amber-500/20 text-amber-300 rounded-lg px-3 py-2 max-w-48">
-                  No eres miembro de la polla aun. Habla con el admin.
-                </div>
+                <PaymentEntryBlock polla={polla} currency={currency} />
               ) : (
                 <div className="text-xs bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 rounded-lg px-3 py-2">
                   Eres miembro de <strong>{polla.name}</strong>

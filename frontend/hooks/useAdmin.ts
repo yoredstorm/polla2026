@@ -1,6 +1,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import api from "@/lib/api";
+import api, { getApiBase } from "@/lib/api";
+import type { AdminNonMember } from "@/types/api";
 import type { AdminStats, SettleResult } from "@/types/api";
 
 export function useAdminStats() {
@@ -140,6 +141,8 @@ export function useCreatePolla() {
       currency: string;
       per_match_amount?: number;
       challenge_max_stake?: number;
+      payment_contact_name?: string;
+      payment_phone?: string;
     }) => api.post<any>("/admin/groups", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "groups"] });
@@ -162,6 +165,8 @@ export function usePatchGroup() {
       fixed_bet_amount?: number;
       is_active?: boolean;
       challenge_max_stake?: number;
+      payment_contact_name?: string;
+      payment_phone?: string;
     }) => api.patch<any>(`/admin/groups/${groupId}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "groups"] });
@@ -199,6 +204,7 @@ export function useAddGroupMember() {
       api.post<any>(`/admin/groups/${groupId}/members`, { user_id: userId }),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["admin", "group-members", vars.groupId] });
+      qc.invalidateQueries({ queryKey: ["admin", "non-members", vars.groupId] });
       qc.invalidateQueries({ queryKey: ["admin", "groups"] });
       qc.invalidateQueries({ queryKey: ["pool"] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
@@ -242,21 +248,35 @@ export function useAdminAllUsers() {
   });
 }
 
+export function useUploadPaymentQr() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ groupId, file }: { groupId: string; file: File }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${getApiBase()}/api/v1/admin/groups/${groupId}/payment-qr`, {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw err;
+      }
+      return res.json() as Promise<{ ok: boolean; payment_qr_url: string }>;
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["admin", "groups"] });
+      qc.invalidateQueries({ queryKey: ["pool", "active"] });
+    },
+  });
+}
+
 export function useNonMembers(groupId: string | null) {
   return useQuery({
     queryKey: ["admin", "non-members", groupId],
     queryFn: () =>
-      api.get<
-        {
-          user_id: string;
-          username: string;
-          first_name?: string | null;
-          last_name?: string | null;
-          registered_at: string;
-        }[]
-      >(
-        `/admin/groups/${groupId}/non-members`,
-      ),
+      api.get<AdminNonMember[]>(`/admin/groups/${groupId}/non-members`),
     enabled: !!groupId,
     refetchInterval: 15_000,
   });

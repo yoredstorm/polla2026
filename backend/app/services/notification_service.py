@@ -373,13 +373,18 @@ def build_entry_pending(
     username: str,
     user_id: str,
     group_id: str,
+    has_proof: bool = False,
 ) -> tuple[str, str, dict[str, Any]]:
     title = f"@{username}: entrada pendiente"
-    body = "Usuario registrado. Confirma su pago de entrada a la polla."
+    if has_proof:
+        body = "Usuario con comprobante subido. Revisa y confirma su pago de entrada."
+    else:
+        body = "Usuario registrado. Confirma su pago de entrada a la polla."
     payload = {
         "user_id": user_id,
         "group_id": group_id,
         "username": username,
+        "has_proof": has_proof,
     }
     return title, body, payload
 
