@@ -74,16 +74,6 @@ services:
       - traefik.docker.network=dokploy-network
       # Solo HTTP → HTTPS (entrypoint web)
       - traefik.http.routers.polla-http.rule=Host(`redcardtech.uk`)
-      - traefik.http.routers.polla-http.entrypoints=web
-      - traefik.http.routers.polla-http.middlewares=polla-redirect-https
-      - traefik.http.middlewares.polla-redirect-https.redirectscheme.scheme=https
-      - traefik.http.middlewares.polla-redirect-https.redirectscheme.permanent=true
-      # HTTPS → nginx:80 (SIN middlewares de redirect)
-      - traefik.http.routers.polla-web.rule=Host(`redcardtech.uk`)
-      - traefik.http.routers.polla-web.entrypoints=websecure
-      - traefik.http.routers.polla-web.tls=true
-      - traefik.http.routers.polla-web.tls.certresolver=letsencrypt
-      - traefik.http.routers.polla-web.service=polla-web
       - traefik.http.services.polla-web.loadbalancer.server.port=80
     networks:
       - dokploy-network
