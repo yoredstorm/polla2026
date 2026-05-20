@@ -33,7 +33,9 @@ export default function WinnersPage() {
         <HelpSectionTitle as="h1" helpKey="page.winners" className="mb-2">
           Podio y premios
         </HelpSectionTitle>
-        <p className="text-muted text-sm mb-8">Distribucion 60% / 30% / 10% del pozo acumulado</p>
+        <p className="text-muted text-sm mb-8">
+          El participante con mayor puntaje acumulado obtiene el 100% del pozo de premios.
+        </p>
 
         {isLoading && <p className="text-muted">Cargando...</p>}
         {!isLoading && !data && <p className="text-muted">No hay polla activa.</p>}
