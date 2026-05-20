@@ -1,6 +1,7 @@
 import { Footer } from "@/components/ui/Footer";
 import { Navbar } from "@/components/ui/Navbar";
 import { PaymentGlobalNotice } from "@/components/payment/PaymentGlobalNotice";
+import { PasswordChangeGuard } from "@/components/auth/PasswordChangeGuard";
 import { cn } from "@/lib/utils";
 
 type MaxWidth = "sm" | "md" | "lg" | "xl" | "full";
@@ -52,7 +53,7 @@ export function PageShell({
         )}
       >
         {withNavbar && <PaymentGlobalNotice />}
-        {children}
+        <PasswordChangeGuard>{children}</PasswordChangeGuard>
       </main>
       {withFooter && <Footer />}
     </div>

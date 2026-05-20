@@ -72,6 +72,11 @@ function LoginForm() {
           Iniciar Sesión
         </Button>
         <p className="text-center text-muted text-sm">
+          <Link href="/forgot-password" className="text-accent hover:underline">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </p>
+        <p className="text-center text-muted text-sm">
           ¿No tienes cuenta?{" "}
           <Link href="/register" className="text-accent hover:underline">Regístrate</Link>
         </p>

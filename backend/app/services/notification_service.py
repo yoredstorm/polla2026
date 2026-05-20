@@ -368,6 +368,22 @@ def build_extra_bet_pending(
     return title, body, payload
 
 
+def build_password_reset_pending(
+    *,
+    username: str,
+    user_id: str,
+    request_id: str,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"@{username}: recuperación de contraseña"
+    body = "El usuario solicitó restablecer su contraseña. Genera una temporal en Solicitudes."
+    payload = {
+        "user_id": user_id,
+        "username": username,
+        "request_id": request_id,
+    }
+    return title, body, payload
+
+
 def build_entry_pending(
     *,
     username: str,

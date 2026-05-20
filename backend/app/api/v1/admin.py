@@ -16,9 +16,10 @@ from app.core.match_timing import ADMIN_RESOLVE_BEFORE
 from app.core.rate_limiter import limiter
 from app.models.bet import Bet
 from app.models.bet_change_request import BetChangeRequest
+from app.models.password_reset_request import PasswordResetRequest
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember, GroupEntryProof
-from app.models.user import User
+from app.models.user import User, RefreshToken
 from app.services.bet_service import settle_fixture_bets, can_resolve_change_request_for_fixture
 from app.services.audit import log_action
 from app.services.payment_upload_service import (
@@ -27,6 +28,7 @@ from app.services.payment_upload_service import (
     resolve_readable_path,
     save_group_payment_qr,
 )
+from app.core.security import hash_password, generate_temporary_password
 from app.services.notification_service import (
     notify_admins,
     build_entry_pending,
@@ -1514,6 +1516,192 @@ async def reject_change_request(
     }, ip=request.client.host if request.client else None)
     await db.commit()
     logger.info("change_request_rejected", request_id=str(request_id), admin=str(admin.id))
+    return {"ok": True, "status": "rejected"}
+
+
+# ── Password reset requests ───────────────────────────────────────────
+
+@router.get("/password-reset-requests")
+@limiter.limit(ADMIN_RATE)
+async def list_password_reset_requests(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+    page: int = Query(1, ge=1),
+    limit: int = Query(20, ge=1, le=100),
+    status_filter: Optional[str] = Query(None, alias="status"),
+):
+    base = (
+        select(
+            PasswordResetRequest.id,
+            PasswordResetRequest.user_id,
+            PasswordResetRequest.message,
+            PasswordResetRequest.status,
+            PasswordResetRequest.admin_notes,
+            PasswordResetRequest.created_at,
+            PasswordResetRequest.resolved_at,
+            User.username.label("username"),
+            User.first_name.label("first_name"),
+            User.last_name.label("last_name"),
+        )
+        .join(User, PasswordResetRequest.user_id == User.id)
+    )
+    if status_filter:
+        base = base.where(PasswordResetRequest.status == status_filter)
+
+    count_q = select(func.count()).select_from(base.subquery())
+    total = (await db.execute(count_q)).scalar() or 0
+
+    rows = (
+        await db.execute(
+            base.order_by(PasswordResetRequest.created_at.desc())
+            .offset((page - 1) * limit)
+            .limit(limit)
+        )
+    ).all()
+
+    return {
+        "data": [
+            {
+                "id": str(r.id),
+                "user_id": str(r.user_id),
+                "username": r.username,
+                "first_name": r.first_name,
+                "last_name": r.last_name,
+                "message": r.message,
+                "status": r.status,
+                "admin_notes": r.admin_notes,
+                "created_at": r.created_at.isoformat(),
+                "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+            }
+            for r in rows
+        ],
+        "pagination": {"total": total, "page": page, "limit": limit, "total_pages": max(1, -(-total // limit))},
+    }
+
+
+@router.get("/password-reset-requests/pending-count")
+@limiter.limit(ADMIN_RATE)
+async def pending_password_reset_count(
+    request: Request,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    total = (
+        await db.execute(
+            select(func.count()).select_from(PasswordResetRequest).where(
+                PasswordResetRequest.status == "pending"
+            )
+        )
+    ).scalar() or 0
+    return {"count": total}
+
+
+@router.post("/password-reset-requests/{request_id}/resolve")
+@limiter.limit(ADMIN_RATE)
+async def resolve_password_reset_request(
+    request: Request,
+    request_id: uuid.UUID,
+    body: ApproveRejectIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    from datetime import datetime, timezone
+    pr_res = await db.execute(
+        select(PasswordResetRequest).where(PasswordResetRequest.id == request_id)
+    )
+    pr = pr_res.scalar_one_or_none()
+    if not pr:
+        raise HTTPException(status_code=404, detail="Password reset request not found")
+    if pr.status != "pending":
+        raise HTTPException(status_code=409, detail="Request is already resolved")
+
+    user_res = await db.execute(select(User).where(User.id == pr.user_id))
+    user = user_res.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    temporary_password = generate_temporary_password()
+    user.hashed_password = hash_password(temporary_password)
+    user.must_change_password = True
+    user.failed_login_attempts = 0
+    user.locked_until = None
+
+    rt_res = await db.execute(
+        select(RefreshToken).where(
+            and_(RefreshToken.user_id == user.id, RefreshToken.revoked == False)  # noqa: E712
+        )
+    )
+    for rt in rt_res.scalars().all():
+        rt.revoked = True
+
+    pr.status = "resolved"
+    pr.admin_notes = body.admin_notes
+    pr.resolved_by = admin.id
+    pr.resolved_at = datetime.now(timezone.utc)
+
+    await resolve_actionable_notifications(
+        db,
+        None,
+        notification_type="password_reset_pending",
+        payload_match={"request_id": str(request_id)},
+    )
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_password_reset",
+        detail={"request_id": str(request_id), "user_id": str(user.id), "username": user.username},
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    logger.info("password_reset_resolved", request_id=str(request_id), admin=str(admin.id))
+    return {"ok": True, "status": "resolved", "temporary_password": temporary_password}
+
+
+@router.post("/password-reset-requests/{request_id}/reject")
+@limiter.limit(ADMIN_RATE)
+async def reject_password_reset_request(
+    request: Request,
+    request_id: uuid.UUID,
+    body: ApproveRejectIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    from datetime import datetime, timezone
+
+    pr_res = await db.execute(
+        select(PasswordResetRequest).where(PasswordResetRequest.id == request_id)
+    )
+    pr = pr_res.scalar_one_or_none()
+    if not pr:
+        raise HTTPException(status_code=404, detail="Password reset request not found")
+    if pr.status != "pending":
+        raise HTTPException(status_code=409, detail="Request is already resolved")
+
+    pr.status = "rejected"
+    pr.admin_notes = body.admin_notes
+    pr.resolved_by = admin.id
+    pr.resolved_at = datetime.now(timezone.utc)
+
+    await resolve_actionable_notifications(
+        db,
+        None,
+        notification_type="password_reset_pending",
+        payload_match={"request_id": str(request_id)},
+    )
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_reject_password_reset",
+        detail={
+            "request_id": str(request_id),
+            "user_id": str(pr.user_id),
+            "notes": body.admin_notes,
+        },
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    logger.info("password_reset_rejected", request_id=str(request_id), admin=str(admin.id))
     return {"ok": True, "status": "rejected"}
 
 

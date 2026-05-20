@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { resolveApiBase } from "@/lib/apiBase";
 
 /** Rutas accesibles sin sesión */
-const UNAUTH_ALLOWED_PREFIXES = ["/login", "/register", "/u/"];
+const UNAUTH_ALLOWED_PREFIXES = ["/login", "/register", "/forgot-password", "/u/"];
 /** Si ya hay sesión, no volver a login/registro */
 const AUTH_ENTRY_PREFIXES = ["/login", "/register"];
 

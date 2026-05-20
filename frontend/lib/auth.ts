@@ -27,5 +27,15 @@ export async function logout() {
 }
 
 export async function changePassword(current_password: string, new_password: string) {
-  return api.post("/auth/change-password", { current_password, new_password });
+  return api.post<{ message: string; user: User }>("/auth/change-password", {
+    current_password,
+    new_password,
+  });
+}
+
+export async function requestPasswordReset(username: string, message?: string) {
+  return api.post<{ message: string }>("/auth/password-reset-request", {
+    username,
+    message: message || undefined,
+  });
 }

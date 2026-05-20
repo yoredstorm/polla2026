@@ -103,3 +103,11 @@ def generate_invite_code() -> str:
 
 def generate_profile_bets_invite_code() -> str:
     return secrets.token_urlsafe(12)[:18]
+
+
+def generate_temporary_password() -> str:
+    """Temporary password meeting app rules: 8+ chars, uppercase, digit."""
+    lower = secrets.token_hex(4)
+    upper = secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ")
+    digit = secrets.choice("23456789")
+    return f"Tmp{upper}{digit}{lower}"

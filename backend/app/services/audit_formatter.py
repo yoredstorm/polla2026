@@ -19,6 +19,9 @@ ACTION_LABELS_ES: dict[str, str] = {
     "login": "Inicio de sesión",
     "logout": "Cierre de sesión",
     "change_password": "Cambio de contraseña",
+    "password_reset_request": "Solicitud recuperación contraseña",
+    "admin_password_reset": "Contraseña temporal generada",
+    "admin_reject_password_reset": "Rechazar recuperación contraseña",
     "bet_create": "Nueva apuesta",
     "bet_extra": "Apuesta extra",
     "bulk_copy": "Copia masiva",
@@ -186,6 +189,16 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
 
     if action == "change_password":
         return "Contraseña actualizada"
+
+    if action == "password_reset_request":
+        return "Solicitud enviada al administrador"
+
+    if action == "admin_password_reset":
+        uname = d.get("username")
+        return f"Temporal generada para @{uname}" if uname else "Contraseña temporal generada"
+
+    if action == "admin_reject_password_reset":
+        return f"Solicitud rechazada · Notas: {d.get('notes') or '—'}"
 
     if action == "bet_create":
         fx = ctx.fixture_label(d.get("fixture_id"))

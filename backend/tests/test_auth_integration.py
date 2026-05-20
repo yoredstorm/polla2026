@@ -156,3 +156,17 @@ async def test_change_password_wrong_current_returns_400(client: AsyncClient):
         cookies=login_resp.cookies,
     )
     assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_change_password_returns_user_and_cookies(client: AsyncClient):
+    await _register(client, "henry", "HenryPass1!")
+    login_resp = await _login(client, "henry", "HenryPass1!")
+    resp = await client.post(
+        "/api/v1/auth/change-password",
+        json={"current_password": "HenryPass1!", "new_password": "HenryNew1!"},
+        cookies=login_resp.cookies,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["user"]["username"] == "henry"
+    assert "access_token" in resp.cookies

@@ -19,11 +19,17 @@ from app.core.rate_limiter import (
     REGISTER_RATE_LIMIT,
     AUTH_REFRESH_RATE_LIMIT,
     CHANGE_PASSWORD_RATE_LIMIT,
+    PASSWORD_RESET_REQUEST_RATE_LIMIT,
 )
 from app.models.user import User, RefreshToken
-from app.schemas.user import UserRegister, UserLogin, UserOut, ChangePassword
+from app.models.password_reset_request import PasswordResetRequest
+from app.schemas.user import (
+    UserRegister, UserLogin, UserOut, ChangePassword, PasswordResetRequestCreate,
+)
 from app.services.audit import log_action
-from app.services.notification_service import notify_admins, build_entry_pending
+from app.services.notification_service import (
+    notify_admins, build_entry_pending, build_password_reset_pending,
+)
 from app.models.group import Group, GroupMember
 import structlog
 
@@ -66,6 +72,23 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
 def _clear_auth_cookies(response: Response) -> None:
     response.delete_cookie("access_token", path="/", httponly=True, samesite="strict", secure=_COOKIE_SECURE)
     response.delete_cookie("refresh_token", path="/", httponly=True, samesite="strict", secure=_COOKIE_SECURE)
+
+
+async def _issue_auth_session(
+    db: AsyncSession, user: User, response: Response,
+) -> tuple[str, str]:
+    await _revoke_all_user_refresh_tokens(db, user.id)
+    access_token = create_access_token({"sub": str(user.id)})
+    refresh_token = create_refresh_token({"sub": str(user.id)})
+    rt = RefreshToken(
+        user_id=user.id,
+        token_hash=hash_token(refresh_token),
+        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
+    )
+    db.add(rt)
+    await db.flush()
+    _set_auth_cookies(response, access_token, refresh_token)
+    return access_token, refresh_token
 
 
 async def _revoke_all_user_refresh_tokens(db: AsyncSession, user_id: uuid.UUID) -> None:
@@ -161,20 +184,7 @@ async def login(request: Request, data: UserLogin, response: Response, db: DBSes
     user.failed_login_attempts = 0
     user.locked_until = None
 
-    await _revoke_all_user_refresh_tokens(db, user.id)
-
-    access_token = create_access_token({"sub": str(user.id)})
-    refresh_token = create_refresh_token({"sub": str(user.id)})
-
-    rt = RefreshToken(
-        user_id=user.id,
-        token_hash=hash_token(refresh_token),
-        expires_at=datetime.now(timezone.utc) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS),
-    )
-    db.add(rt)
-    await db.flush()
-
-    _set_auth_cookies(response, access_token, refresh_token)
+    await _issue_auth_session(db, user, response)
 
     await log_action(db, user_id=user.id, action="login", ip=request.client.host if request.client else None)
     logger.info("user_logged_in", user_id=str(user.id))
@@ -247,11 +257,58 @@ async def logout(request: Request, response: Response, db: DBSession):
     return {"message": "Logged out successfully"}
 
 
+@router.post("/password-reset-request")
+@limiter.limit(PASSWORD_RESET_REQUEST_RATE_LIMIT)
+async def password_reset_request(
+    request: Request,
+    data: PasswordResetRequestCreate,
+    db: DBSession,
+    redis: RedisClient,
+):
+    """Public endpoint — always returns generic success (no user enumeration)."""
+    result = await db.execute(select(User).where(User.username == data.username))
+    user = result.scalar_one_or_none()
+
+    if user and user.is_active:
+        pending_res = await db.execute(
+            select(PasswordResetRequest).where(
+                and_(
+                    PasswordResetRequest.user_id == user.id,
+                    PasswordResetRequest.status == "pending",
+                )
+            )
+        )
+        if not pending_res.scalar_one_or_none():
+            pr = PasswordResetRequest(user_id=user.id, message=data.message)
+            db.add(pr)
+            await db.flush()
+            title, body, payload = build_password_reset_pending(
+                username=user.username,
+                user_id=str(user.id),
+                request_id=str(pr.id),
+            )
+            await notify_admins(
+                db, redis, type="password_reset_pending", title=title, body=body, payload=payload,
+            )
+            await log_action(
+                db,
+                user_id=user.id,
+                action="password_reset_request",
+                detail={"request_id": str(pr.id)},
+                ip=request.client.host if request.client else None,
+            )
+
+    return {
+        "message": "Si el usuario existe, el administrador recibirá la solicitud.",
+    }
+
+
 @router.post("/change-password")
 @limiter.limit(CHANGE_PASSWORD_RATE_LIMIT)
 async def change_password(
     request: Request,
     data: ChangePassword,
+    response: Response,
     current_user: CurrentUser,
     db: DBSession,
 ):
@@ -261,7 +318,12 @@ async def change_password(
             detail={"error": {"code": "WRONG_PASSWORD", "message": "Current password is incorrect"}},
         )
     current_user.hashed_password = hash_password(data.new_password)
-    await _revoke_all_user_refresh_tokens(db, current_user.id)
+    was_forced = current_user.must_change_password
+    current_user.must_change_password = False
+    await _issue_auth_session(db, current_user, response)
     await log_action(db, user_id=current_user.id, action="change_password", ip=None)
-    logger.info("password_changed", user_id=str(current_user.id))
-    return {"message": "Password changed successfully"}
+    logger.info("password_changed", user_id=str(current_user.id), forced=was_forced)
+    return {
+        "message": "Password changed successfully",
+        "user": UserOut.model_validate(current_user),
+    }

@@ -446,3 +446,71 @@ export function useRejectChangeRequest() {
     },
   });
 }
+
+export interface AdminPasswordResetRequest {
+  id: string;
+  user_id: string;
+  username: string;
+  first_name: string | null;
+  last_name: string | null;
+  message: string | null;
+  status: string;
+  admin_notes: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export function useAdminPasswordResetRequests(page = 1, limit = 20, statusFilter?: string) {
+  return useQuery({
+    queryKey: ["admin", "password-reset-requests", page, limit, statusFilter],
+    queryFn: () =>
+      api.get<{
+        data: AdminPasswordResetRequest[];
+        pagination: { total: number; page: number; limit: number; total_pages: number };
+      }>("/admin/password-reset-requests", {
+        page,
+        limit,
+        ...(statusFilter ? { status: statusFilter } : {}),
+      }),
+    staleTime: 10_000,
+  });
+}
+
+export function usePendingPasswordResetCount() {
+  return useQuery({
+    queryKey: ["admin", "password-reset-count"],
+    queryFn: () => api.get<{ count: number }>("/admin/password-reset-requests/pending-count"),
+    staleTime: 15_000,
+  });
+}
+
+export function useResolvePasswordResetRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId, admin_notes }: { requestId: string; admin_notes?: string }) =>
+      api.post<{ ok: boolean; temporary_password: string }>(
+        `/admin/password-reset-requests/${requestId}/resolve`,
+        { admin_notes },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "password-reset-requests"] });
+      qc.invalidateQueries({ queryKey: ["admin", "password-reset-count"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useRejectPasswordResetRequest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ requestId, admin_notes }: { requestId: string; admin_notes?: string }) =>
+      api.post<{ ok: boolean }>(`/admin/password-reset-requests/${requestId}/reject`, {
+        admin_notes,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "password-reset-requests"] });
+      qc.invalidateQueries({ queryKey: ["admin", "password-reset-count"] });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}

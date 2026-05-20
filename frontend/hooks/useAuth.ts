@@ -37,9 +37,13 @@ export function useAuth() {
       password: string;
       redirectTo?: string;
     }) => login(username, password),
-    onSuccess: (data: any, variables) => {
-      if (data?.user) setUser(data.user);
+    onSuccess: (data: { user?: { must_change_password?: boolean } }, variables) => {
+      if (data?.user) setUser(data.user as Parameters<typeof setUser>[0]);
       queryClient.invalidateQueries({ queryKey: ["me"] });
+      if (data?.user?.must_change_password) {
+        router.push("/account/change-password-required");
+        return;
+      }
       const target =
         variables.redirectTo && variables.redirectTo.startsWith("/") && !variables.redirectTo.startsWith("//")
           ? variables.redirectTo

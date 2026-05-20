@@ -9,6 +9,7 @@ export interface User {
   is_active: boolean;
   is_verified: boolean;
   is_admin?: boolean;
+  must_change_password?: boolean;
   created_at: string;
   bets_profile_visibility?: BetsProfileVisibility;
   has_bets_profile_invite_code?: boolean;

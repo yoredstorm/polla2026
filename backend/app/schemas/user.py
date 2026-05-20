@@ -55,6 +55,19 @@ class UserLogin(BaseModel):
         return v
 
 
+class PasswordResetRequestCreate(BaseModel):
+    username: str
+    message: str | None = None
+
+    @field_validator("username")
+    @classmethod
+    def validate_username(cls, v: str) -> str:
+        v = v.strip()
+        if not re.match(r"^[a-zA-Z0-9_]{3,50}$", v):
+            raise ValueError("Username must be 3-50 alphanumeric characters or underscores")
+        return v
+
+
 class ChangePassword(BaseModel):
     current_password: str
     new_password: str
@@ -105,6 +118,7 @@ class UserOut(BaseModel):
     is_verified: bool
     created_at: datetime
     is_admin: bool = False
+    must_change_password: bool = False
     bets_profile_visibility: Literal["public", "invite_only"] = "public"
     has_bets_profile_invite_code: bool = False
     show_bet_amounts: bool = True
