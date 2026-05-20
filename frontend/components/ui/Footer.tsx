@@ -50,7 +50,7 @@ function FileIcon({ type, className }: { type: "pdf" | "video", className?: stri
 
 export function Footer() {
   return (
-    <footer className="relative z-[1] mt-auto border-t border-white/10 bg-surface/40 backdrop-blur-md">
+    <footer className=" mt-auto border-t border-white/10 bg-surface/40 backdrop-blur-md">
       <div className="max-w-7xl mx-auto px-4 py-10 md:py-12">
         {/* Cambiamos a grid de 12 columnas para mejor control en desktop y tablet */}
         <div className="flex flex-col gap-10 md:grid md:grid-cols-12 md:gap-8 lg:gap-12 md:items-start">

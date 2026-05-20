@@ -56,13 +56,20 @@ export function isAdminResolveWindowOpen(fixture: FixtureTiming): boolean {
 export function formatDeadlineRemaining(deadlineMs: number, nowMs = Date.now()): string {
   const diff = deadlineMs - nowMs;
   if (diff <= 0) return "Cerrado";
+
   const totalSec = Math.floor(diff / 1000);
-  const h = Math.floor(totalSec / 3600);
+  const days = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+
+  const hms = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+
+  if (days > 0) {
+    const dayLabel = days === 1 ? "día" : "días";
+    return `${days} ${dayLabel} ${hms}`;
   }
+  if (h > 0) return hms;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
