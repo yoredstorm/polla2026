@@ -87,3 +87,8 @@ volumes:
   postgres_data:
   uploads_data:
   backup_data:
+
+networks:
+  dokploy-network:
+  external: true
+ 
