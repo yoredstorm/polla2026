@@ -71,6 +71,7 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     labels:
       - traefik.enable=true
+      - traefik.docker.network=dokploy-network
       # Solo HTTP → HTTPS (entrypoint web)
       - traefik.http.routers.polla-http.rule=Host(`redcardtech.uk`)
       - traefik.http.routers.polla-http.entrypoints=web
