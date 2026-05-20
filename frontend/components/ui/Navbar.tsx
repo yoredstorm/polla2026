@@ -11,7 +11,7 @@ import { HelpTooltip } from "@/components/help/HelpTooltip";
 import type { HelpKey } from "@/lib/systemHelp";
 
 const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string }[] = [
-  { href: "/dashboard", label: "Dashboard", helpKey: "nav.dashboard", tourId: "nav-dashboard" },
+  { href: "/dashboard", label: "Inicio", helpKey: "nav.dashboard", tourId: "nav-dashboard" },
   { href: "/fixtures", label: "Partidos", helpKey: "nav.fixtures", tourId: "nav-fixtures" },
   { href: "/my-bets", label: "Mis Apuestas", helpKey: "nav.myBets", tourId: "nav-my-bets" },
   { href: "/leaderboard", label: "Ranking", helpKey: "nav.leaderboard", tourId: "nav-leaderboard" },
