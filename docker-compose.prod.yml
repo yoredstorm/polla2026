@@ -9,13 +9,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - dokploy-network
-    #ports:
-    #  - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U polla_user -d polla_db"]
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -27,10 +26,10 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    restart: unless-stopped
 
   backend:
     build: ./backend
-    # DATABASE_URL / REDIS_URL must use the same passwords as postgres/redis above (root .env).
     environment:
       DATABASE_URL: postgresql+asyncpg://polla_user:${POSTGRES_PASSWORD}@postgres:5432/polla_db
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -53,11 +52,14 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/uploads
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 60s
+      retries: 6
     restart: unless-stopped
 
-  # Build arg NEXT_PUBLIC_API_URL is baked into the bundle (CSP + API base).
-  # Prod Dokploy: set https://redcardtech.uk or leave empty (same origin via nginx).
-  # WebSocket uses wss://same-host/api/v1/ws/notifications — no separate WS env var.
   frontend:
     build:
       context: ./frontend
@@ -68,8 +70,10 @@ services:
     networks:
       - dokploy-network
     depends_on:
-      - backend
-  # Entrada unificada (API + web): mismo aviso Windows — prueba http://127.0.0.1 si localhost falla.
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
   nginx:
     image: nginx:alpine
     volumes:
@@ -77,16 +81,22 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=dokploy-network
-      # Solo HTTP → HTTPS (entrypoint web)
       - traefik.http.routers.polla-http.rule=Host(`redcardtech.uk`)
       - traefik.http.services.polla-web.loadbalancer.server.port=80
     networks:
       - dokploy-network
     depends_on:
-      - backend
-      - frontend
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/nginx-health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
 
-  # Backup diario a medianoche (TZ): PostgreSQL + fotos de perfil → volumen backup_data
   db-backup:
     build: ./scripts/backup
     environment:
@@ -114,4 +124,3 @@ volumes:
 networks:
   dokploy-network:
     external: true
- 

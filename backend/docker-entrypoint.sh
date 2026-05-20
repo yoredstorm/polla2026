@@ -5,7 +5,7 @@ set -e
 if [ "$(id -u)" = "0" ]; then
   mkdir -p /app/uploads/avatars /app/uploads/payment-qr /app/uploads/entry-proofs
   chown -R appuser:appuser /app/uploads
-  exec runuser -u appuser -- "$0" "$@"
+  exec gosu appuser "$0" "$@"
 fi
 
 cd /app
