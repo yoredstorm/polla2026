@@ -67,9 +67,20 @@ export async function fetchAuthedImageBlob(url: string): Promise<string> {
   return promise;
 }
 
+/** Drop one cached blob (e.g. after intentional refresh). */
+export function releaseAuthedImageBlob(url: string): void {
+  const objectUrl = authedImageBlobCache.get(url);
+  if (objectUrl) {
+    URL.revokeObjectURL(objectUrl);
+    authedImageBlobCache.delete(url);
+  }
+  authedImageInflight.delete(url);
+}
+
 export function clearAuthedImageBlobCache(): void {
   for (const objectUrl of authedImageBlobCache.values()) {
     URL.revokeObjectURL(objectUrl);
   }
   authedImageBlobCache.clear();
+  authedImageInflight.clear();
 }

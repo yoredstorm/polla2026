@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { adminEntryProofUrl, fetchAuthedImageBlob } from "@/lib/payment";
+import {
+  adminEntryProofUrl,
+  fetchAuthedImageBlob,
+  getCachedAuthedImageBlob,
+} from "@/lib/payment";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 interface AdminProofLightboxProps {
@@ -14,6 +18,8 @@ interface AdminProofLightboxProps {
   username: string;
   firstName?: string | null;
   lastName?: string | null;
+  /** When provided (from API), skips cross-origin fetch entirely */
+  proofDataUrl?: string | null;
   onConfirm?: () => void;
   confirming?: boolean;
 }
@@ -26,27 +32,43 @@ export function AdminProofLightbox({
   username,
   firstName,
   lastName,
+  proofDataUrl,
   onConfirm,
   confirming,
 }: AdminProofLightboxProps) {
   const [src, setSrc] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
+  const fetchUrl = adminEntryProofUrl(groupId, userId);
+
   useEffect(() => {
     if (!open) return;
-    let blobUrl: string | null = null;
     setError(false);
+
+    if (proofDataUrl) {
+      setSrc(proofDataUrl);
+      return;
+    }
+
+    const cached = getCachedAuthedImageBlob(fetchUrl);
+    if (cached) {
+      setSrc(cached);
+      return;
+    }
+
     setSrc(null);
-    void fetchAuthedImageBlob(adminEntryProofUrl(groupId, userId))
+    let cancelled = false;
+    void fetchAuthedImageBlob(fetchUrl)
       .then((url) => {
-        blobUrl = url;
-        setSrc(url);
+        if (!cancelled) setSrc(url);
       })
-      .catch(() => setError(true));
+      .catch(() => {
+        if (!cancelled) setError(true);
+      });
     return () => {
-      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      cancelled = true;
     };
-  }, [open, groupId, userId]);
+  }, [open, proofDataUrl, fetchUrl]);
 
   return (
     <Modal

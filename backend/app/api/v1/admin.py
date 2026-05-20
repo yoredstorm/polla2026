@@ -22,6 +22,7 @@ from app.models.user import User
 from app.services.bet_service import settle_fixture_bets, can_resolve_change_request_for_fixture
 from app.services.audit import log_action
 from app.services.payment_upload_service import (
+    entry_proof_data_url,
     payment_qr_public_url,
     resolve_readable_path,
     save_group_payment_qr,
@@ -935,6 +936,9 @@ async def list_non_members(
             "registered_at": r.created_at.isoformat(),
             "has_proof": r.id in proof_map,
             "proof_uploaded_at": proof_map[r.id].uploaded_at.isoformat() if r.id in proof_map else None,
+            "entry_proof_data_url": (
+                entry_proof_data_url(proof_map[r.id].file_path) if r.id in proof_map else None
+            ),
         }
         for r in rows
     ]

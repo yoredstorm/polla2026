@@ -61,8 +61,8 @@ def resolve_readable_path(stored_path: str) -> Path:
     return p
 
 
-def payment_qr_data_url(stored_path: str | None) -> str | None:
-    """Inline QR as data URL so the dashboard need not cross-fetch :8000 (avoids CORS)."""
+def image_file_data_url(stored_path: str | None) -> str | None:
+    """Inline JPEG as data URL (avoids extra cross-origin image fetches)."""
     if not stored_path:
         return None
     try:
@@ -71,3 +71,11 @@ def payment_qr_data_url(stored_path: str | None) -> str | None:
         return f"data:image/jpeg;base64,{encoded}"
     except HTTPException:
         return None
+
+
+def payment_qr_data_url(stored_path: str | None) -> str | None:
+    return image_file_data_url(stored_path)
+
+
+def entry_proof_data_url(stored_path: str | None) -> str | None:
+    return image_file_data_url(stored_path)

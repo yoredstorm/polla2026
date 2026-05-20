@@ -39,7 +39,7 @@ services:
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 15
       REFRESH_TOKEN_EXPIRE_DAYS: 7
-      CORS_ORIGINS: http://polla2026-polla2026docker-mh6zbw-71ce7c-69-197-164-148.sslip.io/
+      CORS_ORIGINS: https://redcardtech.uk
       LOG_LEVEL: INFO
       SENTRY_DSN: ${SENTRY_DSN:-}
     networks:

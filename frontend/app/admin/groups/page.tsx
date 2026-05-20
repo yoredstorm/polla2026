@@ -392,6 +392,7 @@ function PendingEntriesPanel({ pollaId }: { pollaId: string; currency: string })
           username={lightboxUser.username}
           firstName={lightboxUser.first_name}
           lastName={lightboxUser.last_name}
+          proofDataUrl={lightboxUser.entry_proof_data_url}
           confirming={addMember.isPending}
           onConfirm={() => {
             void confirm(lightboxUser.user_id).then(() => setLightboxUser(null));

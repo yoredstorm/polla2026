@@ -56,6 +56,7 @@ export interface AdminNonMember {
   registered_at: string;
   has_proof: boolean;
   proof_uploaded_at: string | null;
+  entry_proof_data_url?: string | null;
 }
 
 export interface BetsProfileMeResponse {
