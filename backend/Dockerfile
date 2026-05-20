@@ -18,10 +18,11 @@ COPY . .
 COPY docker-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# A05: Run as non-root user
+# A05: app runs as appuser; entrypoint starts as root to fix upload volume permissions
 RUN adduser --disabled-password --gecos "" appuser \
-    && chown -R appuser:appuser /app
-USER appuser
+    && mkdir -p /app/uploads/avatars /app/uploads/payment-qr /app/uploads/entry-proofs \
+    && chown -R appuser:appuser /app /app/uploads
+USER root
 
 EXPOSE 8000
 

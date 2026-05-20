@@ -9,6 +9,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - dokploy-network
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U polla_user -d polla_db"]
       interval: 5s
@@ -53,13 +55,16 @@ services:
       - uploads_data:/app/uploads
     restart: unless-stopped
 
-  # Frontend directo: en algunos equipos Windows, "localhost" resuelve a IPv6 (::1) y el
-  # puerto publicado no responde en el navegador. Usa http://127.0.0.1:3000 si pasa eso.
+  # Build arg NEXT_PUBLIC_API_URL is baked into the bundle (CSP + API base).
+  # Prod Dokploy: set https://redcardtech.uk or leave empty (same origin via nginx).
+  # WebSocket uses wss://same-host/api/v1/ws/notifications — no separate WS env var.
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-}
-      NEXT_PUBLIC_WS_URL: ${NEXT_PUBLIC_WS_URL:-}
     networks:
       - dokploy-network
     depends_on:

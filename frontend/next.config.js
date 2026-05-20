@@ -1,11 +1,30 @@
 /** @type {import("next").NextConfig} */
-const apiHttpOrigins = [
-  "http://127.0.0.1:8000",
-  "http://localhost:8000",
-  (process.env.NEXT_PUBLIC_API_URL || "").trim(),
-]
-  .filter(Boolean)
-  .join(" ");
+
+function apiOriginsForCsp() {
+  const entries = [
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    (process.env.NEXT_PUBLIC_API_URL || "").trim(),
+  ].filter(Boolean);
+
+  const out = new Set(entries);
+  for (const raw of entries) {
+    try {
+      const u = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+      out.add(u.origin);
+      if (u.protocol === "https:") {
+        out.add(`wss://${u.host}`);
+      } else if (u.protocol === "http:") {
+        out.add(`ws://${u.host}`);
+      }
+    } catch {
+      /* skip invalid */
+    }
+  }
+  return [...out].join(" ");
+}
+
+const apiCspOrigins = apiOriginsForCsp();
 
 const nextConfig = {
   output: "standalone",
@@ -27,8 +46,8 @@ const nextConfig = {
               "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
-              `img-src 'self' blob: data: https://flagcdn.com ${apiHttpOrigins}`,
-              `connect-src 'self' ws://127.0.0.1:8000 ws://localhost:8000 ${apiHttpOrigins}`,
+              `img-src 'self' blob: data: https://flagcdn.com ${apiCspOrigins}`,
+              `connect-src 'self' ws://127.0.0.1:8000 ws://localhost:8000 ${apiCspOrigins}`,
             ].join("; "),
           },
         ],
