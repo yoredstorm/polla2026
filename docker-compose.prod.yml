@@ -70,14 +70,6 @@ services:
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     labels:
-      - traefik.enable=true
-      # HTTP → redirige a HTTPS
-      - traefik.http.routers.polla-http.rule=Host(`redcardtech.uk`)
-      - traefik.http.routers.polla-http.entrypoints=web
-      - traefik.http.routers.polla-http.middlewares=redirect-https
-      - traefik.http.middlewares.redirect-https.redirectscheme.scheme=https
-      - traefik.http.middlewares.redirect-https.redirectscheme.permanent=true
-      # HTTPS → nginx:80
       - traefik.http.routers.polla-web.rule=Host(`redcardtech.uk`)
       - traefik.http.routers.polla-web.entrypoints=websecure
       - traefik.http.routers.polla-web.tls=true
