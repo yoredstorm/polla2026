@@ -9,6 +9,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - dokploy-network
+    ports:
+      - "5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U polla_user -d polla_db"]
       interval: 5s
