@@ -9,6 +9,7 @@ import {
   setNotificationWsCallbacks,
 } from "@/lib/notificationsWs";
 import { registerServiceWorker } from "@/lib/pushNotifications";
+import { PushNotificationPrompt } from "@/components/notifications/PushNotificationPrompt";
 
 const RealtimeContext = createContext({ wsConnected: false });
 
@@ -46,6 +47,7 @@ export function RealtimeSyncProvider({ children }: { children: React.ReactNode }
   return (
     <RealtimeContext.Provider value={{ wsConnected }}>
       {children}
+      <PushNotificationPrompt />
     </RealtimeContext.Provider>
   );
 }

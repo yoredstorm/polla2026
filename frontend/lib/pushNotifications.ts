@@ -40,28 +40,42 @@ export async function getLocalPushSubscription(): Promise<PushSubscription | nul
   return reg.pushManager.getSubscription();
 }
 
-export async function subscribeToPush(): Promise<PushSubscription | null> {
-  if (!isPushSupported()) return null;
+export async function subscribeToPush(): Promise<PushSubscription> {
+  if (!isPushSupported()) {
+    throw new Error("Las notificaciones push no estan disponibles en este navegador.");
+  }
 
   const permission = await Notification.requestPermission();
-  if (permission !== "granted") return null;
+  if (permission !== "granted") {
+    throw new Error("Permiso de notificaciones denegado.");
+  }
 
   const { publicKey } = await api.get<{ publicKey: string }>(
     "/notifications/push/vapid-public-key",
   );
 
   const reg = await registerServiceWorker();
-  if (!reg) return null;
+  if (!reg) {
+    throw new Error(
+      "No se pudo registrar el service worker. Comprueba que /sw.js cargue correctamente.",
+    );
+  }
+
+  await navigator.serviceWorker.ready;
 
   let sub = await reg.pushManager.getSubscription();
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey),
+      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
     });
   }
 
   const json = sub.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    throw new Error("Suscripcion push invalida en el navegador.");
+  }
+
   await api.post("/notifications/push/subscribe", {
     endpoint: json.endpoint,
     keys: json.keys,

@@ -1,9 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { getApiErrorMessage } from "@/lib/challengeUtils";
 import {
   getLocalPushSubscription,
   getPushPermissionState,
   isPushSupported,
+  registerServiceWorker,
   subscribeToPush,
   unsubscribeFromPush,
   type PushPermissionState,
@@ -25,6 +27,7 @@ export function usePushNotifications() {
       return;
     }
     setPermission(await getPushPermissionState());
+    await registerServiceWorker();
     const sub = await getLocalPushSubscription();
     setSubscribed(!!sub);
   }, []);
@@ -37,15 +40,10 @@ export function usePushNotifications() {
     setLoading(true);
     setError(null);
     try {
-      const sub = await subscribeToPush();
-      if (!sub) {
-        setError("Permiso denegado o no disponible en este navegador.");
-        await refresh();
-        return;
-      }
+      await subscribeToPush();
       await refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No se pudo activar las notificaciones");
+      setError(getApiErrorMessage(e, "No se pudo activar las notificaciones."));
       await refresh();
     } finally {
       setLoading(false);

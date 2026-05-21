@@ -30,7 +30,7 @@ export function PushNotificationSettings({ className }: { className?: string }) 
       <p className="text-sm font-medium text-white">Notificaciones en este dispositivo</p>
       <p className="text-xs text-muted">
         Recibe avisos aunque la app este cerrada: partidos, retos, menciones y pendientes de
-        admin. Al tocar, se abre la bandeja de notificaciones.
+        admin. Al iniciar sesion te pedimos permiso una vez; tambien puedes activarlo aqui.
       </p>
       {permission === "denied" && (
         <p className="text-xs text-amber-300">
