@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import {
+  collectPushDiagnostics,
   formatPushSubscribeError,
   getLocalPushSubscription,
   getPushPermissionState,
@@ -12,6 +13,7 @@ import {
   subscribeToPush,
   syncPushSubscriptionToServer,
   unsubscribeFromPush,
+  type PushDiagnostics,
   type PushPermissionState,
 } from "@/lib/pushNotifications";
 
@@ -25,6 +27,8 @@ export function usePushNotifications() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
+  const [diagnostics, setDiagnostics] = useState<PushDiagnostics | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
 
   const refresh = useCallback(async () => {
     const sup = isPushSupported();
@@ -62,14 +66,25 @@ export function usePushNotifications() {
     void refresh();
   }, [refresh]);
 
+  async function captureDiagnostics(lastError?: unknown) {
+    try {
+      setDiagnostics(await collectPushDiagnostics(lastError));
+    } catch {
+      setDiagnostics(null);
+    }
+  }
+
   async function enable() {
     setLoading(true);
     setError(null);
+    setDiagnostics(null);
     try {
       await subscribeToPush();
       await refresh();
     } catch (e) {
       setError(formatPushSubscribeError(e));
+      await captureDiagnostics(e);
+      setShowDiagnostics(true);
       await refresh();
     } finally {
       setLoading(false);
@@ -107,12 +122,15 @@ export function usePushNotifications() {
     setLoading(true);
     setError(null);
     setTestMessage(null);
+    setDiagnostics(null);
     try {
       await resetAndSubscribeToPush();
       await refresh();
       setTestMessage("Push reiniciado en este dispositivo.");
     } catch (e) {
       setError(formatPushSubscribeError(e));
+      await captureDiagnostics(e);
+      setShowDiagnostics(true);
       await refresh();
     } finally {
       setLoading(false);
@@ -129,6 +147,9 @@ export function usePushNotifications() {
     loading,
     error,
     testMessage,
+    diagnostics,
+    showDiagnostics,
+    setShowDiagnostics,
     enable,
     disable,
     sendTest,

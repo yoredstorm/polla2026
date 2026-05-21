@@ -32,6 +32,7 @@ export function formatPushSubscribeError(
   const apiMsg = getApiErrorMessage(err, "");
   if (apiMsg) return apiMsg;
   if (err instanceof DOMException) {
+    const detail = formatDomException(err);
     if (err.message.includes("applicationServerKey is not valid")) {
       return (
         "La clave VAPID del servidor no es valida. El administrador debe ejecutar " +
@@ -40,13 +41,14 @@ export function formatPushSubscribeError(
     }
     if (isPushServiceRegistrationError(err)) {
       return (
-        "Chrome no pudo registrar este telefono con el servicio push (FCM). " +
-        "Pulsa «Reiniciar push en este dispositivo», cierra Chrome por completo (no solo la pestaña) y vuelve a intentar. " +
-        "Si sigue igual: actualiza Chrome, desactiva ahorro de bateria para Chrome, comprueba que Google Play Services este activo " +
-        "y prueba otra red (Wi‑Fi en lugar de datos)."
+        "Tu permiso esta bien y el servidor responde, pero Google (FCM) rechazo registrar este Chrome en el movil. " +
+        "Eso no se arregla borrando cookies del sitio: hay que resetear Chrome o la red. " +
+        "Prueba: Ajustes → Apps → Chrome → Almacenamiento → Borrar datos (o desinstalar actualizaciones de Chrome), " +
+        "desactiva DNS privado/adblock, usa Wi‑Fi, y comprueba Google Play Services. " +
+        `Detalle tecnico: ${detail}`
       );
     }
-    return `El navegador no pudo crear la suscripcion push: ${err.message}`;
+    return `El navegador no pudo crear la suscripcion push: ${detail}`;
   }
   if (err instanceof Error && err.message) {
     return err.message;
@@ -156,6 +158,14 @@ export async function resetLocalPushState(): Promise<void> {
       /* ignore */
     }
   }
+  if ("caches" in window) {
+    try {
+      const names = await caches.keys();
+      await Promise.all(names.map((n) => caches.delete(n)));
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 /** Remove every server-side subscription for this user, then reset locally. */
@@ -171,8 +181,10 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   if (!isPushSupported()) return null;
   await preflightServiceWorkerScript();
   try {
-    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-    await reg.update();
+    let reg = await navigator.serviceWorker.getRegistration("/");
+    if (!reg) {
+      reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    }
     await waitForServiceWorkerActive(reg);
     return reg;
   } catch (e) {
@@ -195,9 +207,112 @@ export async function getLocalPushSubscription(): Promise<PushSubscription | nul
 export type PushServerStatus = {
   vapidConfigured: boolean;
   vapidKeyPairConsistent?: boolean;
+  vapidPublicKeyPrefix?: string;
   serverSubscriptionCount: number;
   serverRegistered: boolean;
 };
+
+export type PushDiagnostics = {
+  permission: string;
+  swRegistrations: number;
+  swActive: boolean;
+  swScriptOk: boolean;
+  localSubscription: boolean;
+  localEndpointHost: string | null;
+  serverVapidConfigured: boolean;
+  serverVapidKeyPairConsistent: boolean;
+  serverSubscriptionCount: number;
+  vapidKeyBytes: number | null;
+  subscribeError: string | null;
+  userAgent: string;
+};
+
+function formatDomException(err: DOMException): string {
+  const parts = [err.name, err.message].filter(Boolean);
+  if (typeof err.code === "number" && err.code !== 0) {
+    parts.push(`code=${err.code}`);
+  }
+  return parts.join(" — ");
+}
+
+/** Step-by-step state for support (does not change subscriptions). */
+export async function collectPushDiagnostics(
+  lastError?: unknown,
+): Promise<PushDiagnostics> {
+  let swRegistrations = 0;
+  let swActive = false;
+  let swScriptOk = false;
+  let localSubscription = false;
+  let localEndpointHost: string | null = null;
+  let vapidKeyBytes: number | null = null;
+
+  if (isPushSupported()) {
+    try {
+      const res = await fetch("/sw.js", { cache: "no-store" });
+      const text = await res.text();
+      swScriptOk =
+        res.ok && !text.trimStart().startsWith("<") && text.includes("addEventListener");
+    } catch {
+      swScriptOk = false;
+    }
+    const regs = await navigator.serviceWorker.getRegistrations();
+    swRegistrations = regs.length;
+    swActive = regs.some((r) => !!r.active);
+    const sub = await getLocalPushSubscription();
+    localSubscription = !!sub;
+    if (sub?.endpoint) {
+      try {
+        localEndpointHost = new URL(sub.endpoint).host;
+      } catch {
+        localEndpointHost = "invalid";
+      }
+    }
+    try {
+      const { publicKey } = await api.get<{ publicKey: string }>(
+        "/notifications/push/vapid-public-key",
+      );
+      vapidKeyBytes = validateApplicationServerKey(publicKey).byteLength;
+    } catch {
+      vapidKeyBytes = null;
+    }
+  }
+
+  let serverVapidConfigured = false;
+  let serverVapidKeyPairConsistent = true;
+  let serverSubscriptionCount = 0;
+  try {
+    const status = await getPushServerStatus();
+    serverVapidConfigured = status.vapidConfigured;
+    serverVapidKeyPairConsistent = status.vapidKeyPairConsistent ?? true;
+    serverSubscriptionCount = status.serverSubscriptionCount;
+  } catch {
+    /* ignore */
+  }
+
+  let subscribeError: string | null = null;
+  if (lastError instanceof DOMException) {
+    subscribeError = formatDomException(lastError);
+  } else if (lastError instanceof Error) {
+    subscribeError = lastError.message;
+  } else if (lastError) {
+    subscribeError = String(lastError);
+  }
+
+  return {
+    permission: isPushSupported() ? Notification.permission : "unsupported",
+    swRegistrations,
+    swActive,
+    swScriptOk,
+    localSubscription,
+    localEndpointHost,
+    serverVapidConfigured,
+    serverVapidKeyPairConsistent,
+    serverSubscriptionCount,
+    vapidKeyBytes,
+    subscribeError,
+    userAgent: typeof navigator !== "undefined" ? navigator.userAgent : "",
+  };
+}
 
 export async function getPushServerStatus(): Promise<PushServerStatus> {
   return api.get<PushServerStatus>("/notifications/push/status");
@@ -347,7 +462,7 @@ export async function subscribeToPush(): Promise<PushSubscription> {
  */
 export async function resetAndSubscribeToPush(): Promise<PushSubscription> {
   await resetLocalPushState();
-  await new Promise((r) => setTimeout(r, 500));
+  await new Promise((r) => setTimeout(r, 1500));
   return subscribeToPush();
 }
 

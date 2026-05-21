@@ -19,6 +19,9 @@ export function PushNotificationSettings({ className }: { className?: string }) 
     disable,
     sendTest,
     resetAndEnable,
+    diagnostics,
+    showDiagnostics,
+    setShowDiagnostics,
   } = usePushNotifications();
 
   if (!supported) {
@@ -51,6 +54,12 @@ export function PushNotificationSettings({ className }: { className?: string }) 
         <p className="text-xs text-red-300">
           El servidor de produccion no tiene claves VAPID. Un administrador debe configurarlas en
           Dokploy (backend) y volver a desplegar.
+        </p>
+      )}
+      {vapidConfigured && diagnostics && !diagnostics.serverVapidKeyPairConsistent && (
+        <p className="text-xs text-amber-300">
+          Aviso servidor: VAPID_PUBLIC_KEY en Dokploy no coincide con VAPID_PRIVATE_KEY. El backend
+          usa la clave derivada; revisa variables y redesplega.
         </p>
       )}
       {vapidConfigured && serverRegistered && (
@@ -91,7 +100,47 @@ export function PushNotificationSettings({ className }: { className?: string }) 
           El navegador tiene permiso pero el servidor no guardo la suscripcion. Pulsa Activar de nuevo.
         </p>
       )}
-      {error && <p className="text-xs text-red-300">{error}</p>}
+      {error && (
+        <div className="space-y-2">
+          <p className="text-xs text-red-300">{error}</p>
+          <details className="text-xs text-muted rounded-lg border border-white/10 p-3 bg-black/20">
+            <summary className="cursor-pointer text-white/90 font-medium">
+              ¿Que esta pasando? (explicacion simple)
+            </summary>
+            <ol className="mt-2 space-y-1.5 list-decimal list-inside">
+              <li>
+                <strong className="text-white">Tu telefono</strong> pide permiso → OK (por eso no es
+                un bloqueo del sitio).
+              </li>
+              <li>
+                <strong className="text-white">Nuestro servidor</strong> entrega la clave VAPID → si
+                abajo dice «Servidor VAPID: OK», esta parte va bien.
+              </li>
+              <li>
+                <strong className="text-white">Chrome habla con Google (FCM)</strong> para registrar el
+                aparato → <span className="text-red-300">aqui falla</span> (mensaje «push service error»).
+                La app aun no guarda tu dispositivo.
+              </li>
+            </ol>
+            <p className="mt-2">
+              No es un fallo de la polla en la base de datos: es el canal Google del movil. Suele
+              arreglarse reseteando Chrome, quitando DNS privado/adblock o probando otro telefono/red.
+            </p>
+          </details>
+          <button
+            type="button"
+            onClick={() => setShowDiagnostics((v) => !v)}
+            className="text-xs text-accent underline underline-offset-2"
+          >
+            {showDiagnostics ? "Ocultar diagnostico tecnico" : "Ver diagnostico tecnico (para soporte)"}
+          </button>
+          {showDiagnostics && diagnostics && (
+            <pre className="text-[10px] leading-relaxed text-muted/90 bg-black/30 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
+              {JSON.stringify(diagnostics, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
       {testMessage && <p className="text-xs text-emerald-300">{testMessage}</p>}
       <div className="flex flex-wrap gap-2 pt-1">
         {subscribed && serverRegistered ? (

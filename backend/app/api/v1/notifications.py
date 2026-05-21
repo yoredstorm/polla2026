@@ -187,9 +187,16 @@ async def push_status(request: Request, current_user: CurrentUser, db: DBSession
         key_match = env_public_matches_derived(
             settings.VAPID_PRIVATE_KEY, settings.VAPID_PUBLIC_KEY
         )
+    key_prefix = None
+    if configured:
+        try:
+            key_prefix = get_vapid_public_key()[:12]
+        except ValueError:
+            key_prefix = None
     return {
         "vapidConfigured": configured,
         "vapidKeyPairConsistent": key_match,
+        "vapidPublicKeyPrefix": key_prefix,
         "serverSubscriptionCount": count,
         "serverRegistered": count > 0,
     }
