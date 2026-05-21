@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Optional
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, func, or_
 
 if TYPE_CHECKING:
     import redis.asyncio as aioredis
@@ -41,6 +41,7 @@ __all__ = [
     "is_unpaid_extra",
     "is_bet_active",
     "cancel_unpaid_extras_for_fixture",
+    "repair_unpaid_extra_cancellations",
     "get_scoring_bet_for_fixture",
     "repair_unconfirmed_extra_settlement",
     "SettleResult",
@@ -160,6 +161,78 @@ async def cancel_unpaid_extras_for_fixture(
             reason=reason,
         )
     return cancelled
+
+
+async def _audit_log_exists_for_cancelled_bet(db: AsyncSession, bet_id: uuid.UUID) -> bool:
+    from app.models.audit_log import AuditLog
+
+    bid = str(bet_id)
+    res = await db.execute(
+        select(AuditLog.id)
+        .where(
+            AuditLog.action == "extra_bet_cancelled_unpaid",
+            AuditLog.detail.contains(bid),
+        )
+        .limit(1)
+    )
+    return res.scalar_one_or_none() is not None
+
+
+async def repair_unpaid_extra_cancellations(db: AsyncSession) -> dict[str, int]:
+    """
+    Cancel unpaid extras on closed fixtures and backfill audit rows
+    for bets already marked cancelled_at (e.g. migration backfill without log).
+    """
+    fx_res = await db.execute(
+        select(Fixture).where(
+            or_(
+                Fixture.is_locked == True,  # noqa: E712
+                Fixture.betting_open == False,  # noqa: E712
+                Fixture.status != "scheduled",
+            )
+        )
+    )
+    cancelled = 0
+    for fixture in fx_res.scalars().all():
+        cancelled += await cancel_unpaid_extras_for_fixture(db, fixture, reason="repair")
+
+    audit_backfilled = 0
+    rows = (
+        await db.execute(
+            select(Bet, User, Fixture)
+            .join(User, Bet.user_id == User.id)
+            .join(Fixture, Bet.fixture_id == Fixture.id)
+            .where(
+                Bet.cancelled_at.isnot(None),
+                Bet.group_id.isnot(None),
+                Bet.amount > 0,
+                Bet.amount_confirmed == False,  # noqa: E712
+            )
+        )
+    ).all()
+    for bet, user, fixture in rows:
+        if await _audit_log_exists_for_cancelled_bet(db, bet.id):
+            continue
+        await log_action(
+            db,
+            user_id=bet.user_id,
+            action="extra_bet_cancelled_unpaid",
+            detail={
+                "bet_id": str(bet.id),
+                "group_id": str(bet.group_id),
+                "fixture_id": str(fixture.id),
+                "home_team": fixture.home_team,
+                "away_team": fixture.away_team,
+                "amount": str(bet.amount),
+                "username": user.username,
+                "reason": "repair_audit_backfill",
+            },
+            ip=None,
+        )
+        audit_backfilled += 1
+    if cancelled or audit_backfilled:
+        await db.flush()
+    return {"cancelled": cancelled, "audit_backfilled": audit_backfilled}
 
 
 def is_fixture_bettable(fixture: Fixture) -> bool:

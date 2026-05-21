@@ -225,15 +225,21 @@ export function BetForm({ fixture }: BetFormProps) {
                   key={eb.id}
                   className={cn(
                     "rounded-lg px-4 py-3 text-sm border",
-                    eb.amount_confirmed
-                      ? "bg-emerald-500/10 border-emerald-500/20"
-                      : "bg-amber-500/10 border-amber-500/20",
+                    eb.cancelled_at
+                      ? "bg-red-500/10 border-red-500/20"
+                      : eb.amount_confirmed
+                        ? "bg-emerald-500/10 border-emerald-500/20"
+                        : "bg-amber-500/10 border-amber-500/20",
                   )}
                 >
                   <p
                     className={cn(
                       "font-medium",
-                      eb.amount_confirmed ? "text-emerald-300" : "text-amber-300",
+                      eb.cancelled_at
+                        ? "text-red-300"
+                        : eb.amount_confirmed
+                          ? "text-emerald-300"
+                          : "text-amber-300",
                     )}
                   >
                     Extra #{idx + 1}:{" "}
@@ -247,12 +253,18 @@ export function BetForm({ fixture }: BetFormProps) {
                   <p
                     className={cn(
                       "text-xs mt-0.5",
-                      eb.amount_confirmed ? "text-emerald-200/70" : "text-amber-200/70",
+                      eb.cancelled_at
+                        ? "text-red-200/70"
+                        : eb.amount_confirmed
+                          ? "text-emerald-200/70"
+                          : "text-amber-200/70",
                     )}
                   >
-                    {eb.amount_confirmed
-                      ? "Pago confirmado por el admin ✓"
-                      : "Pago pendiente de confirmacion por el admin"}
+                    {eb.cancelled_at
+                      ? "Cancelado por falta de pago antes del inicio del partido"
+                      : eb.amount_confirmed
+                        ? "Pago confirmado por el admin ✓"
+                        : "Pago pendiente de confirmacion por el admin"}
                   </p>
                 </div>
               ))}

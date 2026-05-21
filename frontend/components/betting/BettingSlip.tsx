@@ -28,9 +28,11 @@ export function BettingSlip({
   const isSettled = bet.points_earned !== null;
   const fixtureFinished =
     fixture?.status === "finished" || bet.fixture_status === "finished";
+  const isExtraCancelled = !!bet.cancelled_at;
   const unpaidExtra =
-    parseFloat(bet.amount) > 0 && !bet.amount_confirmed;
-  const extraExcludedFromScoring = fixtureFinished && unpaidExtra && !isSettled;
+    parseFloat(bet.amount) > 0 && !bet.amount_confirmed && !isExtraCancelled;
+  const extraExcludedFromScoring =
+    (fixtureFinished && unpaidExtra && !isSettled) || (isExtraCancelled && !isSettled);
   const [copying, setCopying] = useState(false);
   const [modifyOpen, setModifyOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -92,7 +94,12 @@ export function BettingSlip({
         <div className="flex items-center justify-between mt-2">
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted">{formatAmount(bet.amount)}</span>
-            {parseFloat(bet.amount) > 0 && !bet.amount_confirmed && (
+            {parseFloat(bet.amount) > 0 && isExtraCancelled && (
+              <span className="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                Cancelado · no pagó
+              </span>
+            )}
+            {parseFloat(bet.amount) > 0 && !bet.amount_confirmed && !isExtraCancelled && (
               <span className="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded uppercase tracking-wide">
                 Pago pendiente
               </span>
@@ -117,7 +124,11 @@ export function BettingSlip({
                 Copiar prediccion
               </button>
             )}
-            {extraExcludedFromScoring ? (
+            {isExtraCancelled && !isSettled ? (
+              <span className="text-red-300/90 text-xs font-medium">
+                Cancelado por falta de pago
+              </span>
+            ) : extraExcludedFromScoring ? (
               <span className="text-amber-300/90 text-xs font-medium">
                 Sin puntos (extra sin pago confirmado)
               </span>

@@ -24,6 +24,8 @@ from app.services.bet_service import (
     settle_fixture_bets,
     settle_single_bet,
     repair_unconfirmed_extra_settlement,
+    repair_unpaid_extra_cancellations,
+    cancel_unpaid_extras_for_fixture,
     can_resolve_change_request_for_fixture,
     is_fixture_bettable,
 )
@@ -194,6 +196,7 @@ async def update_fixture_result(
     fixture.is_locked = True
     fixture.betting_open = False
     await db.flush()
+    await cancel_unpaid_extras_for_fixture(db, fixture, reason="admin_settle")
 
     settle_result = await settle_fixture_bets(db, fixture)
     from app.services.challenge_service import settle_challenges_for_fixture
@@ -282,6 +285,7 @@ async def update_fixture_status(
     if body.status in ("live", "finished", "cancelled"):
         fixture.is_locked = True
         fixture.betting_open = False
+        await cancel_unpaid_extras_for_fixture(db, fixture, reason="admin_status")
     await db.commit()
     await broadcast_fixture_updated(
         db,
@@ -1812,6 +1816,24 @@ async def reject_password_reset_request(
     await db.commit()
     logger.info("password_reset_rejected", request_id=str(request_id), admin=str(admin.id))
     return {"ok": True, "status": "rejected"}
+
+
+@router.post("/polla/repair-unpaid-extra-cancellations")
+@limiter.limit("10/minute")
+async def repair_unpaid_extra_cancellations_endpoint(
+    request: Request, admin: CurrentAdmin, db: DBSession,
+):
+    """Cancel unpaid extras on closed fixtures and backfill missing audit log entries."""
+    result = await repair_unpaid_extra_cancellations(db)
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_repair_unpaid_extra_cancellations",
+        detail=result,
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return {"ok": True, **result}
 
 
 @router.post("/polla/repair-unconfirmed-extra-settlements")

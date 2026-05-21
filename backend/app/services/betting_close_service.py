@@ -90,6 +90,7 @@ async def close_fixture_betting_if_due(db: AsyncSession, fixture: Fixture) -> bo
     if not should_lock_fixture(fixture):
         return False
     if fixture.is_locked and not fixture.betting_open:
+        await cancel_unpaid_extras_for_fixture(db, fixture, reason="lock_window")
         return False
     return await close_fixture_betting(db, fixture, reason="lock_window")
 

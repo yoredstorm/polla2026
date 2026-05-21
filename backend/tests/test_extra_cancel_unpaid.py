@@ -141,7 +141,9 @@ async def test_close_betting_cancels_unpaid_extra_and_logs(
 
     my_bets = await client.get("/api/v1/bets/my-bets", cookies=cookies)
     assert my_bets.status_code == 200
-    assert all(b["id"] != str(extra_bet.id) for b in my_bets.json()["data"])
+    row = next((b for b in my_bets.json()["data"] if b["id"] == str(extra_bet.id)), None)
+    assert row is not None
+    assert row["cancelled_at"] is not None
 
     pending = await client.get(
         f"/api/v1/admin/groups/{group.id}/pending-extras",
