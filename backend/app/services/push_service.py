@@ -12,6 +12,12 @@ import structlog
 from app.core.config import settings
 from app.models.notification import Notification
 from app.models.push_subscription import PushSubscription
+from app.services.vapid_keys import (
+    normalize_vapid_key,
+    public_key_for_browser,
+    validate_vapid_private_key,
+    validate_vapid_public_key,
+)
 
 logger = structlog.get_logger(__name__)
 
@@ -32,7 +38,16 @@ ADMIN_ACTIONABLE_TYPES = frozenset({
 
 
 def vapid_configured() -> bool:
-    return bool(settings.VAPID_PUBLIC_KEY and settings.VAPID_PRIVATE_KEY)
+    pub = normalize_vapid_key(settings.VAPID_PUBLIC_KEY or "")
+    priv = normalize_vapid_key(settings.VAPID_PRIVATE_KEY or "")
+    if not pub or not priv:
+        return False
+    return validate_vapid_public_key(pub) and validate_vapid_private_key(priv)
+
+
+def get_vapid_public_key() -> str:
+    """Normalized public key safe to pass to PushManager.subscribe."""
+    return public_key_for_browser(settings.VAPID_PUBLIC_KEY)
 
 
 def _parse_payload(n: Notification) -> dict[str, Any]:
@@ -101,8 +116,8 @@ def _send_one_subscription(
             "keys": {"p256dh": sub.p256dh, "auth": sub.auth},
         },
         data=payload,
-        vapid_private_key=settings.VAPID_PRIVATE_KEY,
-        vapid_public_key=settings.VAPID_PUBLIC_KEY,
+        vapid_private_key=normalize_vapid_key(settings.VAPID_PRIVATE_KEY),
+        vapid_public_key=get_vapid_public_key(),
         vapid_claims={"sub": settings.VAPID_CLAIMS_SUB},
         ttl=86400,
     )

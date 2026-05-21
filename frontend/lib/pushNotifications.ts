@@ -18,6 +18,12 @@ export function formatPushSubscribeError(
   const apiMsg = getApiErrorMessage(err, "");
   if (apiMsg) return apiMsg;
   if (err instanceof DOMException) {
+    if (err.message.includes("applicationServerKey is not valid")) {
+      return (
+        "La clave VAPID del servidor no es valida. El administrador debe ejecutar " +
+        "python scripts/generate_vapid_keys.py, actualizar Dokploy (backend) y redesplegar."
+      );
+    }
     return `El navegador no pudo crear la suscripcion push: ${err.message}`;
   }
   if (err instanceof Error && err.message) {
@@ -26,9 +32,14 @@ export function formatPushSubscribeError(
   return fallback;
 }
 
+function normalizeVapidPublicKey(key: string): string {
+  return key.trim().replace(/^["']|["']$/g, "").replace(/\s+/g, "");
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
-  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const cleaned = normalizeVapidPublicKey(base64String);
+  const padding = "=".repeat((4 - (cleaned.length % 4)) % 4);
+  const base64 = (cleaned + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = window.atob(base64);
   const output = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) {
@@ -174,10 +185,7 @@ export async function subscribeToPush(): Promise<PushSubscription> {
         applicationServerKey: appKey,
       });
     } catch (e) {
-      if (e instanceof DOMException) {
-        throw new Error(`El navegador no pudo crear la suscripcion push: ${e.message}`);
-      }
-      throw e;
+      throw new Error(formatPushSubscribeError(e));
     }
   }
 

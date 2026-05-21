@@ -20,6 +20,7 @@ from app.services.notification_service import (
 )
 from app.services.push_service import (
     vapid_configured,
+    get_vapid_public_key,
     upsert_push_subscription,
     delete_push_subscription,
     count_push_subscriptions,
@@ -135,8 +136,18 @@ class PushUnsubscribeIn(BaseModel):
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def push_vapid_public_key(request: Request, current_user: CurrentUser):
     if not vapid_configured():
-        raise HTTPException(status_code=503, detail="Web Push no configurado en el servidor")
-    return {"publicKey": settings.VAPID_PUBLIC_KEY}
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Web Push no configurado o clave VAPID invalida en el servidor. "
+                "Genera un par nuevo con: python scripts/generate_vapid_keys.py"
+            ),
+        )
+    try:
+        public_key = get_vapid_public_key()
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return {"publicKey": public_key}
 
 
 @router.post("/push/subscribe")

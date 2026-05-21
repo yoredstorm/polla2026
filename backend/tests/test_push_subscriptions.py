@@ -20,12 +20,12 @@ def _vapid_settings(monkeypatch):
     monkeypatch.setattr(
         config.settings,
         "VAPID_PUBLIC_KEY",
-        "BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQaIQhFf6v9N8",
+        "BIqzYsOiaU0RBVVaN4RhsJCnGp02QO9T8PywY08zvg9js83aK7J3Pd4_YkW66BO1CGYAYFiTzDIrSdPYeBXh5Ow",
     )
     monkeypatch.setattr(
         config.settings,
         "VAPID_PRIVATE_KEY",
-        "UUxI4O8-FbRouAevSmBQ6o18hgE4nSG3qwvJTfKc-ls",
+        "g5iyoLfzVn2oydLYnvIP8sKi5IaYTOVkhIkTxBjunGk",
     )
     monkeypatch.setattr(config.settings, "VAPID_CLAIMS_SUB", "mailto:test@example.com")
 
