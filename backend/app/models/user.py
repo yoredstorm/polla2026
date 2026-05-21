@@ -44,6 +44,9 @@ class User(Base):
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship("RefreshToken", back_populates="user", lazy="select")
     owned_groups: Mapped[list["Group"]] = relationship("Group", back_populates="owner", lazy="select")
     group_memberships: Mapped[list["GroupMember"]] = relationship("GroupMember", back_populates="user", lazy="select")
+    push_subscriptions: Mapped[list["PushSubscription"]] = relationship(
+        "PushSubscription", back_populates="user", lazy="select", cascade="all, delete-orphan",
+    )
 
     @property
     def has_bets_profile_invite_code(self) -> bool:

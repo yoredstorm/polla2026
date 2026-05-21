@@ -8,8 +8,18 @@ const CHALLENGE_TYPES = new Set([
   "challenge_resolved",
 ]);
 
+const ADMIN_ACTIONABLE = new Set([
+  "extra_bet_pending",
+  "entry_pending",
+  "change_request_pending",
+  "password_reset_pending",
+]);
+
 export function notificationHref(n: Notification): string | null {
   const p: NotificationPayload = n.payload ?? {};
+  if (ADMIN_ACTIONABLE.has(n.type)) {
+    return `/notifications?focus=${n.id}`;
+  }
   switch (n.type) {
     case "fixture_finished":
       return p.fixture_id ? `/fixtures/${p.fixture_id}` : "/fixtures#culminados";
@@ -28,7 +38,7 @@ export function notificationHref(n: Notification): string | null {
     case "extra_confirmed":
       return "/my-bets";
     case "password_reset_pending":
-      return "/admin/requests?tab=passwords";
+      return `/notifications?focus=${n.id}`;
     case "password_reset_resolved":
       return "/login";
     case "comment_mention":
@@ -58,8 +68,12 @@ export function notificationLinkLabel(n: Notification): string {
     case "entry_confirmed":
     case "extra_confirmed":
       return "Mis apuestas";
+    case "extra_bet_pending":
+    case "entry_pending":
+    case "change_request_pending":
+      return "Gestionar en notificaciones";
     case "password_reset_pending":
-      return "Solicitudes admin";
+      return "Gestionar en notificaciones";
     case "password_reset_resolved":
       return "Iniciar sesión";
     case "comment_mention":

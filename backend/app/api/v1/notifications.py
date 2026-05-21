@@ -17,6 +17,12 @@ from app.services.notification_service import (
     get_unread_count,
     publish_to_user,
 )
+from app.services.push_service import (
+    vapid_configured,
+    upsert_push_subscription,
+    delete_push_subscription,
+)
+from app.core.config import settings
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -106,3 +112,66 @@ async def read_all_notifications(
     await db.commit()
     await publish_to_user(redis, current_user.id, {"type": "unread_count", "count": 0})
     return {"marked": count}
+
+
+class PushSubscribeKeys(BaseModel):
+    p256dh: str
+    auth: str
+
+
+class PushSubscribeIn(BaseModel):
+    endpoint: str
+    keys: PushSubscribeKeys
+    expirationTime: int | None = None
+
+
+class PushUnsubscribeIn(BaseModel):
+    endpoint: str
+
+
+@router.get("/push/vapid-public-key")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def push_vapid_public_key(request: Request, current_user: CurrentUser):
+    if not vapid_configured():
+        raise HTTPException(status_code=503, detail="Web Push no configurado en el servidor")
+    return {"publicKey": settings.VAPID_PUBLIC_KEY}
+
+
+@router.post("/push/subscribe")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def push_subscribe(
+    request: Request,
+    body: PushSubscribeIn,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    if not vapid_configured():
+        raise HTTPException(status_code=503, detail="Web Push no configurado en el servidor")
+    if not body.endpoint or not body.keys.p256dh or not body.keys.auth:
+        raise HTTPException(status_code=400, detail="Suscripcion push invalida")
+    ua = request.headers.get("user-agent")
+    await upsert_push_subscription(
+        db,
+        user_id=current_user.id,
+        endpoint=body.endpoint,
+        p256dh=body.keys.p256dh,
+        auth=body.keys.auth,
+        user_agent=ua[:512] if ua else None,
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+@router.delete("/push/unsubscribe")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def push_unsubscribe(
+    request: Request,
+    body: PushUnsubscribeIn,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    if not body.endpoint:
+        raise HTTPException(status_code=400, detail="endpoint requerido")
+    await delete_push_subscription(db, user_id=current_user.id, endpoint=body.endpoint)
+    await db.commit()
+    return {"ok": True}

@@ -45,6 +45,21 @@ Plataforma fullstack para **pollas de pronósticos deportivos**: los participant
 - **Usuarios:** aviso cuando se resuelve una solicitud (aprobada/rechazada, con motivo si aplica).
 - **Respaldo:** polling del contador cada 30 s si el WebSocket no está conectado.
 
+### Notificaciones push (PWA)
+
+- **Web Push (VAPID)** cuando el usuario activa permisos en `/notifications` (Android Chrome y escritorio; iOS no en v1).
+- **Service Worker** [`frontend/public/sw.js`](frontend/public/sw.js): muestra la notificación del sistema y, al tocar, abre la app (p. ej. `/notifications?focus=<id>` para pendientes de admin).
+- Requiere **HTTPS** y variables `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` en el backend (generar con `npx web-push generate-vapid-keys`).
+- Suscripciones en tabla `push_subscriptions`; cada `create_notification` también intenta enviar push.
+
+**Despliegue / prueba manual**
+
+1. Añadir claves VAPID en Dokploy (servicio `backend`) y redeploy.
+2. `alembic upgrade head` (migración `0024_push_subscriptions`).
+3. Instalar PWA o usar Chrome → `/notifications` → **Activar notificaciones**.
+4. Probar: crear extra pendiente → admin recibe push → tocar → bandeja con botón Confirmar.
+5. Verificar `sw.js` sin caché agresivo (ver `location = /sw.js` en [`nginx.conf`](nginx.conf)).
+
 ### Seguridad y UX
 
 - JWT en **cookies httpOnly** (access + refresh), rotación y logout con invalidación.
@@ -269,7 +284,7 @@ polla2026-miatech/
 | Apuestas | `POST /bets`, `GET /bets/my`, `POST /bets/bulk-copy`, `POST /bets/{id}/change-request` |
 | Polla | `GET /groups/active-polla`, miembros, leaderboard de grupo |
 | Ranking | `GET /leaderboard`, `GET /leaderboard/weekly` |
-| Notificaciones | `GET /notifications`, `PATCH /notifications/{id}/read`, WebSocket `/ws/notifications` |
+| Notificaciones | `GET /notifications`, push `GET/POST/DELETE /notifications/push/*`, WebSocket `/ws/notifications` |
 | Admin | fixtures, usuarios, grupos, extras, solicitudes, auditoría |
 
 Documentación interactiva en `/docs` con la API en ejecución (deshabilitada cuando `APP_ENV=production`).

@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     ENTRY_PROOF_UPLOAD_DIR: str = "/app/uploads/entry-proofs"
     PAYMENT_MAX_BYTES: int = 2_097_152
 
+    # Web Push (VAPID) — optional; empty disables push
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_CLAIMS_SUB: str = "mailto:admin@redcardtech.uk"
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors(cls, v: str) -> str:

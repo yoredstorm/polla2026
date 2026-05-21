@@ -8,8 +8,10 @@ from app.models.password_reset_request import PasswordResetRequest
 from app.models.notification import Notification
 from app.models.jwt_signing_key import JwtSigningKey
 from app.models.challenge import Challenge
+from app.models.push_subscription import PushSubscription
 
 __all__ = [
     "User", "RefreshToken", "Fixture", "Bet", "Group", "GroupMember", "GroupEntryProof",
     "AuditLog", "BetChangeRequest", "PasswordResetRequest", "Notification", "JwtSigningKey", "Challenge",
+    "PushSubscription",
 ]

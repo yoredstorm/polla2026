@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { PageShell } from "@/components/ui/PageShell";
 import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
 import { Modal } from "@/components/ui/Modal";
@@ -12,6 +13,7 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
 import { NotificationItem } from "@/components/notifications/NotificationItem";
+import { PushNotificationSettings } from "@/components/notifications/PushNotificationSettings";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/api";
 
@@ -20,9 +22,12 @@ const TABS: { id: NotificationFilter; label: string }[] = [
   { id: "read", label: "Leídas" },
 ];
 
-export default function NotificationsPage() {
+function NotificationsPageContent() {
   const { user } = useAuth();
-  const [tab, setTab] = useState<NotificationFilter>("unread");
+  const searchParams = useSearchParams();
+  const focusId = searchParams.get("focus");
+  const focusRef = useRef<HTMLLIElement | null>(null);
+  const [tab, setTab] = useState<NotificationFilter>(focusId ? "all" : "unread");
   const [page, setPage] = useState(1);
   const limit = 20;
   const { data, isLoading } = useNotifications(page, limit, tab);
@@ -46,6 +51,14 @@ export default function NotificationsPage() {
     setPage(1);
   }
 
+  useEffect(() => {
+    if (!focusId || isLoading) return;
+    const el = document.getElementById(`notification-${focusId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [focusId, isLoading, items]);
+
   return (
     <PageShell maxWidth="md">
       <div className="flex items-center justify-between mb-4">
@@ -62,6 +75,8 @@ export default function NotificationsPage() {
           </button>
         )}
       </div>
+
+      <PushNotificationSettings className="mb-6" />
 
       <div className="flex gap-2 mb-6 border-b border-white/10 pb-2">
         {TABS.map((t) => (
@@ -84,8 +99,15 @@ export default function NotificationsPage() {
       {isLoading && <p className="text-muted">Cargando...</p>}
       <ul className="space-y-3">
         {items.map((n) => (
-          <NotificationItem
+          <li
             key={n.id}
+            id={`notification-${n.id}`}
+            ref={n.id === focusId ? focusRef : undefined}
+            className={cn(
+              n.id === focusId && "rounded-xl ring-2 ring-accent/50 ring-offset-2 ring-offset-background",
+            )}
+          >
+          <NotificationItem
             notification={n}
             isAdmin={!!user?.is_admin}
             layout="page"
@@ -97,6 +119,7 @@ export default function NotificationsPage() {
               setRejectNotes("");
             }}
           />
+          </li>
         ))}
       </ul>
 
@@ -169,5 +192,13 @@ export default function NotificationsPage() {
         </Modal>
       )}
     </PageShell>
+  );
+}
+
+export default function NotificationsPage() {
+  return (
+    <Suspense fallback={<PageShell maxWidth="md"><p className="text-muted text-center py-20">Cargando...</p></PageShell>}>
+      <NotificationsPageContent />
+    </Suspense>
   );
 }

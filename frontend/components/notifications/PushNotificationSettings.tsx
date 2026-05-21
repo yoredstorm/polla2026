@@ -1,0 +1,67 @@
+"use client";
+import { usePushNotifications } from "@/hooks/usePushNotifications";
+import { cn } from "@/lib/utils";
+
+export function PushNotificationSettings({ className }: { className?: string }) {
+  const { supported, permission, subscribed, loading, error, enable, disable } =
+    usePushNotifications();
+
+  if (!supported) {
+    return (
+      <div
+        className={cn(
+          "rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3 text-sm text-muted",
+          className,
+        )}
+      >
+        Las notificaciones del sistema requieren HTTPS y un navegador compatible (Chrome en
+        Android o escritorio). En iPhone aun no esta disponible en esta version.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-accent/20 bg-accent/5 px-4 py-3 space-y-2",
+        className,
+      )}
+    >
+      <p className="text-sm font-medium text-white">Notificaciones en este dispositivo</p>
+      <p className="text-xs text-muted">
+        Recibe avisos aunque la app este cerrada: partidos, retos, menciones y pendientes de
+        admin. Al tocar, se abre la bandeja de notificaciones.
+      </p>
+      {permission === "denied" && (
+        <p className="text-xs text-amber-300">
+          Bloqueaste los permisos. Activalos en la configuracion del navegador para este sitio.
+        </p>
+      )}
+      {error && <p className="text-xs text-red-300">{error}</p>}
+      <div className="flex flex-wrap gap-2 pt-1">
+        {subscribed ? (
+          <>
+            <span className="text-xs text-emerald-300 self-center">Activadas en este dispositivo</span>
+            <button
+              type="button"
+              onClick={() => void disable()}
+              disabled={loading}
+              className="text-xs px-3 py-1.5 rounded-lg border border-white/15 text-muted hover:text-white disabled:opacity-50"
+            >
+              Desactivar
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            onClick={() => void enable()}
+            disabled={loading || permission === "denied"}
+            className="text-xs px-4 py-2 rounded-lg bg-accent text-background font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? "Activando..." : "Activar notificaciones"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
