@@ -19,6 +19,8 @@ export function usePushNotifications() {
   const [permission, setPermission] = useState<PushPermissionState>("default");
   const [subscribed, setSubscribed] = useState(false);
   const [serverRegistered, setServerRegistered] = useState(false);
+  const [vapidConfigured, setVapidConfigured] = useState(true);
+  const [subscriptionCount, setSubscriptionCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [testMessage, setTestMessage] = useState<string | null>(null);
@@ -46,8 +48,12 @@ export function usePushNotifications() {
     try {
       const status = await getPushServerStatus();
       setServerRegistered(status.serverRegistered);
+      setVapidConfigured(status.vapidConfigured);
+      setSubscriptionCount(status.serverSubscriptionCount);
     } catch {
       setServerRegistered(false);
+      setVapidConfigured(false);
+      setSubscriptionCount(0);
     }
   }, []);
 
@@ -101,6 +107,8 @@ export function usePushNotifications() {
     permission,
     subscribed,
     serverRegistered,
+    vapidConfigured,
+    subscriptionCount,
     loading,
     error,
     testMessage,

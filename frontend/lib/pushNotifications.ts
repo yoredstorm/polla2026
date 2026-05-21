@@ -99,11 +99,17 @@ export async function subscribeToPush(): Promise<PushSubscription> {
   if (sub) {
     try {
       await syncPushSubscriptionToServer();
-      return sub;
+      const status = await getPushServerStatus();
+      if (status.serverRegistered) return sub;
     } catch {
-      await sub.unsubscribe();
-      sub = null;
+      /* fall through to fresh subscribe */
     }
+    try {
+      await sub.unsubscribe();
+    } catch {
+      /* ignore */
+    }
+    sub = null;
   }
   if (!sub) {
     sub = await reg.pushManager.subscribe({

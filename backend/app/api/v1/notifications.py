@@ -201,10 +201,17 @@ async def push_test(
         body="Si ves este mensaje en el celular, Web Push funciona correctamente.",
         payload={"source": "push_test"},
     )
+    push_delivered = int(getattr(n, "push_sent", 0) or 0)
+    if push_delivered == 0:
+        raise HTTPException(
+            status_code=502,
+            detail="La notificacion se guardo pero el push no se entrego. Revisa VAPID en el servidor o vuelve a activar en este dispositivo.",
+        )
     return {
         "ok": True,
         "notificationId": str(n.id),
         "serverSubscriptionCount": sub_count,
+        "pushDelivered": push_delivered,
     }
 
 

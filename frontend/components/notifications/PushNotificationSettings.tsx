@@ -1,13 +1,17 @@
 "use client";
+import { useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { cn } from "@/lib/utils";
 
 export function PushNotificationSettings({ className }: { className?: string }) {
+  const { user } = useAuth();
   const {
     supported,
     permission,
     subscribed,
     serverRegistered,
+    vapidConfigured,
+    subscriptionCount,
     loading,
     error,
     testMessage,
@@ -41,6 +45,34 @@ export function PushNotificationSettings({ className }: { className?: string }) 
       <p className="text-xs text-muted">
         Recibe avisos aunque la app este cerrada: partidos, retos, menciones y pendientes de
         admin. Al iniciar sesion te pedimos permiso una vez; tambien puedes activarlo aqui.
+      </p>
+      {!vapidConfigured && (
+        <p className="text-xs text-red-300">
+          El servidor de produccion no tiene claves VAPID. Un administrador debe configurarlas en
+          Dokploy (backend) y volver a desplegar.
+        </p>
+      )}
+      {vapidConfigured && serverRegistered && (
+        <p className="text-xs text-muted">
+          Servidor: {subscriptionCount} dispositivo{subscriptionCount === 1 ? "" : "s"} registrado
+          {subscriptionCount === 1 ? "" : "s"}.
+        </p>
+      )}
+      <p className="text-xs text-muted border-t border-white/10 pt-2 mt-1">
+        {user?.is_admin ? (
+          <>
+            <strong className="text-white">Importante:</strong> extras impagos, solicitudes de
+            cambio y registros nuevos avisan a los administradores. Si tu mismo creas el extra, no
+            te llega aviso (es para otros admins). Prueba con otra cuenta o pulsa Enviar prueba con
+            la app cerrada.
+          </>
+        ) : (
+          <>
+            Las peticiones de cambio o pago las revisan los administradores; el aviso push les llega
+            a ellos, no a quien envia la peticion. Tu recibes push por partidos, retos, menciones y
+            cuando aprueban algo tuyo.
+          </>
+        )}
       </p>
       {permission === "denied" && (
         <p className="text-xs text-amber-300">

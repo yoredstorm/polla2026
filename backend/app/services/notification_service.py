@@ -143,13 +143,30 @@ async def create_notification(
         unread = await get_unread_count(db, user_id)
         await publish_to_user(redis, user_id, {"type": "unread_count", "count": unread})
 
+    push_sent = 0
     try:
-        from app.services.push_service import send_web_push_for_notification
+        from app.services.push_service import send_web_push_for_notification, vapid_configured
 
-        await send_web_push_for_notification(db, n)
+        if not vapid_configured():
+            logger.warning(
+                "web_push_skipped_vapid_not_configured",
+                user_id=str(user_id),
+                notification_id=str(n.id),
+                type=type,
+            )
+        else:
+            push_sent = await send_web_push_for_notification(db, n)
+            if push_sent == 0:
+                logger.warning(
+                    "web_push_not_delivered",
+                    user_id=str(user_id),
+                    notification_id=str(n.id),
+                    type=type,
+                )
     except Exception:
         logger.exception("web_push_after_notification_failed", notification_id=str(n.id))
 
+    setattr(n, "push_sent", push_sent)
     return n
 
 
