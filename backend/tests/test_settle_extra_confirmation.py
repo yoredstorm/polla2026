@@ -28,6 +28,7 @@ def _noop_notifications(monkeypatch):
     monkeypatch.setattr("app.api.v1.admin.broadcast_fixture_updated", _noop)
     monkeypatch.setattr("app.api.v1.admin.broadcast_polla_updated", _noop)
     monkeypatch.setattr("app.api.v1.admin.resolve_actionable_notifications", _noop)
+    monkeypatch.setattr("app.api.v1.admin.create_notification", _noop)
     monkeypatch.setattr("app.services.badge_notify_service.notify_new_badges_for_fixture", _noop)
 
 
@@ -147,7 +148,7 @@ async def test_unpaid_extra_skipped_on_settle(client: AsyncClient, db_session: A
 
 
 @pytest.mark.asyncio
-async def test_confirm_extra_after_finish_settles_points(client: AsyncClient, db_session: AsyncSession):
+async def test_confirm_extra_before_kickoff_then_settle(client: AsyncClient, db_session: AsyncSession):
     cookies, user_id = await _register(client, "settle_user2")
     admin_cookies, _ = await _register(client, "settle_admin")
     await _make_admin(db_session, "settle_admin")
@@ -163,6 +164,14 @@ async def test_confirm_extra_after_finish_settles_points(client: AsyncClient, db
         amount_confirmed=False,
     )
     db_session.add(extra_bet)
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/admin/groups/{group.id}/confirm-extra/{extra_bet.id}",
+        cookies=admin_cookies,
+    )
+    assert resp.status_code == 200
+
     fixture.status = "finished"
     fixture.home_score = 1
     fixture.away_score = 0
@@ -170,14 +179,6 @@ async def test_confirm_extra_after_finish_settles_points(client: AsyncClient, db
 
     await settle_fixture_bets(db_session, fixture)
     await db_session.commit()
-    assert extra_bet.points_earned is None
-
-    resp = await client.post(
-        f"/api/v1/admin/groups/{group.id}/confirm-extra/{extra_bet.id}",
-        cookies=admin_cookies,
-    )
-    assert resp.status_code == 200
-    assert resp.json()["points_settled"] is True
 
     await db_session.refresh(extra_bet)
     member = (
@@ -189,6 +190,34 @@ async def test_confirm_extra_after_finish_settles_points(client: AsyncClient, db
     ).scalar_one()
     assert extra_bet.points_earned == 2
     assert member.total_points == 2
+
+
+@pytest.mark.asyncio
+async def test_confirm_extra_after_kickoff_rejected(client: AsyncClient, db_session: AsyncSession):
+    admin_cookies, _ = await _register(client, "settle_admin3")
+    cookies, user_id = await _register(client, "settle_user3b")
+    await _make_admin(db_session, "settle_admin3")
+    group, fixture = await _seed_polla(db_session, user_id)
+
+    extra_bet = Bet(
+        user_id=user_id,
+        fixture_id=fixture.id,
+        group_id=group.id,
+        predicted_home_score=1,
+        predicted_away_score=0,
+        amount=Decimal("5"),
+        amount_confirmed=False,
+    )
+    db_session.add(extra_bet)
+    fixture.is_locked = True
+    fixture.betting_open = False
+    await db_session.commit()
+
+    resp = await client.post(
+        f"/api/v1/admin/groups/{group.id}/confirm-extra/{extra_bet.id}",
+        cookies=admin_cookies,
+    )
+    assert resp.status_code == 409
 
 
 @pytest.mark.asyncio
@@ -251,6 +280,17 @@ async def test_bet_eligible_for_scoring_helper():
         amount=Decimal("5"),
         amount_confirmed=True,
     )
+    cancelled = Bet(
+        id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        fixture_id=uuid.uuid4(),
+        predicted_home_score=0,
+        predicted_away_score=0,
+        amount=Decimal("5"),
+        amount_confirmed=False,
+        cancelled_at=datetime.now(timezone.utc),
+    )
     assert bet_eligible_for_scoring(free) is True
     assert bet_eligible_for_scoring(unpaid) is False
     assert bet_eligible_for_scoring(paid) is True
+    assert bet_eligible_for_scoring(cancelled) is False

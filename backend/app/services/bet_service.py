@@ -4,11 +4,14 @@ Bet service — scoring logic, locking rules, prize distribution.
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, func
+
+if TYPE_CHECKING:
+    import redis.asyncio as aioredis
 
 from app.core.match_timing import (
     can_create_change_request_for_fixture,
@@ -18,6 +21,8 @@ from app.core.match_timing import (
 from app.models.bet import Bet
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember
+from app.models.user import User
+from app.services.audit import log_action
 from app.services.challenge_service import user_has_active_challenge_on_fixture
 from app.schemas.bet import BetCreate
 import structlog
@@ -33,6 +38,9 @@ __all__ = [
     "settle_fixture_bets",
     "settle_single_bet",
     "bet_eligible_for_scoring",
+    "is_unpaid_extra",
+    "is_bet_active",
+    "cancel_unpaid_extras_for_fixture",
     "get_scoring_bet_for_fixture",
     "repair_unconfirmed_extra_settlement",
     "SettleResult",
@@ -75,11 +83,83 @@ class SettleResult:
     skipped_unconfirmed_extras: int
 
 
+def is_unpaid_extra(bet: Bet) -> bool:
+    return bet.group_id is not None and bet.amount > 0 and not bet.amount_confirmed
+
+
+def is_bet_active(bet: Bet) -> bool:
+    return bet.cancelled_at is None
+
+
 def bet_eligible_for_scoring(bet: Bet) -> bool:
     """Free bets and zero-amount extras always count; paid extras require admin confirmation."""
+    if not is_bet_active(bet):
+        return False
     if bet.amount is None or bet.amount <= 0:
         return True
     return bet.amount_confirmed
+
+
+async def cancel_unpaid_extras_for_fixture(
+    db: AsyncSession,
+    fixture: Fixture,
+    *,
+    reason: str,
+    redis: "aioredis.Redis | None" = None,
+) -> int:
+    """Cancel unpaid extras when betting closes; log per user and resolve admin notifications."""
+    from app.services.notification_service import resolve_actionable_notifications
+
+    result = await db.execute(
+        select(Bet, User)
+        .join(User, Bet.user_id == User.id)
+        .where(
+            and_(
+                Bet.fixture_id == fixture.id,
+                Bet.group_id.isnot(None),
+                Bet.amount > 0,
+                Bet.amount_confirmed == False,  # noqa: E712
+                Bet.cancelled_at.is_(None),
+            )
+        )
+    )
+    rows = result.all()
+    now = datetime.now(timezone.utc)
+    cancelled = 0
+    for bet, user in rows:
+        bet.cancelled_at = now
+        await log_action(
+            db,
+            user_id=bet.user_id,
+            action="extra_bet_cancelled_unpaid",
+            detail={
+                "bet_id": str(bet.id),
+                "group_id": str(bet.group_id),
+                "fixture_id": str(fixture.id),
+                "home_team": fixture.home_team,
+                "away_team": fixture.away_team,
+                "amount": str(bet.amount),
+                "username": user.username,
+                "reason": reason,
+            },
+            ip=None,
+        )
+        await resolve_actionable_notifications(
+            db,
+            redis,
+            notification_type="extra_bet_pending",
+            payload_match={"group_id": str(bet.group_id), "bet_id": str(bet.id)},
+        )
+        cancelled += 1
+    if cancelled:
+        await db.flush()
+        logger.info(
+            "unpaid_extras_cancelled",
+            fixture_id=str(fixture.id),
+            count=cancelled,
+            reason=reason,
+        )
+    return cancelled
 
 
 def is_fixture_bettable(fixture: Fixture) -> bool:

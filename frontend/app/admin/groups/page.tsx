@@ -21,6 +21,8 @@ import {
 } from "@/components/payment/AdminPaymentSettings";
 import { AdminProofLightbox } from "@/components/payment/AdminProofLightbox";
 import type { AdminNonMember } from "@/types/api";
+import { getApiErrorMessage } from "@/lib/challengeUtils";
+import { useToast } from "@/components/ui/Toast";
 
 // ── Create form ──────────────────────────────────────────────────────
 function CreatePollaForm() {
@@ -481,13 +483,19 @@ function PendingEntriesPanel({ pollaId }: { pollaId: string; currency: string })
 function PendingExtrasPanel({ pollaId, currency }: { pollaId: string; currency: string }) {
   const { data: extras, isLoading } = usePendingExtras(pollaId);
   const confirmExtra = useConfirmExtra();
+  const toast = useToast((s) => s.add);
   const [confirmed, setConfirmed] = useState<Record<string, string>>({});
 
   async function confirm(betId: string) {
     try {
       const res = await confirmExtra.mutateAsync({ groupId: pollaId, betId });
       setConfirmed((s) => ({ ...s, [betId]: res.prize_pool }));
-    } catch { /* already confirmed */ }
+    } catch (err) {
+      toast(
+        getApiErrorMessage(err, "No se puede confirmar: el partido ya comenzó o el extra fue cancelado"),
+        "error",
+      );
+    }
   }
 
   if (isLoading) return <p className="text-muted text-sm">Cargando...</p>;

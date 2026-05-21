@@ -132,7 +132,7 @@ async def my_bets(
     count_base = (
         select(Bet.id)
         .join(Fixture, Bet.fixture_id == Fixture.id)
-        .where(Bet.user_id == current_user.id)
+        .where(Bet.user_id == current_user.id, Bet.cancelled_at.is_(None))
     )
     count_result = await db.execute(select(func.count()).select_from(count_base.subquery()))
     total = count_result.scalar()
@@ -140,7 +140,7 @@ async def my_bets(
     base = (
         select(Bet, Fixture)
         .join(Fixture, Bet.fixture_id == Fixture.id)
-        .where(Bet.user_id == current_user.id)
+        .where(Bet.user_id == current_user.id, Bet.cancelled_at.is_(None))
     )
     result = await db.execute(
         base.order_by(Bet.created_at.desc()).offset((page - 1) * limit).limit(limit)
@@ -167,7 +167,13 @@ async def my_bets(
 async def my_bets_for_fixture(request: Request, fixture_id: uuid.UUID, current_user: CurrentUser, db: DBSession):
     # A01: Only return current user's bets for this fixture
     result = await db.execute(
-        select(Bet).where(and_(Bet.user_id == current_user.id, Bet.fixture_id == fixture_id))
+        select(Bet).where(
+            and_(
+                Bet.user_id == current_user.id,
+                Bet.fixture_id == fixture_id,
+                Bet.cancelled_at.is_(None),
+            )
+        )
     )
     return [BetOut.model_validate(b) for b in result.scalars().all()]
 

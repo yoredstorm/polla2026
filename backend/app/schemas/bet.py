@@ -40,6 +40,7 @@ class BetOut(BaseModel):
     amount_confirmed: bool = False
     points_earned: Optional[int] = None
     is_locked: bool
+    cancelled_at: Optional[datetime] = None
     created_at: datetime
 
 

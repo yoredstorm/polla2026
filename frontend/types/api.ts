@@ -104,6 +104,7 @@ export interface Bet {
   amount_confirmed: boolean;
   points_earned: number | null;
   is_locked: boolean;
+  cancelled_at?: string | null;
   created_at: string;
   /** Present on GET /bets/my-bets (joined fixture metadata). */
   fixture_match_date?: string;

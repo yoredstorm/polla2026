@@ -297,6 +297,7 @@ async def following_bets_feed(
         .where(
             Bet.user_id.in_(following_ids),
             User.bets_profile_visibility == "public",
+            Bet.cancelled_at.is_(None),
         )
         .order_by(Bet.created_at.desc())
         .limit(limit)

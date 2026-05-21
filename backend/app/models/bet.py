@@ -20,6 +20,7 @@ class Bet(Base):
     amount_confirmed: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     points_earned: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_locked: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)  # Always locked on creation
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     user: Mapped["User"] = relationship("User", back_populates="bets")

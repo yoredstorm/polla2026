@@ -25,6 +25,7 @@ from app.services.bet_service import (
     settle_single_bet,
     repair_unconfirmed_extra_settlement,
     can_resolve_change_request_for_fixture,
+    is_fixture_bettable,
 )
 from app.services.audit import log_action
 from app.services.payment_upload_service import (
@@ -1034,11 +1035,15 @@ async def list_pending_extras(
             User.last_name,
         )
         .join(User, Bet.user_id == User.id)
+        .join(Fixture, Bet.fixture_id == Fixture.id)
         .where(
             and_(
                 Bet.group_id == group_id,
                 Bet.amount > 0,
                 Bet.amount_confirmed == False,  # noqa
+                Bet.cancelled_at.is_(None),
+                Fixture.status == "scheduled",
+                Fixture.betting_open == True,  # noqa: E712
             )
         )
         .order_by(Bet.created_at.desc())
@@ -1083,6 +1088,18 @@ async def confirm_extra_bet(
     bet = bet_res.scalar_one_or_none()
     if not bet:
         raise HTTPException(status_code=404, detail="Bet not found in this group")
+    if bet.cancelled_at:
+        raise HTTPException(
+            status_code=409,
+            detail="Extra cancelado: el usuario no pagó antes del inicio del partido",
+        )
+    fx_res = await db.execute(select(Fixture).where(Fixture.id == bet.fixture_id))
+    fixture = fx_res.scalar_one_or_none()
+    if not fixture or not is_fixture_bettable(fixture):
+        raise HTTPException(
+            status_code=409,
+            detail="Extra cancelado: el usuario no pagó antes del inicio del partido",
+        )
     if bet.amount_confirmed:
         await resolve_actionable_notifications(
             db,
@@ -1108,9 +1125,7 @@ async def confirm_extra_bet(
         member.total_amount_bet += bet.amount
 
     points_settled = False
-    fx_res = await db.execute(select(Fixture).where(Fixture.id == bet.fixture_id))
-    fixture = fx_res.scalar_one_or_none()
-    if fixture and fixture.status == "finished" and bet.points_earned is None:
+    if fixture.status == "finished" and bet.points_earned is None:
         points_settled = await settle_single_bet(db, bet, fixture)
 
     await log_action(db, user_id=admin.id, action="admin_confirm_extra", detail={

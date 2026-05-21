@@ -10,6 +10,7 @@ from app.models.fixture import Fixture
 from app.services.audit import log_action
 from app.core.match_timing import BETTING_CLOSE_BEFORE, should_lock_fixture
 from app.services.betting_trends_service import get_fixture_betting_trends
+from app.services.bet_service import cancel_unpaid_extras_for_fixture
 import structlog
 
 logger = structlog.get_logger(__name__)
@@ -40,6 +41,7 @@ async def close_fixture_betting(
     """
     was_open = fixture.betting_open and fixture.status == "scheduled"
     if not was_open and fixture.is_locked:
+        await cancel_unpaid_extras_for_fixture(db, fixture, reason=reason)
         return False
 
     trends = await get_fixture_betting_trends(db, fixture.id)
@@ -71,6 +73,7 @@ async def close_fixture_betting(
     fixture.is_locked = True
     fixture.betting_open = False
     await db.flush()
+    await cancel_unpaid_extras_for_fixture(db, fixture, reason=reason)
     logger.info(
         "fixture_betting_closed",
         fixture_id=str(fixture.id),

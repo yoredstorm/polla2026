@@ -228,7 +228,13 @@ async def _assert_bet_on_fixture(db: AsyncSession, user_id: uuid.UUID, fixture_i
     """User may have free + extra bets on the same fixture; any row satisfies the requirement."""
     res = await db.execute(
         select(Bet)
-        .where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
+        .where(
+            and_(
+                Bet.user_id == user_id,
+                Bet.fixture_id == fixture_id,
+                Bet.cancelled_at.is_(None),
+            )
+        )
         .order_by(Bet.group_id.asc().nulls_first(), Bet.created_at.asc())
     )
     bet = res.scalars().first()

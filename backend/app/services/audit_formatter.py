@@ -29,6 +29,7 @@ ACTION_LABELS_ES: dict[str, str] = {
     "admin_confirm_entry": "Confirmar entrada",
     "entry_proof_uploaded": "Comprobante de entrada subido",
     "admin_confirm_extra": "Confirmar apuesta extra",
+    "extra_bet_cancelled_unpaid": "Extra cancelado (no pagó)",
     "admin_approve_change_request": "Aprobar solicitud",
     "admin_reject_change_request": "Rechazar solicitud",
     "change_request_auto_expired": "Solicitudes caducadas",
@@ -259,6 +260,19 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
         if bet:
             partido += f" · Pronóstico {bet.predicted_home_score}-{bet.predicted_away_score}"
         return f"{partido} · {polla} · Extra de {jugador} confirmado · Monto {d.get('amount', '')}"
+
+    if action == "extra_bet_cancelled_unpaid":
+        partido = (
+            f"{d.get('home_team', '')} vs {d.get('away_team', '')}".strip()
+            if d.get("home_team")
+            else ctx.fixture_label(d.get("fixture_id")) or "Partido"
+        )
+        username = d.get("username") or ctx.user_label(d.get("user_id")) or "Usuario"
+        amount = d.get("amount", "")
+        return (
+            f"{username} no pagó el adicional de {amount} en {partido}; "
+            "apuesta cancelada al inicio del partido."
+        )
 
     if action in ("admin_approve_change_request", "admin_reject_change_request"):
         bet = ctx.bets.get(str(d.get("bet_id"))) if d.get("bet_id") else None
