@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import Link from "next/link";
 import { PageShell } from "@/components/ui/PageShell";
 import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
 import { Modal } from "@/components/ui/Modal";
@@ -8,77 +7,32 @@ import {
   useNotifications,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
+  type NotificationFilter,
 } from "@/hooks/useNotifications";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
-import { notificationHref, notificationLinkLabel } from "@/lib/notificationLinks";
-import {
-  NotificationAdminActions,
-  isAdminActionableNotification,
-} from "@/components/notifications/NotificationAdminActions";
+import { NotificationItem } from "@/components/notifications/NotificationItem";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/api";
 
-function NotificationRow({
-  n,
-  isAdmin,
-  onRead,
-  onRejectClick,
-}: {
-  n: Notification;
-  isAdmin: boolean;
-  onRead: () => void;
-  onRejectClick: (n: Notification) => void;
-}) {
-  const p = n.payload ?? {};
-  const href = notificationHref(n);
-  const label = notificationLinkLabel(n);
-  const isAdminActionable = isAdminActionableNotification(n, isAdmin);
-
-  return (
-    <li
-      className={cn(
-        "rounded-xl border p-4 space-y-2",
-        n.read_at ? "border-white/10 bg-glass opacity-70" : "border-accent/30 bg-accent/5",
-      )}
-    >
-      <p className="font-medium text-white">{n.title}</p>
-      <p className="text-sm text-muted">{n.body}</p>
-      <p className="text-xs text-muted/60">{new Date(n.created_at).toLocaleString("es-PE")}</p>
-
-      <NotificationAdminActions
-        notification={n}
-        payload={p}
-        isAdmin={isAdmin}
-        layout="stack"
-        onRejectClick={onRejectClick}
-      />
-
-      <div className="flex flex-wrap gap-3 pt-1">
-        {href && (
-          <Link href={href} onClick={onRead} className="text-xs text-accent hover:underline font-medium">
-            {label} →
-          </Link>
-        )}
-        {!isAdminActionable && !n.read_at && (
-          <button type="button" onClick={onRead} className="text-xs text-muted hover:text-white">
-            Marcar leida
-          </button>
-        )}
-      </div>
-    </li>
-  );
-}
+const TABS: { id: NotificationFilter; label: string }[] = [
+  { id: "unread", label: "Nuevas" },
+  { id: "read", label: "Leídas" },
+];
 
 export default function NotificationsPage() {
   const { user } = useAuth();
-  const { data, isLoading } = useNotifications(1, 50);
+  const [tab, setTab] = useState<NotificationFilter>("unread");
+  const [page, setPage] = useState(1);
+  const limit = 20;
+  const { data, isLoading } = useNotifications(page, limit, tab);
   const markAll = useMarkAllNotificationsRead();
   const markRead = useMarkNotificationRead();
-  const { handleReject, rejectCr } = useNotificationAdminActions();
+  const { handleReject, rejectCr, rejectPasswordReset } = useNotificationAdminActions();
   const [rejectTarget, setRejectTarget] = useState<Notification | null>(null);
   const [rejectNotes, setRejectNotes] = useState("");
   const items = data?.data ?? [];
+  const pagination = data?.pagination;
 
   async function handleRejectConfirm() {
     if (!rejectTarget) return;
@@ -87,13 +41,18 @@ export default function NotificationsPage() {
     setRejectNotes("");
   }
 
+  function switchTab(next: NotificationFilter) {
+    setTab(next);
+    setPage(1);
+  }
+
   return (
     <PageShell maxWidth="md">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4">
         <HelpSectionTitle as="h1" helpKey="page.notifications">
           Notificaciones
         </HelpSectionTitle>
-        {items.some((n) => !n.read_at) && (
+        {tab === "unread" && items.some((n) => !n.read_at) && (
           <button
             type="button"
             onClick={() => markAll.mutate()}
@@ -103,13 +62,33 @@ export default function NotificationsPage() {
           </button>
         )}
       </div>
+
+      <div className="flex gap-2 mb-6 border-b border-white/10 pb-2">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => switchTab(t.id)}
+            className={cn(
+              "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+              tab === t.id
+                ? "bg-accent/20 text-accent"
+                : "text-muted hover:text-white",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       {isLoading && <p className="text-muted">Cargando...</p>}
       <ul className="space-y-3">
         {items.map((n) => (
-          <NotificationRow
+          <NotificationItem
             key={n.id}
-            n={n}
+            notification={n}
             isAdmin={!!user?.is_admin}
+            layout="page"
             onRead={() => {
               if (!n.read_at) markRead.mutate(n.id);
             }}
@@ -120,8 +99,37 @@ export default function NotificationsPage() {
           />
         ))}
       </ul>
+
       {!isLoading && items.length === 0 && (
-        <p className="text-muted text-center py-12">No tienes notificaciones.</p>
+        <p className="text-muted text-center py-12">
+          {tab === "unread"
+            ? "No tienes avisos nuevos."
+            : "No hay notificaciones leídas."}
+        </p>
+      )}
+
+      {pagination && pagination.total_pages > 1 && (
+        <div className="flex justify-center gap-3 mt-6">
+          <button
+            type="button"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="text-sm text-muted hover:text-white disabled:opacity-40"
+          >
+            Anterior
+          </button>
+          <span className="text-sm text-muted">
+            {page} / {pagination.total_pages}
+          </span>
+          <button
+            type="button"
+            disabled={page >= pagination.total_pages}
+            onClick={() => setPage((p) => p + 1)}
+            className="text-sm text-muted hover:text-white disabled:opacity-40"
+          >
+            Siguiente
+          </button>
+        </div>
       )}
 
       {rejectTarget && (
@@ -149,7 +157,10 @@ export default function NotificationsPage() {
             <button
               type="button"
               onClick={handleRejectConfirm}
-              disabled={rejectCr.isPending}
+              disabled={
+                rejectCr.isPending ||
+                (rejectTarget?.type === "password_reset_pending" && rejectPasswordReset.isPending)
+              }
               className="flex-1 py-2 rounded-lg bg-danger text-white text-sm font-bold disabled:opacity-50"
             >
               Rechazar

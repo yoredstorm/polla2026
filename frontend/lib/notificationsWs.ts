@@ -18,6 +18,7 @@ const SILENT_NOTIFICATION_TYPES = new Set([
   "entry_pending",
   "change_request_pending",
   "change_request_expired_batch",
+  "password_reset_pending",
 ]);
 
 const recentToastKeys = new Map<string, number>();

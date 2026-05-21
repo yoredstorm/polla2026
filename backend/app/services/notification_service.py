@@ -166,6 +166,66 @@ async def notify_admins(
     return created
 
 
+async def notify_followers_of_new_bet(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    actor_id: uuid.UUID,
+    actor_username: str,
+    bet_id: uuid.UUID,
+    fixture_id: uuid.UUID,
+    predicted_home: int,
+    predicted_away: int,
+    home_team: str,
+    away_team: str,
+) -> list[Notification]:
+    title, body, payload = build_following_bet(
+        username=actor_username,
+        user_id=str(actor_id),
+        fixture_id=str(fixture_id),
+        bet_id=str(bet_id),
+        home_team=home_team,
+        away_team=away_team,
+        predicted_home=predicted_home,
+        predicted_away=predicted_away,
+    )
+    return await notify_user_followers(
+        db,
+        redis,
+        actor_id=actor_id,
+        type="following_bet",
+        title=title,
+        body=body,
+        payload=payload,
+    )
+
+
+async def notify_user_followers(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    actor_id: uuid.UUID,
+    type: str,
+    title: str,
+    body: str,
+    payload: dict[str, Any] | None = None,
+) -> list[Notification]:
+    """Notify all users who follow actor_id (followers of the actor)."""
+    from app.models.social import UserFollow
+
+    result = await db.execute(
+        select(UserFollow.follower_id).where(UserFollow.following_id == actor_id)
+    )
+    follower_ids = [row[0] for row in result.all() if row[0] != actor_id]
+    created: list[Notification] = []
+    for follower_id in follower_ids:
+        n = await create_notification(
+            db, redis, user_id=follower_id, type=type, title=title, body=body, payload=payload,
+        )
+        created.append(n)
+    return created
+
+
 async def notify_all_active_users(
     db: AsyncSession,
     redis: aioredis.Redis | None,
@@ -366,6 +426,74 @@ def build_extra_bet_pending(
         "amount": amount,
     }
     return title, body, payload
+
+
+def build_social_follow(
+    *,
+    follower_username: str,
+    follower_id: str,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"@{follower_username} te sigue"
+    body = "Tienes un nuevo seguidor. Revisa su perfil."
+    return title, body, {"username": follower_username, "user_id": follower_id}
+
+
+def build_following_bet(
+    *,
+    username: str,
+    user_id: str,
+    fixture_id: str,
+    bet_id: str,
+    home_team: str,
+    away_team: str,
+    predicted_home: int,
+    predicted_away: int,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"@{username} hizo una apuesta"
+    body = f"{home_team} vs {away_team}: pronostico {predicted_home}-{predicted_away}"
+    return title, body, {
+        "username": username,
+        "user_id": user_id,
+        "fixture_id": fixture_id,
+        "bet_id": bet_id,
+        "home_team": home_team,
+        "away_team": away_team,
+    }
+
+
+def build_entry_confirmed(*, group_name: str | None = None) -> tuple[str, str, dict[str, Any]]:
+    title = "Entrada confirmada"
+    body = (
+        f"Tu pago de entrada a {group_name} fue confirmado. Ya puedes apostar en la polla."
+        if group_name
+        else "Tu pago de entrada fue confirmado. Ya puedes apostar en la polla."
+    )
+    return title, body, {}
+
+
+def build_extra_confirmed(
+    *,
+    amount: str,
+    home_team: str,
+    away_team: str,
+    bet_id: str,
+    fixture_id: str,
+) -> tuple[str, str, dict[str, Any]]:
+    title = "Pago extra confirmado"
+    body = f"Tu extra de {amount} en {home_team} vs {away_team} fue confirmado."
+    return title, body, {
+        "amount": amount,
+        "bet_id": bet_id,
+        "fixture_id": fixture_id,
+        "home_team": home_team,
+        "away_team": away_team,
+    }
+
+
+def build_password_reset_resolved() -> tuple[str, str, dict[str, Any]]:
+    title = "Recuperacion de contraseña atendida"
+    body = "El administrador genero una contraseña temporal. Contactalo para recibirla e inicia sesion."
+    return title, body, {}
 
 
 def build_password_reset_pending(

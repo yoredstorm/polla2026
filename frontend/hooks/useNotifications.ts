@@ -3,14 +3,20 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import type { Notification, PaginatedResponse } from "@/types/api";
 
-export function useNotifications(page = 1, limit = 20, unreadOnly = false) {
+export type NotificationFilter = "unread" | "read" | "all";
+
+export function useNotifications(
+  page = 1,
+  limit = 20,
+  filter: NotificationFilter = "all",
+) {
   return useQuery({
-    queryKey: ["notifications", page, limit, unreadOnly],
+    queryKey: ["notifications", page, limit, filter],
     queryFn: () =>
       api.get<PaginatedResponse<Notification>>("/notifications", {
         page,
         limit,
-        unread_only: unreadOnly,
+        filter,
       }),
     staleTime: 10_000,
   });

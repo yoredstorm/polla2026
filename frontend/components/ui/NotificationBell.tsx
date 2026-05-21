@@ -5,28 +5,15 @@ import { useAuth } from "@/hooks/useAuth";
 import {
   useNotifications,
   useUnreadCount,
-  useMarkNotificationRead,
   useMarkAllNotificationsRead,
+  useMarkNotificationRead,
 } from "@/hooks/useNotifications";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
 import { useRealtimeSync } from "@/components/RealtimeSyncProvider";
 import type { Notification } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
-import { notificationHref, notificationLinkLabel } from "@/lib/notificationLinks";
-import {
-  NotificationAdminActions,
-  isAdminActionableNotification,
-} from "@/components/notifications/NotificationAdminActions";
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleString("es-PE", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import { NotificationItem } from "@/components/notifications/NotificationItem";
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -36,11 +23,11 @@ export function NotificationBell() {
   const [rejectNotes, setRejectNotes] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
 
-  const { data: notifPage } = useNotifications(1, 30);
+  const { data: notifPage } = useNotifications(1, 20, "unread");
   const { data: unreadData } = useUnreadCount(!!user);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
-  const { handleReject, rejectCr } = useNotificationAdminActions();
+  const { handleReject, rejectCr, rejectPasswordReset } = useNotificationAdminActions();
 
   const unread = unreadData?.count ?? 0;
   const notifications = notifPage?.data ?? [];
@@ -99,7 +86,11 @@ export function NotificationBell() {
         <div className="absolute right-0 top-full mt-2 w-[min(100vw-2rem,380px)] max-w-[380px] rounded-2xl border border-white/10 bg-surface shadow-2xl z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <h3 className="font-display text-sm text-white">Notificaciones</h3>
-            <Link href="/notifications" className="text-xs text-muted hover:text-accent mr-2">
+            <Link
+              href="/notifications"
+              onClick={() => setOpen(false)}
+              className="text-xs text-muted hover:text-accent mr-2"
+            >
               Ver todas
             </Link>
             {unread > 0 && (
@@ -115,124 +106,25 @@ export function NotificationBell() {
 
           <div className="max-h-[min(70vh,420px)] overflow-y-auto">
             {notifications.length === 0 ? (
-              <p className="text-muted text-sm text-center py-10">Sin notificaciones</p>
+              <p className="text-muted text-sm text-center py-10">No tienes avisos nuevos</p>
             ) : (
               <ul className="divide-y divide-white/5">
-                {notifications.map((n) => {
-                  const p = n.payload ?? {};
-                  const isAdminActionable = isAdminActionableNotification(n, !!user.is_admin);
-
-                  return (
-                    <li
-                      key={n.id}
-                      className={cn("px-4 py-3 space-y-2", !n.read_at && "bg-accent/5")}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="text-sm font-medium text-white leading-snug">{n.title}</p>
-                        {!n.read_at && (
-                          <span className="w-2 h-2 rounded-full bg-accent shrink-0 mt-1.5" />
-                        )}
-                      </div>
-                      <p className="text-xs text-muted leading-relaxed">{n.body}</p>
-                      <p className="text-[10px] text-muted/70">{formatTime(n.created_at)}</p>
-
-                      <NotificationAdminActions
-                        notification={n}
-                        payload={p}
-                        isAdmin={!!user.is_admin}
-                        onRejectClick={(target) => {
-                          setRejectTarget(target);
-                          setRejectNotes("");
-                        }}
-                      />
-
-                      {n.type === "change_request_expired" && (
-                        <Link
-                          href="/my-bets"
-                          onClick={() => {
-                            if (!n.read_at) markRead.mutate(n.id);
-                            setOpen(false);
-                          }}
-                          className="inline-block text-xs text-accent hover:underline"
-                        >
-                          Ver mis apuestas
-                        </Link>
-                      )}
-
-                      {n.type === "change_request_expired_batch" && user.is_admin && (
-                        <Link
-                          href="/admin/requests"
-                          onClick={() => {
-                            if (!n.read_at) markRead.mutate(n.id);
-                            setOpen(false);
-                          }}
-                          className="inline-block text-xs text-accent hover:underline"
-                        >
-                          Ver solicitudes
-                        </Link>
-                      )}
-
-                      {n.type === "fixture_finished" && (
-                        <Link
-                          href="/fixtures#culminados"
-                          onClick={() => {
-                            if (!n.read_at) markRead.mutate(n.id);
-                            setOpen(false);
-                          }}
-                          className="inline-block text-xs text-accent hover:underline"
-                        >
-                          Ver resultado
-                        </Link>
-                      )}
-
-                      {n.type === "change_request_resolved" && (
-                        <Link
-                          href="/my-bets?tab=pronosticos"
-                          onClick={() => !n.read_at && markRead.mutate(n.id)}
-                          className="inline-block text-xs text-accent hover:underline"
-                        >
-                          Ver mis apuestas
-                        </Link>
-                      )}
-
-                      {(n.type === "badge_earned" ||
-                        n.type === "challenge_pending" ||
-                        n.type === "challenge_accepted" ||
-                        n.type === "challenge_settled") &&
-                        notificationHref(n) && (
-                        <Link
-                          href={notificationHref(n)!}
-                          onClick={() => {
-                            if (!n.read_at) markRead.mutate(n.id);
-                            setOpen(false);
-                          }}
-                          className="inline-block text-xs text-accent hover:underline"
-                        >
-                          {notificationLinkLabel(n)} →
-                        </Link>
-                      )}
-
-                      {!isAdminActionable &&
-                        n.type !== "change_request_resolved" &&
-                        n.type !== "change_request_expired" &&
-                        n.type !== "change_request_expired_batch" &&
-                        n.type !== "fixture_finished" &&
-                        n.type !== "badge_earned" &&
-                        n.type !== "challenge_pending" &&
-                        n.type !== "challenge_accepted" &&
-                        n.type !== "challenge_settled" &&
-                        !n.read_at && (
-                        <button
-                          type="button"
-                          onClick={() => markRead.mutate(n.id)}
-                          className="text-xs text-muted hover:text-white"
-                        >
-                          Marcar leida
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
+                {notifications.map((n) => (
+                  <NotificationItem
+                    key={n.id}
+                    notification={n}
+                    isAdmin={!!user.is_admin}
+                    layout="bell"
+                    onRead={() => {
+                      if (!n.read_at) markRead.mutate(n.id);
+                    }}
+                    onRejectClick={(target) => {
+                      setRejectTarget(target);
+                      setRejectNotes("");
+                    }}
+                    onNavigate={() => setOpen(false)}
+                  />
+                ))}
               </ul>
             )}
           </div>
@@ -277,7 +169,10 @@ export function NotificationBell() {
             <button
               type="button"
               onClick={handleRejectConfirm}
-              disabled={rejectCr.isPending}
+              disabled={
+                rejectCr.isPending ||
+                (rejectTarget?.type === "password_reset_pending" && rejectPasswordReset.isPending)
+              }
               className="flex-1 py-2 rounded-lg bg-danger text-white text-sm font-bold cursor-pointer focus-ring disabled:opacity-50"
             >
               Rechazar

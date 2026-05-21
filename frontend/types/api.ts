@@ -279,7 +279,15 @@ export type NotificationType =
   | "challenge_pending"
   | "challenge_accepted"
   | "challenge_settled"
-  | "comment_mention";
+  | "challenge_received"
+  | "challenge_resolved"
+  | "comment_mention"
+  | "social_follow"
+  | "following_bet"
+  | "entry_confirmed"
+  | "extra_confirmed"
+  | "password_reset_pending"
+  | "password_reset_resolved";
 
 export interface NotificationPayload {
   request_id?: string;

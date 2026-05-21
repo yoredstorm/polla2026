@@ -1,6 +1,6 @@
 """Notifications REST API — inbox and read state."""
 import uuid
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from pydantic import BaseModel
@@ -40,11 +40,15 @@ async def list_notifications(
     db: DBSession,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    unread_only: bool = Query(False),
+    filter: Literal["unread", "read", "all"] = Query("all", alias="filter"),
+    unread_only: bool = Query(False, deprecated=True),
 ):
+    effective = "unread" if unread_only else filter
     base = select(Notification).where(Notification.user_id == current_user.id)
-    if unread_only:
+    if effective == "unread":
         base = base.where(Notification.read_at == None)  # noqa: E711
+    elif effective == "read":
+        base = base.where(Notification.read_at != None)  # noqa: E711
 
     count_q = select(func.count()).select_from(base.subquery())
     total = (await db.execute(count_q)).scalar() or 0

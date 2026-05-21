@@ -26,6 +26,7 @@ from app.services.comment_sanitizer import sanitize_comment_body, search_polla_m
 from app.services.social_comment_flow import create_comment_with_side_effects
 from app.services.social_spam_guard import ensure_not_social_muted, record_comment_burst
 from app.services.badge_notify_service import notify_new_badges_for_user_social
+from app.services.notification_service import build_social_follow, create_notification
 
 router = APIRouter(prefix="/social", tags=["Social"])
 
@@ -91,6 +92,7 @@ async def follow_user(
     username: str,
     current_user: CurrentUser,
     db: DBSession,
+    redis: RedisClient,
 ):
     target = (
         await db.execute(select(User).where(User.username == username, User.is_active == True))  # noqa: E712
@@ -108,6 +110,19 @@ async def follow_user(
     if existing.scalar_one_or_none():
         return {"ok": True, "following": True}
     db.add(UserFollow(follower_id=current_user.id, following_id=target.id))
+    title, body, payload = build_social_follow(
+        follower_username=current_user.username,
+        follower_id=str(current_user.id),
+    )
+    await create_notification(
+        db,
+        redis,
+        user_id=target.id,
+        type="social_follow",
+        title=title,
+        body=body,
+        payload=payload,
+    )
     await log_action(
         db,
         user_id=current_user.id,

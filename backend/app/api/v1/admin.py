@@ -44,6 +44,9 @@ from app.services.notification_service import (
     broadcast_polla_updated,
     broadcast_fixture_updated,
     resolve_actionable_notifications,
+    build_entry_confirmed,
+    build_extra_confirmed,
+    build_password_reset_resolved,
 )
 import structlog
 
@@ -844,6 +847,16 @@ async def add_group_member(
         notification_type="entry_pending",
         payload_match={"group_id": str(group_id), "user_id": str(body.user_id)},
     )
+    entry_title, entry_body, entry_payload = build_entry_confirmed(group_name=group.name)
+    await create_notification(
+        db,
+        redis,
+        user_id=body.user_id,
+        type="entry_confirmed",
+        title=entry_title,
+        body=entry_body,
+        payload=entry_payload,
+    )
     await db.commit()
     await broadcast_polla_updated(
         db,
@@ -1092,6 +1105,23 @@ async def confirm_extra_bet(
         notification_type="extra_bet_pending",
         payload_match={"group_id": str(group_id), "bet_id": str(bet_id)},
     )
+    if fixture:
+        ext_title, ext_body, ext_payload = build_extra_confirmed(
+            amount=str(bet.amount),
+            home_team=fixture.home_team,
+            away_team=fixture.away_team,
+            bet_id=str(bet.id),
+            fixture_id=str(bet.fixture_id),
+        )
+        await create_notification(
+            db,
+            redis,
+            user_id=bet.user_id,
+            type="extra_confirmed",
+            title=ext_title,
+            body=ext_body,
+            payload=ext_payload,
+        )
     await db.commit()
     await broadcast_polla_updated(
         db,
@@ -1638,6 +1668,7 @@ async def resolve_password_reset_request(
     body: ApproveRejectIn,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     from datetime import datetime, timezone
     pr_res = await db.execute(
@@ -1675,9 +1706,19 @@ async def resolve_password_reset_request(
 
     await resolve_actionable_notifications(
         db,
-        None,
+        redis,
         notification_type="password_reset_pending",
         payload_match={"request_id": str(request_id)},
+    )
+    pr_title, pr_body, pr_payload = build_password_reset_resolved()
+    await create_notification(
+        db,
+        redis,
+        user_id=user.id,
+        type="password_reset_resolved",
+        title=pr_title,
+        body=pr_body,
+        payload=pr_payload,
     )
     await log_action(
         db,

@@ -20,14 +20,41 @@ from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.services.bet_service import create_bet as svc_create_bet
 from app.services.bet_service import can_create_change_request_for_fixture
 from app.services.audit import log_action
+from app.models.user import User
 from app.services.notification_service import (
     notify_admins,
     build_change_request_pending,
     build_extra_bet_pending,
     broadcast_event,
+    notify_followers_of_new_bet,
 )
 
 router = APIRouter(prefix="/bets", tags=["Bets"])
+
+
+async def _notify_followers_after_bet(
+    db: DBSession,
+    redis: RedisClient,
+    *,
+    user: User,
+    bet: Bet,
+) -> None:
+    fx_res = await db.execute(select(Fixture).where(Fixture.id == bet.fixture_id))
+    fixture = fx_res.scalar_one_or_none()
+    if not fixture:
+        return
+    await notify_followers_of_new_bet(
+        db,
+        redis,
+        actor_id=user.id,
+        actor_username=user.username,
+        bet_id=bet.id,
+        fixture_id=bet.fixture_id,
+        predicted_home=bet.predicted_home_score,
+        predicted_away=bet.predicted_away_score,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+    )
 
 
 @router.post("", response_model=BetOut, status_code=status.HTTP_201_CREATED)
@@ -65,12 +92,14 @@ async def create_bet(
                 payload=payload,
                 exclude_user_id=current_user.id,
             )
-        elif bet.amount_confirmed:
-            await broadcast_event(
-                db,
-                redis,
-                {"type": "data_refresh", "data": {"reason": "bet_placed"}},
-            )
+        else:
+            await _notify_followers_after_bet(db, redis, user=current_user, bet=bet)
+            if bet.amount_confirmed:
+                await broadcast_event(
+                    db,
+                    redis,
+                    {"type": "data_refresh", "data": {"reason": "bet_placed"}},
+                )
         return BetOut.model_validate(bet)
     except ValueError as e:
         error_code = str(e)
@@ -242,7 +271,13 @@ class BulkCopyOut(BaseModel):
 
 @router.post("/bulk-copy", response_model=BulkCopyOut, status_code=status.HTTP_201_CREATED)
 @limiter.limit(GLOBAL_RATE_LIMIT)
-async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: CurrentUser, db: DBSession):
+async def bulk_copy_bets(
+    request: Request,
+    body: BulkCopyIn,
+    current_user: CurrentUser,
+    db: DBSession,
+    redis: RedisClient,
+):
     from app.models.group import Group
     from app.models.user import User
 
@@ -288,7 +323,8 @@ async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: Curre
                     group_id=None,
                     amount=Decimal("0"),
                 )
-                await svc_create_bet(db, current_user.id, free_data)
+                bet = await svc_create_bet(db, current_user.id, free_data)
+                await _notify_followers_after_bet(db, redis, user=current_user, bet=bet)
                 created += 1
             except ValueError as e:
                 code = str(e)
@@ -310,7 +346,9 @@ async def bulk_copy_bets(request: Request, body: BulkCopyIn, current_user: Curre
                     group_id=active_polla.id,
                     amount=extra_amount,
                 )
-                await svc_create_bet(db, current_user.id, extra_data)
+                bet = await svc_create_bet(db, current_user.id, extra_data)
+                if not (bet.group_id and not bet.amount_confirmed and bet.amount > 0):
+                    await _notify_followers_after_bet(db, redis, user=current_user, bet=bet)
                 created += 1
             except ValueError as e:
                 errors.append(f"{item.fixture_id} extra: {str(e)}")

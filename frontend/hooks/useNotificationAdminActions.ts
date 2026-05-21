@@ -5,6 +5,8 @@ import {
   useRejectChangeRequest,
   useConfirmExtra,
   useAddGroupMember,
+  useResolvePasswordResetRequest,
+  useRejectPasswordResetRequest,
 } from "@/hooks/useAdmin";
 import { useMarkNotificationRead } from "@/hooks/useNotifications";
 import { useToast } from "@/components/ui/Toast";
@@ -19,6 +21,8 @@ export function useNotificationAdminActions() {
   const rejectCr = useRejectChangeRequest();
   const confirmExtra = useConfirmExtra();
   const addMember = useAddGroupMember();
+  const resolvePasswordReset = useResolvePasswordResetRequest();
+  const rejectPasswordReset = useRejectPasswordResetRequest();
 
   async function afterAction(n: Notification, alreadyDone = false) {
     if (!n.read_at) {
@@ -48,10 +52,17 @@ export function useNotificationAdminActions() {
   async function handleReject(n: Notification, adminNotes?: string) {
     if (!n.payload?.request_id) return;
     try {
-      await rejectCr.mutateAsync({
-        requestId: n.payload.request_id,
-        admin_notes: adminNotes || undefined,
-      });
+      if (n.type === "password_reset_pending") {
+        await rejectPasswordReset.mutateAsync({
+          requestId: n.payload.request_id,
+          admin_notes: adminNotes || undefined,
+        });
+      } else {
+        await rejectCr.mutateAsync({
+          requestId: n.payload.request_id,
+          admin_notes: adminNotes || undefined,
+        });
+      }
       await afterAction(n);
     } catch (e) {
       if (isAlreadyResolvedError(e)) {
@@ -60,6 +71,29 @@ export function useNotificationAdminActions() {
       }
       toast("Error al rechazar", "error");
     }
+  }
+
+  async function handleResolvePasswordReset(
+    n: Notification,
+    p: NotificationPayload,
+  ): Promise<string | null> {
+    if (!p.request_id) return null;
+    try {
+      const result = await resolvePasswordReset.mutateAsync({ requestId: p.request_id });
+      await afterAction(n);
+      return result.temporary_password;
+    } catch (e) {
+      if (isAlreadyResolvedError(e)) {
+        await afterAction(n, true);
+        return null;
+      }
+      toast("Error al generar contraseña temporal", "error");
+      return null;
+    }
+  }
+
+  async function handleRejectPasswordReset(n: Notification, adminNotes?: string) {
+    return handleReject(n, adminNotes);
   }
 
   async function handleConfirmExtra(n: Notification, p: NotificationPayload) {
@@ -95,9 +129,13 @@ export function useNotificationAdminActions() {
     rejectCr,
     confirmExtra,
     addMember,
+    resolvePasswordReset,
+    rejectPasswordReset,
     handleApproveChange,
     handleReject,
     handleConfirmExtra,
     handleConfirmEntry,
+    handleResolvePasswordReset,
+    handleRejectPasswordReset,
   };
 }
