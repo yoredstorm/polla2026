@@ -1,7 +1,7 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
-import { getMe, login, logout, register } from "@/lib/auth";
+import { getMe, login, logout, register, type LoginResponse } from "@/lib/auth";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -37,8 +37,8 @@ export function useAuth() {
       password: string;
       redirectTo?: string;
     }) => login(username, password),
-    onSuccess: (data: { user?: { must_change_password?: boolean } }, variables) => {
-      if (data?.user) setUser(data.user as Parameters<typeof setUser>[0]);
+    onSuccess: (data: LoginResponse, variables) => {
+      if (data.user) setUser(data.user);
       queryClient.invalidateQueries({ queryKey: ["me"] });
       if (data?.user?.must_change_password) {
         router.push("/account/change-password-required");

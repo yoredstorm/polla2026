@@ -9,8 +9,13 @@ export async function getMe(): Promise<User | null> {
   }
 }
 
-export async function login(username: string, password: string) {
-  return api.post("/auth/login", { username, password });
+export interface LoginResponse {
+  message: string;
+  user: User;
+}
+
+export async function login(username: string, password: string): Promise<LoginResponse> {
+  return api.post<LoginResponse>("/auth/login", { username, password });
 }
 
 export async function register(payload: {
