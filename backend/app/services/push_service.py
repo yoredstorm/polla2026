@@ -92,7 +92,7 @@ def _send_one_subscription(
     body: str,
     data: dict[str, Any],
 ) -> None:
-    from pywebpush import WebPushException, webpush
+    from pywebpush import webpush
 
     payload = json.dumps({"title": title, "body": body, **data}, default=str)
     webpush(
@@ -102,7 +102,9 @@ def _send_one_subscription(
         },
         data=payload,
         vapid_private_key=settings.VAPID_PRIVATE_KEY,
+        vapid_public_key=settings.VAPID_PUBLIC_KEY,
         vapid_claims={"sub": settings.VAPID_CLAIMS_SUB},
+        ttl=86400,
     )
 
 
@@ -131,6 +133,12 @@ async def send_web_push_for_notification(db: AsyncSession, n: Notification) -> i
         try:
             _send_one_subscription(sub, title=n.title, body=n.body, data=data)
             sent += 1
+            logger.info(
+                "web_push_sent",
+                user_id=str(n.user_id),
+                notification_id=str(n.id),
+                endpoint=sub.endpoint[:80],
+            )
         except Exception as exc:
             from pywebpush import WebPushException
 
@@ -150,7 +158,30 @@ async def send_web_push_for_notification(db: AsyncSession, n: Notification) -> i
         await db.execute(delete(PushSubscription).where(PushSubscription.endpoint.in_(stale_endpoints)))
         await db.flush()
 
+    if sent:
+        logger.info(
+            "web_push_batch_done",
+            user_id=str(n.user_id),
+            notification_id=str(n.id),
+            sent=sent,
+            total=len(subs),
+        )
+    elif subs:
+        logger.warning(
+            "web_push_batch_all_failed",
+            user_id=str(n.user_id),
+            notification_id=str(n.id),
+            total=len(subs),
+        )
+
     return sent
+
+
+async def count_push_subscriptions(db: AsyncSession, user_id: uuid.UUID) -> int:
+    result = await db.execute(
+        select(PushSubscription).where(PushSubscription.user_id == user_id)
+    )
+    return len(result.scalars().all())
 
 
 async def upsert_push_subscription(

@@ -40,6 +40,37 @@ export async function getLocalPushSubscription(): Promise<PushSubscription | nul
   return reg.pushManager.getSubscription();
 }
 
+export type PushServerStatus = {
+  vapidConfigured: boolean;
+  serverSubscriptionCount: number;
+  serverRegistered: boolean;
+};
+
+export async function getPushServerStatus(): Promise<PushServerStatus> {
+  return api.get<PushServerStatus>("/notifications/push/status");
+}
+
+/** Re-register browser subscription on the server (fixes permission granted but POST failed). */
+export async function syncPushSubscriptionToServer(): Promise<boolean> {
+  if (!isPushSupported() || Notification.permission !== "granted") return false;
+  await navigator.serviceWorker.ready;
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  if (!sub) return false;
+  const json = sub.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
+  await api.post("/notifications/push/subscribe", {
+    endpoint: json.endpoint,
+    keys: json.keys,
+    expirationTime: json.expirationTime ?? null,
+  });
+  return true;
+}
+
+export async function sendPushTest(): Promise<{ ok: boolean; serverSubscriptionCount: number }> {
+  return api.post("/notifications/push/test", {});
+}
+
 export async function subscribeToPush(): Promise<PushSubscription> {
   if (!isPushSupported()) {
     throw new Error("Las notificaciones push no estan disponibles en este navegador.");
@@ -64,10 +95,20 @@ export async function subscribeToPush(): Promise<PushSubscription> {
   await navigator.serviceWorker.ready;
 
   let sub = await reg.pushManager.getSubscription();
+  const appKey = urlBase64ToUint8Array(publicKey) as BufferSource;
+  if (sub) {
+    try {
+      await syncPushSubscriptionToServer();
+      return sub;
+    } catch {
+      await sub.unsubscribe();
+      sub = null;
+    }
+  }
   if (!sub) {
     sub = await reg.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(publicKey) as BufferSource,
+      applicationServerKey: appKey,
     });
   }
 

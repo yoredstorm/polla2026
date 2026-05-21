@@ -84,3 +84,21 @@ async def test_subscribe_and_unsubscribe(client: AsyncClient, db_session: AsyncS
         )
     ).scalar_one_or_none()
     assert row2 is None
+
+
+@pytest.mark.asyncio
+async def test_push_status(client: AsyncClient):
+    cookies = await _register(client, "push_status_user")
+    r = await client.get("/api/v1/notifications/push/status", cookies=cookies)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["vapidConfigured"] is True
+    assert data["serverSubscriptionCount"] == 0
+    assert data["serverRegistered"] is False
+
+
+@pytest.mark.asyncio
+async def test_push_test_requires_subscription(client: AsyncClient):
+    cookies = await _register(client, "push_test_user")
+    r = await client.post("/api/v1/notifications/push/test", cookies=cookies)
+    assert r.status_code == 400

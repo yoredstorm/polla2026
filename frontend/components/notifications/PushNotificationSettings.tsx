@@ -3,8 +3,18 @@ import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { cn } from "@/lib/utils";
 
 export function PushNotificationSettings({ className }: { className?: string }) {
-  const { supported, permission, subscribed, loading, error, enable, disable } =
-    usePushNotifications();
+  const {
+    supported,
+    permission,
+    subscribed,
+    serverRegistered,
+    loading,
+    error,
+    testMessage,
+    enable,
+    disable,
+    sendTest,
+  } = usePushNotifications();
 
   if (!supported) {
     return (
@@ -37,11 +47,25 @@ export function PushNotificationSettings({ className }: { className?: string }) 
           Bloqueaste los permisos. Activalos en la configuracion del navegador para este sitio.
         </p>
       )}
+      {subscribed && !serverRegistered && (
+        <p className="text-xs text-amber-300">
+          El navegador tiene permiso pero el servidor no guardo la suscripcion. Pulsa Activar de nuevo.
+        </p>
+      )}
       {error && <p className="text-xs text-red-300">{error}</p>}
+      {testMessage && <p className="text-xs text-emerald-300">{testMessage}</p>}
       <div className="flex flex-wrap gap-2 pt-1">
-        {subscribed ? (
+        {subscribed && serverRegistered ? (
           <>
             <span className="text-xs text-emerald-300 self-center">Activadas en este dispositivo</span>
+            <button
+              type="button"
+              onClick={() => void sendTest()}
+              disabled={loading}
+              className="text-xs px-3 py-1.5 rounded-lg border border-accent/40 text-accent hover:bg-accent/10 disabled:opacity-50"
+            >
+              Enviar prueba
+            </button>
             <button
               type="button"
               onClick={() => void disable()}
@@ -51,6 +75,15 @@ export function PushNotificationSettings({ className }: { className?: string }) 
               Desactivar
             </button>
           </>
+        ) : subscribed && !serverRegistered ? (
+          <button
+            type="button"
+            onClick={() => void enable()}
+            disabled={loading || permission === "denied"}
+            className="text-xs px-4 py-2 rounded-lg bg-accent text-background font-medium hover:opacity-90 disabled:opacity-50"
+          >
+            {loading ? "Sincronizando..." : "Volver a activar"}
+          </button>
         ) : (
           <button
             type="button"

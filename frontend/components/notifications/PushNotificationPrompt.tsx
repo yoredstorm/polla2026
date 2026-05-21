@@ -7,8 +7,10 @@ import { getApiErrorMessage } from "@/lib/challengeUtils";
 import {
   getLocalPushSubscription,
   getPushPermissionState,
+  getPushServerStatus,
   isPushSupported,
   subscribeToPush,
+  syncPushSubscriptionToServer,
 } from "@/lib/pushNotifications";
 
 const SNOOZE_KEY = "polla_push_prompt_snooze_until";
@@ -54,7 +56,18 @@ export function PushNotificationPrompt() {
 
       const existing = await getLocalPushSubscription();
       if (cancelled) return;
-      if (existing) return;
+      if (existing) {
+        try {
+          await syncPushSubscriptionToServer();
+          const status = await getPushServerStatus();
+          if (!cancelled && !status.serverRegistered) {
+            setOpen(true);
+          }
+        } catch {
+          if (!cancelled) setOpen(true);
+        }
+        return;
+      }
 
       setOpen(true);
 

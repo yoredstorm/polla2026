@@ -16,11 +16,13 @@ from app.services.notification_service import (
     mark_all_read,
     get_unread_count,
     publish_to_user,
+    create_notification,
 )
 from app.services.push_service import (
     vapid_configured,
     upsert_push_subscription,
     delete_push_subscription,
+    count_push_subscriptions,
 )
 from app.core.config import settings
 
@@ -160,6 +162,50 @@ async def push_subscribe(
     )
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/push/status")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def push_status(request: Request, current_user: CurrentUser, db: DBSession):
+    count = await count_push_subscriptions(db, current_user.id)
+    return {
+        "vapidConfigured": vapid_configured(),
+        "serverSubscriptionCount": count,
+        "serverRegistered": count > 0,
+    }
+
+
+@router.post("/push/test")
+@limiter.limit("10/minute")
+async def push_test(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    redis: RedisClient,
+):
+    """Send a test in-app notification + Web Push to the current user's devices."""
+    if not vapid_configured():
+        raise HTTPException(status_code=503, detail="Web Push no configurado en el servidor")
+    sub_count = await count_push_subscriptions(db, current_user.id)
+    if sub_count == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="No hay suscripcion guardada en el servidor. Activa notificaciones de nuevo en /notifications.",
+        )
+    n = await create_notification(
+        db,
+        redis,
+        user_id=current_user.id,
+        type="push_test",
+        title="Prueba de notificaciones",
+        body="Si ves este mensaje en el celular, Web Push funciona correctamente.",
+        payload={"source": "push_test"},
+    )
+    return {
+        "ok": True,
+        "notificationId": str(n.id),
+        "serverSubscriptionCount": sub_count,
+    }
 
 
 @router.delete("/push/unsubscribe")
