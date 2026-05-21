@@ -225,10 +225,13 @@ async def user_has_active_challenge_on_fixture(
 
 
 async def _assert_bet_on_fixture(db: AsyncSession, user_id: uuid.UUID, fixture_id: uuid.UUID) -> Bet:
+    """User may have free + extra bets on the same fixture; any row satisfies the requirement."""
     res = await db.execute(
-        select(Bet).where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
+        select(Bet)
+        .where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
+        .order_by(Bet.group_id.asc().nulls_first(), Bet.created_at.asc())
     )
-    bet = res.scalar_one_or_none()
+    bet = res.scalars().first()
     if not bet:
         raise ValueError("BOTH_NEED_BET")
     return bet

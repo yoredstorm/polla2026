@@ -195,6 +195,46 @@ async def test_accept_succeeds_when_challenger_at_stake_limit(
 
 
 @pytest.mark.asyncio
+async def test_create_challenge_with_free_and_extra_bet_same_fixture(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """Free + group extra on same fixture must not raise MultipleResultsFound."""
+    cookies_a, user_a = await _register(client, "ch_multi_a")
+    cookies_b, user_b = await _register(client, "ch_multi_b")
+
+    group, fixture = await _seed_polla(db_session, [(user_a, 20), (user_b, 20)])
+    db_session.add(
+        Bet(
+            id=uuid.uuid4(),
+            user_id=user_a,
+            fixture_id=fixture.id,
+            group_id=None,
+            predicted_home_score=1,
+            predicted_away_score=0,
+            amount=Decimal("0"),
+            amount_confirmed=True,
+        )
+    )
+    db_session.add(_bet(user_a, fixture.id, group.id))
+    db_session.add(_bet(user_b, fixture.id, group.id))
+    await db_session.commit()
+
+    user_b_row = (await db_session.execute(select(User).where(User.id == user_b))).scalar_one()
+
+    ch = await create_challenge(
+        db_session,
+        None,
+        challenger_id=user_a,
+        challenged_username=user_b_row.username,
+        fixture_id=fixture.id,
+        stake_points=2,
+        ip=None,
+    )
+    assert ch.id is not None
+
+
+@pytest.mark.asyncio
 async def test_accept_fails_without_bet(client: AsyncClient, db_session: AsyncSession):
     cookies_a, user_a = await _register(client, "challenger_nb")
     cookies_b, user_b = await _register(client, "challenged_nb")
