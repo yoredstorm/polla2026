@@ -9,7 +9,7 @@ import {
   getPushPermissionState,
   getPushServerStatus,
   isPushSupported,
-  subscribeToPush,
+  resetAndSubscribeToPush,
   syncPushSubscriptionToServer,
 } from "@/lib/pushNotifications";
 
@@ -87,7 +87,7 @@ export function PushNotificationPrompt() {
     setBusy(true);
     setError(null);
     try {
-      await subscribeToPush();
+      await resetAndSubscribeToPush();
       setOpen(false);
     } catch (e) {
       setError(formatPushSubscribeError(e));

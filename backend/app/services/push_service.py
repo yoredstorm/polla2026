@@ -14,10 +14,10 @@ from app.core.config import settings
 from app.models.notification import Notification
 from app.models.push_subscription import PushSubscription
 from app.services.vapid_keys import (
+    derive_public_key_from_private,
+    env_public_matches_derived,
     normalize_vapid_key,
-    public_key_for_browser,
-    validate_vapid_private_key,
-    validate_vapid_public_key,
+    vapid_env_configured,
 )
 
 logger = structlog.get_logger(__name__)
@@ -39,16 +39,18 @@ ADMIN_ACTIONABLE_TYPES = frozenset({
 
 
 def vapid_configured() -> bool:
-    pub = normalize_vapid_key(settings.VAPID_PUBLIC_KEY or "")
-    priv = normalize_vapid_key(settings.VAPID_PRIVATE_KEY or "")
-    if not pub or not priv:
-        return False
-    return validate_vapid_public_key(pub) and validate_vapid_private_key(priv)
+    return vapid_env_configured(settings.VAPID_PRIVATE_KEY, settings.VAPID_PUBLIC_KEY)
 
 
 def get_vapid_public_key() -> str:
-    """Normalized public key safe to pass to PushManager.subscribe."""
-    return public_key_for_browser(settings.VAPID_PUBLIC_KEY)
+    """Public key derived from private — avoids Dokploy PUBLIC/PRIVATE mismatch."""
+    derived = derive_public_key_from_private(settings.VAPID_PRIVATE_KEY)
+    if not env_public_matches_derived(settings.VAPID_PRIVATE_KEY, settings.VAPID_PUBLIC_KEY):
+        logger.warning(
+            "vapid_public_key_env_mismatch",
+            hint="VAPID_PUBLIC_KEY en env no coincide con la derivada de VAPID_PRIVATE_KEY; se usa la derivada",
+        )
+    return derived
 
 
 def _parse_payload(n: Notification) -> dict[str, Any]:

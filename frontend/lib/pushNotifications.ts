@@ -40,8 +40,10 @@ export function formatPushSubscribeError(
     }
     if (isPushServiceRegistrationError(err)) {
       return (
-        "Chrome no pudo registrar este telefono con el servicio push (suscripcion antigua o corrupta). " +
-        "Pulsa «Reiniciar push en este dispositivo» o cierra Chrome por completo y vuelve a intentar."
+        "Chrome no pudo registrar este telefono con el servicio push (FCM). " +
+        "Pulsa «Reiniciar push en este dispositivo», cierra Chrome por completo (no solo la pestaña) y vuelve a intentar. " +
+        "Si sigue igual: actualiza Chrome, desactiva ahorro de bateria para Chrome, comprueba que Google Play Services este activo " +
+        "y prueba otra red (Wi‑Fi en lugar de datos)."
       );
     }
     return `El navegador no pudo crear la suscripcion push: ${err.message}`;
@@ -76,6 +78,53 @@ function validateApplicationServerKey(publicKey: string): Uint8Array {
     );
   }
   return bytes;
+}
+
+/** Detached ArrayBuffer — some Android Chrome builds reject Uint8Array views on subscribe. */
+function toApplicationServerKey(bytes: Uint8Array): ArrayBuffer {
+  const buf = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buf).set(bytes);
+  return buf;
+}
+
+async function preflightServiceWorkerScript(): Promise<void> {
+  const res = await fetch("/sw.js", { cache: "no-store" });
+  const ct = res.headers.get("content-type") ?? "";
+  const text = await res.text();
+  if (!res.ok || text.trimStart().startsWith("<") || !ct.includes("javascript")) {
+    throw new Error(
+      "El archivo /sw.js no es valido (el servidor devolvio HTML o un error). " +
+        "Cierra sesion no deberia bloquear sw.js; avisa al administrador.",
+    );
+  }
+}
+
+async function waitForServiceWorkerActive(
+  reg: ServiceWorkerRegistration,
+  timeoutMs = 12000,
+): Promise<void> {
+  if (reg.active) return;
+  const worker = reg.installing ?? reg.waiting;
+  if (!worker) {
+    await new Promise((r) => setTimeout(r, 400));
+    if (reg.active) return;
+    throw new Error("El service worker no termino de activarse. Cierra Chrome y vuelve a abrir el sitio.");
+  }
+  await new Promise<void>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error("Tiempo de espera agotado activando notificaciones. Vuelve a intentar."));
+    }, timeoutMs);
+    worker.addEventListener("statechange", () => {
+      if (worker.state === "activated" || reg.active) {
+        window.clearTimeout(timer);
+        resolve();
+      }
+    });
+    if (worker.state === "activated" || reg.active) {
+      window.clearTimeout(timer);
+      resolve();
+    }
+  });
 }
 
 /** Unregister service workers and local push subscription (does not clear server). */
@@ -120,9 +169,11 @@ export async function clearAllPushSubscriptions(): Promise<number> {
 
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!isPushSupported()) return null;
+  await preflightServiceWorkerScript();
   try {
     const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
     await reg.update();
+    await waitForServiceWorkerActive(reg);
     return reg;
   } catch (e) {
     const hint = e instanceof Error ? e.message : "error desconocido";
@@ -143,6 +194,7 @@ export async function getLocalPushSubscription(): Promise<PushSubscription | nul
 
 export type PushServerStatus = {
   vapidConfigured: boolean;
+  vapidKeyPairConsistent?: boolean;
   serverSubscriptionCount: number;
   serverRegistered: boolean;
 };
@@ -233,7 +285,7 @@ export async function subscribeToPush(): Promise<PushSubscription> {
     );
   }
 
-  const appKey = validateApplicationServerKey(publicKey) as BufferSource;
+  const appKey = toApplicationServerKey(validateApplicationServerKey(publicKey));
 
   let reg = await registerServiceWorker();
   if (!reg) {
@@ -289,9 +341,13 @@ export async function subscribeToPush(): Promise<PushSubscription> {
   return sub;
 }
 
-/** Full reset (server + browser) then subscribe — use when «push service error» persists. */
+/**
+ * Reset push only on this browser (unregister SW + local subscription), then subscribe again.
+ * Does not remove other devices registered on the server.
+ */
 export async function resetAndSubscribeToPush(): Promise<PushSubscription> {
-  await clearAllPushSubscriptions();
+  await resetLocalPushState();
+  await new Promise((r) => setTimeout(r, 500));
   return subscribeToPush();
 }
 

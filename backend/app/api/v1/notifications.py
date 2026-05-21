@@ -26,6 +26,8 @@ from app.services.push_service import (
     delete_all_push_subscriptions_for_user,
     count_push_subscriptions,
 )
+from app.services.vapid_keys import env_public_matches_derived
+from app.core.config import settings
 from app.core.config import settings
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -179,8 +181,15 @@ async def push_subscribe(
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def push_status(request: Request, current_user: CurrentUser, db: DBSession):
     count = await count_push_subscriptions(db, current_user.id)
+    configured = vapid_configured()
+    key_match = True
+    if configured:
+        key_match = env_public_matches_derived(
+            settings.VAPID_PRIVATE_KEY, settings.VAPID_PUBLIC_KEY
+        )
     return {
-        "vapidConfigured": vapid_configured(),
+        "vapidConfigured": configured,
+        "vapidKeyPairConsistent": key_match,
         "serverSubscriptionCount": count,
         "serverRegistered": count > 0,
     }
