@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Modal } from "@/components/ui/Modal";
-import { getApiErrorMessage } from "@/lib/challengeUtils";
 import {
+  formatPushSubscribeError,
   getLocalPushSubscription,
   getPushPermissionState,
   getPushServerStatus,
@@ -54,39 +54,28 @@ export function PushNotificationPrompt() {
       setPermission(perm as NotificationPermission);
       if (perm === "unsupported") return;
 
+      try {
+        const status = await getPushServerStatus();
+        if (cancelled) return;
+        if (status.serverRegistered) return;
+      } catch {
+        /* show prompt so user can retry */
+      }
+
       const existing = await getLocalPushSubscription();
       if (cancelled) return;
-      if (existing) {
+
+      if (existing && perm === "granted") {
         try {
           await syncPushSubscriptionToServer();
           const status = await getPushServerStatus();
-          if (!cancelled && !status.serverRegistered) {
-            setOpen(true);
-          }
+          if (!cancelled && status.serverRegistered) return;
         } catch {
-          if (!cancelled) setOpen(true);
-        }
-        return;
-      }
-
-      setOpen(true);
-
-      if (perm === "default" || perm === "granted") {
-        setBusy(true);
-        setError(null);
-        try {
-          await subscribeToPush();
-          if (!cancelled) setOpen(false);
-        } catch (e) {
-          if (!cancelled) {
-            setError(getApiErrorMessage(e, "No se pudo activar las notificaciones."));
-            const p = await getPushPermissionState();
-            setPermission(p as NotificationPermission);
-          }
-        } finally {
-          if (!cancelled) setBusy(false);
+          /* need manual activation */
         }
       }
+
+      if (!cancelled) setOpen(true);
     })();
 
     return () => {
@@ -101,7 +90,7 @@ export function PushNotificationPrompt() {
       await subscribeToPush();
       setOpen(false);
     } catch (e) {
-      setError(getApiErrorMessage(e, "No se pudo activar las notificaciones."));
+      setError(formatPushSubscribeError(e));
       const p = await getPushPermissionState();
       setPermission(p as NotificationPermission);
     } finally {

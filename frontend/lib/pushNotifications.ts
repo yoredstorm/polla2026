@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { getApiErrorMessage } from "@/lib/challengeUtils";
 
 export type PushPermissionState = "unsupported" | "default" | "granted" | "denied";
 
@@ -7,6 +8,22 @@ export function isPushSupported(): boolean {
   const secure =
     window.location.protocol === "https:" || window.location.hostname === "localhost";
   return secure && "serviceWorker" in navigator && "PushManager" in window;
+}
+
+/** User-facing message for push subscribe failures (API, browser, or generic Error). */
+export function formatPushSubscribeError(
+  err: unknown,
+  fallback = "No se pudo activar las notificaciones.",
+): string {
+  const apiMsg = getApiErrorMessage(err, "");
+  if (apiMsg) return apiMsg;
+  if (err instanceof DOMException) {
+    return `El navegador no pudo crear la suscripcion push: ${err.message}`;
+  }
+  if (err instanceof Error && err.message) {
+    return err.message;
+  }
+  return fallback;
 }
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
@@ -24,8 +41,10 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   if (!isPushSupported()) return null;
   try {
     return await navigator.serviceWorker.register("/sw.js", { scope: "/" });
-  } catch {
-    return null;
+  } catch (e) {
+    const hint =
+      e instanceof Error ? e.message : "error desconocido";
+    throw new Error(`No se pudo cargar /sw.js (${hint}).`);
   }
 }
 
@@ -50,6 +69,27 @@ export async function getPushServerStatus(): Promise<PushServerStatus> {
   return api.get<PushServerStatus>("/notifications/push/status");
 }
 
+async function saveSubscriptionOnServer(sub: PushSubscription): Promise<void> {
+  const json = sub.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
+    throw new Error("Suscripcion push invalida en el navegador.");
+  }
+  try {
+    await api.post("/notifications/push/subscribe", {
+      endpoint: json.endpoint,
+      keys: json.keys,
+      expirationTime: json.expirationTime ?? null,
+    });
+  } catch (err) {
+    const detail = getApiErrorMessage(err, "");
+    throw new Error(
+      detail
+        ? `No se guardo la suscripcion en el servidor: ${detail}`
+        : "No se guardo la suscripcion en el servidor.",
+    );
+  }
+}
+
 /** Re-register browser subscription on the server (fixes permission granted but POST failed). */
 export async function syncPushSubscriptionToServer(): Promise<boolean> {
   if (!isPushSupported() || Notification.permission !== "granted") return false;
@@ -57,17 +97,15 @@ export async function syncPushSubscriptionToServer(): Promise<boolean> {
   const reg = await navigator.serviceWorker.getRegistration("/");
   const sub = reg ? await reg.pushManager.getSubscription() : null;
   if (!sub) return false;
-  const json = sub.toJSON();
-  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) return false;
-  await api.post("/notifications/push/subscribe", {
-    endpoint: json.endpoint,
-    keys: json.keys,
-    expirationTime: json.expirationTime ?? null,
-  });
+  await saveSubscriptionOnServer(sub);
   return true;
 }
 
-export async function sendPushTest(): Promise<{ ok: boolean; serverSubscriptionCount: number }> {
+export async function sendPushTest(): Promise<{
+  ok: boolean;
+  serverSubscriptionCount: number;
+  pushDelivered?: number;
+}> {
   return api.post("/notifications/push/test", {});
 }
 
@@ -81,28 +119,45 @@ export async function subscribeToPush(): Promise<PushSubscription> {
     throw new Error("Permiso de notificaciones denegado.");
   }
 
-  const { publicKey } = await api.get<{ publicKey: string }>(
-    "/notifications/push/vapid-public-key",
-  );
+  let publicKey: string;
+  try {
+    const res = await api.get<{ publicKey: string }>("/notifications/push/vapid-public-key");
+    publicKey = res.publicKey;
+  } catch (err) {
+    const detail = getApiErrorMessage(err, "");
+    if (detail.includes("no configurado") || detail.includes("Web Push")) {
+      throw new Error(detail);
+    }
+    throw new Error(
+      detail
+        ? `Web Push no disponible en el servidor: ${detail}`
+        : "Web Push no configurado en el servidor. El administrador debe añadir claves VAPID en Dokploy.",
+    );
+  }
+
+  if (!publicKey) {
+    throw new Error(
+      "Web Push no configurado en el servidor. El administrador debe añadir claves VAPID en Dokploy.",
+    );
+  }
 
   const reg = await registerServiceWorker();
   if (!reg) {
-    throw new Error(
-      "No se pudo registrar el service worker. Comprueba que /sw.js cargue correctamente.",
-    );
+    throw new Error("No se pudo registrar el service worker. Comprueba que /sw.js cargue correctamente.");
   }
 
   await navigator.serviceWorker.ready;
 
   let sub = await reg.pushManager.getSubscription();
   const appKey = urlBase64ToUint8Array(publicKey) as BufferSource;
+
   if (sub) {
     try {
-      await syncPushSubscriptionToServer();
+      await saveSubscriptionOnServer(sub);
       const status = await getPushServerStatus();
       if (status.serverRegistered) return sub;
     } catch {
-      /* fall through to fresh subscribe */
+      /* re-subscribe with current VAPID key */
     }
     try {
       await sub.unsubscribe();
@@ -111,23 +166,29 @@ export async function subscribeToPush(): Promise<PushSubscription> {
     }
     sub = null;
   }
+
   if (!sub) {
-    sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: appKey,
-    });
+    try {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: appKey,
+      });
+    } catch (e) {
+      if (e instanceof DOMException) {
+        throw new Error(`El navegador no pudo crear la suscripcion push: ${e.message}`);
+      }
+      throw e;
+    }
   }
 
-  const json = sub.toJSON();
-  if (!json.endpoint || !json.keys?.p256dh || !json.keys?.auth) {
-    throw new Error("Suscripcion push invalida en el navegador.");
-  }
+  await saveSubscriptionOnServer(sub);
 
-  await api.post("/notifications/push/subscribe", {
-    endpoint: json.endpoint,
-    keys: json.keys,
-    expirationTime: json.expirationTime ?? null,
-  });
+  const status = await getPushServerStatus();
+  if (!status.serverRegistered) {
+    throw new Error(
+      "El servidor no registro este dispositivo. Revisa VAPID en Dokploy o vuelve a intentar.",
+    );
+  }
 
   return sub;
 }

@@ -160,7 +160,6 @@ async def push_subscribe(
         auth=body.keys.auth,
         user_agent=ua[:512] if ua else None,
     )
-    await db.commit()
     return {"ok": True}
 
 
@@ -226,5 +225,4 @@ async def push_unsubscribe(
     if not body.endpoint:
         raise HTTPException(status_code=400, detail="endpoint requerido")
     await delete_push_subscription(db, user_id=current_user.id, endpoint=body.endpoint)
-    await db.commit()
     return {"ok": True}

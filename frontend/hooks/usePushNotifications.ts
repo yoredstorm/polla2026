@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
-import { getApiErrorMessage } from "@/lib/challengeUtils";
 import {
+  formatPushSubscribeError,
   getLocalPushSubscription,
   getPushPermissionState,
   getPushServerStatus,
@@ -68,7 +68,7 @@ export function usePushNotifications() {
       await subscribeToPush();
       await refresh();
     } catch (e) {
-      setError(getApiErrorMessage(e, "No se pudo activar las notificaciones."));
+      setError(formatPushSubscribeError(e));
       await refresh();
     } finally {
       setLoading(false);
@@ -96,7 +96,7 @@ export function usePushNotifications() {
       await sendPushTest();
       setTestMessage("Prueba enviada. Cierra la app o bloquea la pantalla y revisa la bandeja del sistema.");
     } catch (e) {
-      setError(getApiErrorMessage(e, "No se pudo enviar la prueba."));
+      setError(formatPushSubscribeError(e, "No se pudo enviar la prueba."));
     } finally {
       setLoading(false);
     }
