@@ -206,6 +206,8 @@ async def post_challenge(
             "BOTH_NEED_BET": "Debes tener apuesta en este partido antes de retar",
             "STAKE_ABOVE_MAX": "Supera el maximo de puntos por duelo de la polla",
             "STAKE_ABOVE_HALF_BALANCE": "No puedes apostar mas del 50% de tus puntos disponibles",
+            "DAILY_CHALLENGE_LIMIT": "Agotaste tus retos de hoy. Se reinician a medianoche.",
+            "TOURNAMENT_CHALLENGE_LIMIT": "Agotaste tus retos del mundial.",
         }
         raise HTTPException(status_code=400, detail={"error": {"code": code, "message": messages.get(code, code)}})
 
@@ -343,17 +345,32 @@ async def list_fixture_challenges(
 @router.get("/available-points")
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def get_available_points(request: Request, current_user: CurrentUser, db: DBSession):
-    from app.services.challenge_service import _get_active_group
+    from app.services.challenge_service import _get_active_group, get_challenge_quota
 
     group = await _get_active_group(db)
     if not group:
-        return {"available": 0, "max_stake": 0, "max_by_balance": 0, "effective_max": 0}
+        return {
+            "available": 0,
+            "max_stake": 0,
+            "max_by_balance": 0,
+            "effective_max": 0,
+            "daily_limit": None,
+            "daily_used": 0,
+            "daily_remaining": None,
+            "tournament_limit": None,
+            "tournament_used": 0,
+            "tournament_remaining": None,
+            "daily_resets_at": None,
+            "timezone": None,
+        }
     pts = await available_points(db, current_user.id, group.id)
     group_max = await get_challenge_max_stake(db, group)
     eff = await effective_max_stake_for_user(db, current_user.id, group.id)
+    quota = await get_challenge_quota(db, current_user.id, group)
     return {
         "available": pts,
         "max_stake": group_max,
         "max_by_balance": max_stake_by_balance(pts),
         "effective_max": eff,
+        **quota,
     }

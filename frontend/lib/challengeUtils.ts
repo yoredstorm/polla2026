@@ -1,7 +1,13 @@
 export function getApiErrorMessage(err: unknown, fallback: string): string {
   if (err && typeof err === "object" && "error" in err) {
-    const e = (err as { error?: { message?: string } }).error;
+    const e = (err as { error?: { message?: string; code?: string } }).error;
     if (e?.message) return e.message;
+    if (e?.code === "DAILY_CHALLENGE_LIMIT") {
+      return "Agotaste tus retos de hoy. Se reinician a medianoche.";
+    }
+    if (e?.code === "TOURNAMENT_CHALLENGE_LIMIT") {
+      return "Agotaste tus retos del mundial.";
+    }
   }
   return fallback;
 }
@@ -20,6 +26,7 @@ export const CHALLENGE_RULES = {
     "Gana el duelo quien tuvo mas puntos en ese partido; el ganador recibe 2× la apuesta + sus pts del partido.",
     "El perdedor no suma pts del partido al ranking (ya perdio la apuesta del reto).",
     "Empate en el partido: cada uno recupera su apuesta + sus pts del partido.",
+    "El organizador puede limitar cuantos retos puedes enviar por dia y en todo el mundial.",
   ],
 } as const;
 

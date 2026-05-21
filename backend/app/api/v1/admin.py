@@ -98,6 +98,8 @@ class AdminGroupPatch(BaseModel):
     fixed_bet_amount: Optional[Decimal] = None
     is_active: Optional[bool] = None
     challenge_max_stake: Optional[int] = None
+    challenge_daily_limit: Optional[int] = None
+    challenge_tournament_limit: Optional[int] = None
     payment_contact_name: Optional[str] = None
     payment_phone: Optional[str] = None
 
@@ -553,6 +555,8 @@ class CreatePollaIn(BaseModel):
     currency: str = "PEN"
     per_match_amount: Decimal | None = None
     challenge_max_stake: int = 10
+    challenge_daily_limit: int = 0
+    challenge_tournament_limit: int = 0
     payment_contact_name: str | None = None
     payment_phone: str | None = None
 
@@ -590,6 +594,8 @@ async def create_polla(
         is_active=True,
         prize_pool=Decimal("0"),
         challenge_max_stake=max(1, min(20, body.challenge_max_stake)),
+        challenge_daily_limit=max(0, min(99, body.challenge_daily_limit)),
+        challenge_tournament_limit=max(0, min(99, body.challenge_tournament_limit)),
         payment_contact_name=body.payment_contact_name,
         payment_phone=body.payment_phone,
     )
@@ -605,6 +611,8 @@ async def create_polla(
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,
         "challenge_max_stake": group.challenge_max_stake,
+        "challenge_daily_limit": group.challenge_daily_limit,
+        "challenge_tournament_limit": group.challenge_tournament_limit,
         **_group_payment_dict(group),
     }
 
@@ -671,6 +679,8 @@ async def list_groups(
                 "fixed_bet_amount": str(g.fixed_bet_amount) if g.fixed_bet_amount is not None else None,
                 "is_active": g.is_active,
                 "challenge_max_stake": g.challenge_max_stake,
+                "challenge_daily_limit": g.challenge_daily_limit,
+                "challenge_tournament_limit": g.challenge_tournament_limit,
                 "member_count": member_counts.get(g.id, 0),
                 "created_at": g.created_at.isoformat(),
                 **_group_payment_dict(g),
@@ -714,6 +724,14 @@ async def patch_group(
         val = max(1, min(20, body.challenge_max_stake))
         changes["challenge_max_stake"] = str(val)
         group.challenge_max_stake = val
+    if body.challenge_daily_limit is not None:
+        val = max(0, min(99, body.challenge_daily_limit))
+        changes["challenge_daily_limit"] = str(val)
+        group.challenge_daily_limit = val
+    if body.challenge_tournament_limit is not None:
+        val = max(0, min(99, body.challenge_tournament_limit))
+        changes["challenge_tournament_limit"] = str(val)
+        group.challenge_tournament_limit = val
     if body.payment_contact_name is not None:
         changes["payment_contact_name"] = body.payment_contact_name
         group.payment_contact_name = body.payment_contact_name or None
@@ -735,6 +753,8 @@ async def patch_group(
         "name": group.name,
         "entry_fee": str(group.entry_fee),
         "challenge_max_stake": group.challenge_max_stake,
+        "challenge_daily_limit": group.challenge_daily_limit,
+        "challenge_tournament_limit": group.challenge_tournament_limit,
         "bet_amount_mode": group.bet_amount_mode,
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,

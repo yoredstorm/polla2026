@@ -1,6 +1,8 @@
 """1v1 challenge (Te reto) — stake ranking points on a single fixture."""
+import os
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select, and_, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,8 +18,117 @@ from app.services.notification_service import create_notification, broadcast_eve
 
 DEFAULT_MAX_STAKE = 10
 MIN_STAKE = 1
+MAX_CHALLENGE_LIMIT = 99
+COUNTABLE_CHALLENGE_STATUSES = ("pending_accept", "active", "settled")
 # Backward compatibility for imports
 MAX_STAKE = DEFAULT_MAX_STAKE
+
+
+def get_challenge_timezone() -> ZoneInfo:
+    try:
+        return ZoneInfo(os.environ.get("TZ", "America/Lima"))
+    except Exception:
+        return ZoneInfo("America/Lima")
+
+
+def _local_day_bounds(now: datetime | None = None) -> tuple[datetime, datetime, datetime]:
+    """Return (start_of_today_utc, next_midnight_local_as_utc, tz) for daily challenge window."""
+    tz = get_challenge_timezone()
+    now_local = (now or datetime.now(timezone.utc)).astimezone(tz)
+    start_local = now_local.replace(hour=0, minute=0, second=0, microsecond=0)
+    next_midnight_local = start_local + timedelta(days=1)
+    return start_local.astimezone(timezone.utc), next_midnight_local.astimezone(timezone.utc), tz
+
+
+async def _count_challenges_sent(
+    db: AsyncSession,
+    *,
+    challenger_id: uuid.UUID,
+    group_id: uuid.UUID,
+    since_utc: datetime | None = None,
+) -> int:
+    q = select(func.count()).select_from(Challenge).where(
+        Challenge.challenger_id == challenger_id,
+        Challenge.group_id == group_id,
+        Challenge.status.in_(COUNTABLE_CHALLENGE_STATUSES),
+    )
+    if since_utc is not None:
+        q = q.where(Challenge.created_at >= since_utc)
+    return int((await db.execute(q)).scalar() or 0)
+
+
+async def get_challenge_quota(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    group: Group,
+) -> dict:
+    daily_limit = max(0, int(getattr(group, "challenge_daily_limit", 0) or 0))
+    tournament_limit = max(0, int(getattr(group, "challenge_tournament_limit", 0) or 0))
+
+    day_start_utc, daily_resets_at_utc, tz = _local_day_bounds()
+    tournament_used = await _count_challenges_sent(
+        db, challenger_id=user_id, group_id=group.id,
+    )
+    daily_used = await _count_challenges_sent(
+        db, challenger_id=user_id, group_id=group.id, since_utc=day_start_utc,
+    )
+
+    def _remaining(used: int, limit: int) -> int | None:
+        if limit <= 0:
+            return None
+        return max(0, limit - used)
+
+    return {
+        "daily_limit": daily_limit if daily_limit > 0 else None,
+        "daily_used": daily_used,
+        "daily_remaining": _remaining(daily_used, daily_limit),
+        "tournament_limit": tournament_limit if tournament_limit > 0 else None,
+        "tournament_used": tournament_used,
+        "tournament_remaining": _remaining(tournament_used, tournament_limit),
+        "daily_resets_at": daily_resets_at_utc.isoformat(),
+        "timezone": str(tz),
+    }
+
+
+async def assert_can_create_challenge(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    group: Group,
+    *,
+    ip: str | None = None,
+) -> dict:
+    """Raises ValueError DAILY_CHALLENGE_LIMIT or TOURNAMENT_CHALLENGE_LIMIT; returns quota snapshot."""
+    quota = await get_challenge_quota(db, user_id, group)
+    if quota["tournament_remaining"] is not None and quota["tournament_remaining"] <= 0:
+        await log_action(
+            db,
+            user_id=user_id,
+            action="challenge_limit_denied",
+            detail={
+                "limit_type": "tournament",
+                "used": quota["tournament_used"],
+                "limit": quota["tournament_limit"],
+                "remaining": 0,
+            },
+            ip=ip,
+        )
+        raise ValueError("TOURNAMENT_CHALLENGE_LIMIT")
+    if quota["daily_remaining"] is not None and quota["daily_remaining"] <= 0:
+        await log_action(
+            db,
+            user_id=user_id,
+            action="challenge_limit_denied",
+            detail={
+                "limit_type": "daily",
+                "used": quota["daily_used"],
+                "limit": quota["daily_limit"],
+                "remaining": 0,
+                "daily_resets_at": quota["daily_resets_at"],
+            },
+            ip=ip,
+        )
+        raise ValueError("DAILY_CHALLENGE_LIMIT")
+    return quota
 
 
 def max_stake_by_balance(available: int) -> int:
@@ -190,6 +301,8 @@ async def create_challenge(
     if dup.scalar_one_or_none():
         raise ValueError("CHALLENGE_EXISTS")
 
+    await assert_can_create_challenge(db, challenger_id, group, ip=ip)
+
     challenger_user = await db.get(User, challenger_id)
     ch = Challenge(
         fixture_id=fixture_id,
@@ -203,6 +316,7 @@ async def create_challenge(
     await db.flush()
     await db.refresh(ch)
 
+    quota_after = await get_challenge_quota(db, challenger_id, group)
     await log_action(
         db,
         user_id=challenger_id,
@@ -214,6 +328,12 @@ async def create_challenge(
             "stake_points": stake_points,
             "challenged_username": challenged.username,
             "challenged_id": str(challenged.id),
+            "daily_used": quota_after["daily_used"],
+            "daily_limit": quota_after["daily_limit"],
+            "daily_remaining": quota_after["daily_remaining"],
+            "tournament_used": quota_after["tournament_used"],
+            "tournament_limit": quota_after["tournament_limit"],
+            "tournament_remaining": quota_after["tournament_remaining"],
         },
         ip=ip,
     )

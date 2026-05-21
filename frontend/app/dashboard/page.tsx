@@ -26,6 +26,8 @@ import { FollowingFeed } from "@/components/social/FollowingFeed";
 import { useMyRival } from "@/hooks/useRival";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { cn, formatCountdown } from "@/lib/utils";
+import { useChallengeAvailablePoints } from "@/hooks/useChallenges";
+import { ChallengeQuotaBars } from "@/components/betting/ChallengeQuotaBars";
 
 // --- NUEVO COMPONENTE: NeonPiggyBank (SVG Completo + Monedas Mejoradas) ---
 interface NeonPiggyBankProps {
@@ -237,6 +239,7 @@ export default function DashboardPage() {
   const { data: leaderboard } = useGlobalLeaderboard(1, 50, "points", 1);
   const { data: polla } = useActivePolla();
   const { data: rivalData } = useMyRival(!!user);
+  const { data: challengeQuota } = useChallengeAvailablePoints();
 
   const serverPrize = parsePrizePool(polla?.prize_pool);
   const { displayed: prizeAnimated, isAnimating } =
@@ -328,6 +331,8 @@ export default function DashboardPage() {
           </div>
         </Card>
       )}
+
+      {user && <ChallengeQuotaBars quota={challengeQuota} className="mb-8" />}
 
       {myEntry && (
         <section className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3 auto-rows-fr">

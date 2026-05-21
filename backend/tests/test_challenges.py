@@ -13,11 +13,14 @@ from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember
 from app.models.user import User
 from app.models.challenge import Challenge
+from app.models.audit_log import AuditLog
 from app.services.challenge_service import (
     accept_challenge,
     create_challenge,
     available_points,
     compute_challenge_stats,
+    get_challenge_quota,
+    reject_challenge,
     settle_challenges_for_fixture,
 )
 from app.services.gamification_service import compute_badges
@@ -40,6 +43,8 @@ async def _seed_polla(
     members: list[tuple[uuid.UUID, int]],
     *,
     challenge_max_stake: int = 10,
+    challenge_daily_limit: int = 0,
+    challenge_tournament_limit: int = 0,
 ) -> tuple[Group, Fixture]:
     for g in (await db.execute(select(Group).where(Group.is_active == True))).scalars().all():
         g.is_active = False
@@ -82,6 +87,8 @@ async def _seed_polla(
         fixed_bet_amount=Decimal("5"),
         is_active=True,
         challenge_max_stake=challenge_max_stake,
+        challenge_daily_limit=challenge_daily_limit,
+        challenge_tournament_limit=challenge_tournament_limit,
     )
     db.add(group)
     await db.flush()
@@ -96,6 +103,33 @@ async def _seed_polla(
         )
     await db.flush()
     return group, fixture
+
+
+async def _extra_fixture(db: AsyncSession) -> Fixture:
+    fixture = Fixture(
+        id=uuid.uuid4(),
+        external_id=int(uuid.uuid4().int % 2_000_000_000),
+        home_team="Home2",
+        away_team="Away2",
+        home_logo_url=None,
+        away_logo_url=None,
+        league_name="Test",
+        league_id=1,
+        league_logo_url=None,
+        match_date=datetime.now(timezone.utc) + timedelta(hours=72),
+        status="scheduled",
+        home_score=None,
+        away_score=None,
+        round="R2",
+        group_name="G",
+        venue="V",
+        season=2026,
+        is_locked=False,
+        betting_open=True,
+    )
+    db.add(fixture)
+    await db.flush()
+    return fixture
 
 
 def _bet(
@@ -452,3 +486,168 @@ async def test_hat_trick_badge(client: AsyncClient, db_session: AsyncSession):
     ids = {b["id"] for b in badges}
     assert "hat_trick" in ids
     assert "challenge_king" in ids
+
+
+@pytest.mark.asyncio
+async def test_daily_challenge_limit(client: AsyncClient, db_session: AsyncSession):
+    cookies_a, user_a = await _register(client, "limit_daily_a")
+    cookies_b, user_b = await _register(client, "limit_daily_b")
+
+    group, fixture1 = await _seed_polla(
+        db_session,
+        [(user_a, 20), (user_b, 20)],
+        challenge_daily_limit=2,
+    )
+    fixture2 = await _extra_fixture(db_session)
+    for fx in (fixture1, fixture2):
+        db_session.add(_bet(user_a, fx.id, group.id))
+        db_session.add(_bet(user_b, fx.id, group.id))
+    await db_session.commit()
+
+    user_b_row = (await db_session.execute(select(User).where(User.id == user_b))).scalar_one()
+
+    for fx in (fixture1, fixture2):
+        await create_challenge(
+            db_session,
+            None,
+            challenger_id=user_a,
+            challenged_username=user_b_row.username,
+            fixture_id=fx.id,
+            stake_points=2,
+            ip=None,
+        )
+        await db_session.commit()
+
+    fixture3 = await _extra_fixture(db_session)
+    db_session.add(_bet(user_a, fixture3.id, group.id))
+    db_session.add(_bet(user_b, fixture3.id, group.id))
+    await db_session.flush()
+
+    with pytest.raises(ValueError, match="DAILY_CHALLENGE_LIMIT"):
+        await create_challenge(
+            db_session,
+            None,
+            challenger_id=user_a,
+            challenged_username=user_b_row.username,
+            fixture_id=fixture3.id,
+            stake_points=2,
+            ip=None,
+        )
+
+    denied = (
+        await db_session.execute(
+            select(AuditLog).where(AuditLog.action == "challenge_limit_denied").order_by(AuditLog.created_at.desc())
+        )
+    ).scalars().first()
+    assert denied is not None
+
+
+@pytest.mark.asyncio
+async def test_rejected_challenge_does_not_count_toward_limit(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    cookies_a, user_a = await _register(client, "limit_rej_a")
+    cookies_b, user_b = await _register(client, "limit_rej_b")
+
+    group, fixture = await _seed_polla(
+        db_session,
+        [(user_a, 20), (user_b, 20)],
+        challenge_daily_limit=1,
+    )
+    db_session.add(_bet(user_a, fixture.id, group.id))
+    db_session.add(_bet(user_b, fixture.id, group.id))
+    await db_session.commit()
+
+    user_b_row = (await db_session.execute(select(User).where(User.id == user_b))).scalar_one()
+
+    ch = await create_challenge(
+        db_session,
+        None,
+        challenger_id=user_a,
+        challenged_username=user_b_row.username,
+        fixture_id=fixture.id,
+        stake_points=2,
+        ip=None,
+    )
+    await reject_challenge(db_session, None, challenge_id=ch.id, user_id=user_b, ip=None)
+    await db_session.commit()
+
+    quota = await get_challenge_quota(db_session, user_a, group)
+    assert quota["daily_used"] == 0
+    assert quota["daily_remaining"] == 1
+
+    await create_challenge(
+        db_session,
+        None,
+        challenger_id=user_a,
+        challenged_username=user_b_row.username,
+        fixture_id=fixture.id,
+        stake_points=2,
+        ip=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_tournament_challenge_limit(client: AsyncClient, db_session: AsyncSession):
+    cookies_a, user_a = await _register(client, "limit_tour_a")
+    cookies_b, user_b = await _register(client, "limit_tour_b")
+
+    group, fixture1 = await _seed_polla(
+        db_session,
+        [(user_a, 20), (user_b, 20)],
+        challenge_tournament_limit=1,
+    )
+    fixture2 = await _extra_fixture(db_session)
+    for fx in (fixture1, fixture2):
+        db_session.add(_bet(user_a, fx.id, group.id))
+        db_session.add(_bet(user_b, fx.id, group.id))
+    await db_session.commit()
+
+    user_b_row = (await db_session.execute(select(User).where(User.id == user_b))).scalar_one()
+
+    await create_challenge(
+        db_session,
+        None,
+        challenger_id=user_a,
+        challenged_username=user_b_row.username,
+        fixture_id=fixture1.id,
+        stake_points=2,
+        ip=None,
+    )
+    await db_session.commit()
+
+    with pytest.raises(ValueError, match="TOURNAMENT_CHALLENGE_LIMIT"):
+        await create_challenge(
+            db_session,
+            None,
+            challenger_id=user_a,
+            challenged_username=user_b_row.username,
+            fixture_id=fixture2.id,
+            stake_points=2,
+            ip=None,
+        )
+
+
+@pytest.mark.asyncio
+async def test_available_points_includes_quota(client: AsyncClient, db_session: AsyncSession):
+    cookies_a, user_a = await _register(client, "quota_api_a")
+    cookies_b, user_b = await _register(client, "quota_api_b")
+
+    group, fixture = await _seed_polla(
+        db_session,
+        [(user_a, 10), (user_b, 10)],
+        challenge_daily_limit=3,
+        challenge_tournament_limit=10,
+    )
+    db_session.add(_bet(user_a, fixture.id, group.id))
+    await db_session.commit()
+
+    resp = await client.get("/api/v1/challenges/available-points", cookies=cookies_a)
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["daily_limit"] == 3
+    assert data["daily_remaining"] == 3
+    assert data["tournament_limit"] == 10
+    assert data["tournament_remaining"] == 10
+    assert data["daily_resets_at"] is not None

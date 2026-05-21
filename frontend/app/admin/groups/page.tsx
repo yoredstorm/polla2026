@@ -30,6 +30,8 @@ function CreatePollaForm() {
   const [currency, setCurrency] = useState("PEN");
   const [extra, setExtra] = useState("");
   const [maxStake, setMaxStake] = useState("5");
+  const [dailyLimit, setDailyLimit] = useState("3");
+  const [tournamentLimit, setTournamentLimit] = useState("30");
   const [paymentContact, setPaymentContact] = useState("Tesorería Polla 2026");
   const [paymentPhone, setPaymentPhone] = useState("+51 999 888 777");
   const [qrFile, setQrFile] = useState<File | null>(null);
@@ -52,6 +54,8 @@ function CreatePollaForm() {
         currency,
         per_match_amount: extra ? parseFloat(extra) : undefined,
         challenge_max_stake: Math.max(1, Math.min(20, parseInt(maxStake, 10) || 5)),
+        challenge_daily_limit: Math.max(0, Math.min(99, parseInt(dailyLimit, 10) || 0)),
+        challenge_tournament_limit: Math.max(0, Math.min(99, parseInt(tournamentLimit, 10) || 0)),
         payment_contact_name: paymentContact.trim() || undefined,
         payment_phone: paymentPhone.trim() || undefined,
       });
@@ -118,6 +122,32 @@ function CreatePollaForm() {
             Evita transferencias de puntos entre amigos; además cada jugador solo puede apostar hasta el 50% de sus puntos disponibles.
           </p>
         </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-sm text-muted mb-1 block">Retos por día</label>
+            <input
+              type="number"
+              min={0}
+              max={99}
+              value={dailyLimit}
+              onChange={(e) => setDailyLimit(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-accent"
+            />
+            <p className="text-xs text-muted mt-1">0 = sin límite. Se reinicia a medianoche.</p>
+          </div>
+          <div>
+            <label className="text-sm text-muted mb-1 block">Retos totales (mundial)</label>
+            <input
+              type="number"
+              min={0}
+              max={99}
+              value={tournamentLimit}
+              onChange={(e) => setTournamentLimit(e.target.value)}
+              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-accent"
+            />
+            <p className="text-xs text-muted mt-1">0 = sin límite en todo el torneo.</p>
+          </div>
+        </div>
         <AdminPaymentSettingsFields
           contactName={paymentContact}
           phone={paymentPhone}
@@ -144,6 +174,10 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
   const [formExtra, setFormExtra] = useState(polla.fixed_bet_amount ?? "");
   const [formCurrency, setFormCurrency] = useState(polla.currency ?? "PEN");
   const [formMaxStake, setFormMaxStake] = useState(String(polla.challenge_max_stake ?? 10));
+  const [formDailyLimit, setFormDailyLimit] = useState(String(polla.challenge_daily_limit ?? 0));
+  const [formTournamentLimit, setFormTournamentLimit] = useState(
+    String(polla.challenge_tournament_limit ?? 0),
+  );
   const [formPaymentContact, setFormPaymentContact] = useState(polla.payment_contact_name ?? "");
   const [formPaymentPhone, setFormPaymentPhone] = useState(polla.payment_phone ?? "");
   const [formQrFile, setFormQrFile] = useState<File | null>(null);
@@ -159,6 +193,8 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
         bet_amount_mode: "single_entry",
         fixed_bet_amount: extraVal,
         challenge_max_stake: Math.max(1, Math.min(20, parseInt(formMaxStake, 10) || 10)),
+        challenge_daily_limit: Math.max(0, Math.min(99, parseInt(formDailyLimit, 10) || 0)),
+        challenge_tournament_limit: Math.max(0, Math.min(99, parseInt(formTournamentLimit, 10) || 0)),
         payment_contact_name: formPaymentContact.trim() || undefined,
         payment_phone: formPaymentPhone.trim() || undefined,
       },
@@ -227,6 +263,20 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
             <p className="text-xs text-muted uppercase tracking-wide mb-1">Máximo pts por duelo</p>
             <p className="text-lg font-bold text-white">{polla.challenge_max_stake ?? 10} pts</p>
           </div>
+          <div>
+            <p className="text-xs text-muted uppercase tracking-wide mb-1">Retos por día</p>
+            <p className="text-lg font-bold text-white">
+              {(polla.challenge_daily_limit ?? 0) > 0 ? polla.challenge_daily_limit : "Sin límite"}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-muted uppercase tracking-wide mb-1">Retos del mundial</p>
+            <p className="text-lg font-bold text-white">
+              {(polla.challenge_tournament_limit ?? 0) > 0
+                ? polla.challenge_tournament_limit
+                : "Sin límite"}
+            </p>
+          </div>
           <AdminPaymentSettingsView
             groupId={polla.id}
             paymentContactName={polla.payment_contact_name}
@@ -263,6 +313,30 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
               onChange={(e) => setFormMaxStake(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted mb-1 block">Retos por día (0 = sin límite)</label>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                value={formDailyLimit}
+                onChange={(e) => setFormDailyLimit(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted mb-1 block">Retos mundial (0 = sin límite)</label>
+              <input
+                type="number"
+                min={0}
+                max={99}
+                value={formTournamentLimit}
+                onChange={(e) => setFormTournamentLimit(e.target.value)}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent"
+              />
+            </div>
           </div>
           <div>
             <label className="text-xs text-muted mb-1 block">Extra opcional por partido (0 = desactivado)</label>

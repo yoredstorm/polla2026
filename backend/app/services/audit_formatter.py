@@ -35,6 +35,7 @@ ACTION_LABELS_ES: dict[str, str] = {
     "admin_edit_fixture": "Editar partido",
     "admin_settle": "Liquidar partido",
     "challenge_created": "Reto creado",
+    "challenge_limit_denied": "Límite de retos",
     "challenge_accepted": "Reto aceptado",
     "challenge_rejected": "Reto rechazado",
     "challenge_settled": "Reto liquidado",
@@ -318,7 +319,25 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
     if action == "challenge_created":
         partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"
         rival = d.get("challenged_username") or ctx.user_label(d.get("challenged_id"))
-        return f"{partido} · Reto a @{rival or '?'} por {d.get('stake', d.get('stake_points', '?'))} pts"
+        base = f"{partido} · Reto a @{rival or '?'} por {d.get('stake', d.get('stake_points', '?'))} pts"
+        extra = []
+        if d.get("daily_remaining") is not None:
+            extra.append(f"hoy quedan {d['daily_remaining']}")
+        if d.get("tournament_remaining") is not None:
+            extra.append(f"mundial quedan {d['tournament_remaining']}")
+        if extra:
+            return f"{base} · {' · '.join(extra)}"
+        return base
+
+    if action == "challenge_limit_denied":
+        lt = d.get("limit_type", "?")
+        used = d.get("used", "?")
+        lim = d.get("limit", "?")
+        if lt == "daily":
+            return f"Límite diario de retos agotado ({used}/{lim})"
+        if lt == "tournament":
+            return f"Límite total del mundial agotado ({used}/{lim})"
+        return f"Límite de retos agotado ({used}/{lim})"
 
     if action == "challenge_accepted":
         return f"Reto aceptado · Apuesta en juego: {d.get('stake', d.get('stake_points', '?'))} pts c/u"

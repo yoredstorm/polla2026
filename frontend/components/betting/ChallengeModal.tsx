@@ -15,6 +15,8 @@ import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { Card } from "@/components/ui/Card";
 import { ChallengeRules } from "@/components/betting/ChallengeRules";
 import { getApiErrorMessage, maxStakeForUser } from "@/lib/challengeUtils";
+import { challengeQuotaExhaustedMessage } from "@/lib/challengeQuota";
+import { ChallengeQuotaBars } from "@/components/betting/ChallengeQuotaBars";
 import { cn } from "@/lib/utils";
 
 interface ChallengeModalProps {
@@ -29,6 +31,7 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
   const [selected, setSelected] = useState<ChallengeOpponent | null>(null);
   const [stake, setStake] = useState(1);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [animateTick, setAnimateTick] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
 
   const { data: pts } = useChallengeAvailablePoints();
@@ -45,6 +48,7 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
     );
   const rivalMax = selected?.available_for_challenge ?? 0;
   const effectiveMax = Math.min(myMax, rivalMax > 0 ? rivalMax : myMax);
+  const quotaBlocked = challengeQuotaExhaustedMessage(pts);
 
   useEffect(() => {
     if (!open) {
@@ -91,7 +95,9 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
         challenged_username: username,
         stake_points: stake,
       });
+      setAnimateTick((t) => t + 1);
       toast("Reto enviado", "success");
+      await new Promise((r) => setTimeout(r, 320));
       onClose();
     } catch (err: unknown) {
       toast(getApiErrorMessage(err, "Error al crear reto"), "error");
@@ -109,6 +115,12 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
   return (
     <Modal open={open} onClose={onClose} title="Te reto" size="md" className="space-y-4">
       <form onSubmit={submit} className="space-y-4">
+        <ChallengeQuotaBars quota={pts} variant="compact" animateTick={animateTick} />
+        {quotaBlocked && (
+          <p className="text-sm text-amber-300/90 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+            {quotaBlocked}
+          </p>
+        )}
         <Card glow className="border-accent/30 bg-accent/5 p-4">
           <div className="flex items-center justify-center gap-4">
             <div className="flex flex-col items-center flex-1">
@@ -230,7 +242,7 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
           </Button>
           <Button
             type="submit"
-            disabled={effectiveMax < 1}
+            disabled={effectiveMax < 1 || !!quotaBlocked}
             loading={create.isPending}
           >
             Enviar reto

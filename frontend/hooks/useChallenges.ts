@@ -44,6 +44,26 @@ export interface ChallengeOpponent {
   available_for_challenge: number;
 }
 
+export interface ChallengeQuota {
+  daily_limit: number | null;
+  daily_used: number;
+  daily_remaining: number | null;
+  tournament_limit: number | null;
+  tournament_used: number;
+  tournament_remaining: number | null;
+  daily_resets_at: string | null;
+  timezone: string | null;
+}
+
+export interface ChallengeAvailablePoints extends ChallengeQuota {
+  available: number;
+  max_stake: number;
+  max_by_balance: number;
+  effective_max: number;
+}
+
+export const CHALLENGE_AVAILABLE_POINTS_KEY = ["challenges", "available-points"] as const;
+
 export function useMyChallenges() {
   return useQuery({
     queryKey: ["challenges", "my"],
@@ -62,14 +82,9 @@ export function useFixtureChallenges(fixtureId: string) {
 
 export function useChallengeAvailablePoints() {
   return useQuery({
-    queryKey: ["challenges", "available-points"],
-    queryFn: () =>
-      api.get<{
-        available: number;
-        max_stake: number;
-        max_by_balance: number;
-        effective_max: number;
-      }>("/challenges/available-points"),
+    queryKey: [...CHALLENGE_AVAILABLE_POINTS_KEY],
+    queryFn: () => api.get<ChallengeAvailablePoints>("/challenges/available-points"),
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -89,8 +104,31 @@ export function useCreateChallenge() {
   return useMutation({
     mutationFn: (body: { fixture_id: string; challenged_username: string; stake_points: number }) =>
       api.post<Challenge>("/challenges", body),
-    onSuccess: () => {
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: [...CHALLENGE_AVAILABLE_POINTS_KEY] });
+      const prev = qc.getQueryData<ChallengeAvailablePoints>([...CHALLENGE_AVAILABLE_POINTS_KEY]);
+      if (prev) {
+        const next: ChallengeAvailablePoints = { ...prev };
+        if (next.daily_remaining != null) {
+          next.daily_remaining = Math.max(0, next.daily_remaining - 1);
+          next.daily_used = (next.daily_used ?? 0) + 1;
+        }
+        if (next.tournament_remaining != null) {
+          next.tournament_remaining = Math.max(0, next.tournament_remaining - 1);
+          next.tournament_used = (next.tournament_used ?? 0) + 1;
+        }
+        qc.setQueryData([...CHALLENGE_AVAILABLE_POINTS_KEY], next);
+      }
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.prev) {
+        qc.setQueryData([...CHALLENGE_AVAILABLE_POINTS_KEY], ctx.prev);
+      }
+    },
+    onSettled: () => {
       qc.invalidateQueries({ queryKey: ["challenges"] });
+      qc.invalidateQueries({ queryKey: [...CHALLENGE_AVAILABLE_POINTS_KEY] });
     },
   });
 }

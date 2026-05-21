@@ -73,6 +73,7 @@ const DATA_REFRESH_KEYS = [
   ["my-change-requests"],
   ["leaderboard"],
   ["challenges"],
+  ["challenges", "available-points"],
   ["admin"],
   ["notifications"],
 ] as const;
@@ -181,7 +182,11 @@ export async function handleRealtimeMessage(
     });
 
     if (msg.data.type.startsWith("challenge")) {
-      invalidateKeys(queryClient, [["challenges"], ["leaderboard"]], { refetch: true });
+      invalidateKeys(
+        queryClient,
+        [["challenges"], ["challenges", "available-points"], ["leaderboard"]],
+        { refetch: true },
+      );
     }
     return;
   }
