@@ -213,10 +213,14 @@ async def push_test(
     )
     push_delivered = int(getattr(n, "push_sent", 0) or 0)
     if push_delivered == 0:
-        raise HTTPException(
-            status_code=502,
-            detail="La notificacion se guardo pero el push no se entrego. Revisa VAPID en el servidor o vuelve a activar en este dispositivo.",
+        last_err = getattr(n, "push_last_error", None) or ""
+        detail = (
+            "La notificacion se guardo pero el push no se entrego a ningun dispositivo. "
+            "Desactiva y vuelve a activar notificaciones en este telefono."
         )
+        if last_err:
+            detail += f" Detalle: {last_err}"
+        raise HTTPException(status_code=502, detail=detail)
     return {
         "ok": True,
         "notificationId": str(n.id),

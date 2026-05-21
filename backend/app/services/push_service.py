@@ -1,6 +1,7 @@
 """Web Push (VAPID) delivery for PWA notifications."""
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from typing import Any
@@ -100,6 +101,16 @@ def push_url_for_notification(n: Notification) -> str:
     return f"/notifications?focus={nid}"
 
 
+def _format_push_error(exc: Exception) -> str:
+    from pywebpush import WebPushException
+
+    if isinstance(exc, WebPushException) and exc.response is not None:
+        status = getattr(exc.response, "status_code", None)
+        body = (getattr(exc.response, "text", None) or "")[:200]
+        return f"WebPush HTTP {status}: {body or exc}"
+    return str(exc)
+
+
 def _send_one_subscription(
     sub: PushSubscription,
     *,
@@ -110,6 +121,7 @@ def _send_one_subscription(
     from pywebpush import webpush
 
     payload = json.dumps({"title": title, "body": body, **data}, default=str)
+    # pywebpush only accepts vapid_private_key (not vapid_public_key).
     webpush(
         subscription_info={
             "endpoint": sub.endpoint,
@@ -117,23 +129,25 @@ def _send_one_subscription(
         },
         data=payload,
         vapid_private_key=normalize_vapid_key(settings.VAPID_PRIVATE_KEY),
-        vapid_public_key=get_vapid_public_key(),
         vapid_claims={"sub": settings.VAPID_CLAIMS_SUB},
         ttl=86400,
+        timeout=10,
     )
 
 
-async def send_web_push_for_notification(db: AsyncSession, n: Notification) -> int:
-    """Send push to all subscriptions for the notification recipient. Returns send count."""
+async def send_web_push_for_notification(
+    db: AsyncSession, n: Notification
+) -> tuple[int, str | None]:
+    """Send push to all subscriptions. Returns (sent_count, last_error)."""
     if not vapid_configured():
-        return 0
+        return 0, None
 
     result = await db.execute(
         select(PushSubscription).where(PushSubscription.user_id == n.user_id)
     )
     subs = result.scalars().all()
     if not subs:
-        return 0
+        return 0, None
 
     url = push_url_for_notification(n)
     data = {
@@ -143,10 +157,17 @@ async def send_web_push_for_notification(db: AsyncSession, n: Notification) -> i
     }
     sent = 0
     stale_endpoints: list[str] = []
+    last_error: str | None = None
 
     for sub in subs:
         try:
-            _send_one_subscription(sub, title=n.title, body=n.body, data=data)
+            await asyncio.to_thread(
+                _send_one_subscription,
+                sub,
+                title=n.title,
+                body=n.body,
+                data=data,
+            )
             sent += 1
             logger.info(
                 "web_push_sent",
@@ -157,6 +178,7 @@ async def send_web_push_for_notification(db: AsyncSession, n: Notification) -> i
         except Exception as exc:
             from pywebpush import WebPushException
 
+            last_error = _format_push_error(exc)
             if isinstance(exc, WebPushException) and exc.response is not None:
                 status = getattr(exc.response, "status_code", None)
                 if status in (404, 410):
@@ -166,7 +188,7 @@ async def send_web_push_for_notification(db: AsyncSession, n: Notification) -> i
                 "web_push_failed",
                 user_id=str(n.user_id),
                 endpoint=sub.endpoint[:80],
-                error=str(exc),
+                error=last_error,
             )
 
     if stale_endpoints:
@@ -189,7 +211,7 @@ async def send_web_push_for_notification(db: AsyncSession, n: Notification) -> i
             total=len(subs),
         )
 
-    return sent
+    return sent, last_error
 
 
 async def count_push_subscriptions(db: AsyncSession, user_id: uuid.UUID) -> int:

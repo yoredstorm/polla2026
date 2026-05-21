@@ -155,14 +155,16 @@ async def create_notification(
                 type=type,
             )
         else:
-            push_sent = await send_web_push_for_notification(db, n)
+            push_sent, push_error = await send_web_push_for_notification(db, n)
             if push_sent == 0:
                 logger.warning(
                     "web_push_not_delivered",
                     user_id=str(user_id),
                     notification_id=str(n.id),
                     type=type,
+                    error=push_error,
                 )
+            setattr(n, "push_last_error", push_error)
     except Exception:
         logger.exception("web_push_after_notification_failed", notification_id=str(n.id))
 
