@@ -184,14 +184,27 @@ async def notify_admins(
 ) -> list[Notification]:
     result = await db.execute(select(User.id).where(User.is_admin == True, User.is_active == True))
     admin_ids = [row[0] for row in result.all()]
-    if exclude_user_id is not None:
+    if exclude_user_id is not None and len(admin_ids) > 1:
         admin_ids = [aid for aid in admin_ids if aid != exclude_user_id]
+    if not admin_ids:
+        logger.warning(
+            "notify_admins_no_recipients",
+            type=type,
+            exclude_user_id=str(exclude_user_id) if exclude_user_id else None,
+        )
+        return []
     created: list[Notification] = []
     for admin_id in admin_ids:
         n = await create_notification(
             db, redis, user_id=admin_id, type=type, title=title, body=body, payload=payload,
         )
         created.append(n)
+    logger.info(
+        "notify_admins_sent",
+        type=type,
+        admin_count=len(admin_ids),
+        notification_count=len(created),
+    )
     return created
 
 

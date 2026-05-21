@@ -1,5 +1,19 @@
 /* Polla PWA — Web Push (scope: site root) */
 
+const ADMIN_PENDING_TYPES = new Set([
+  "extra_bet_pending",
+  "entry_pending",
+  "change_request_pending",
+  "password_reset_pending",
+]);
+
+const ADMIN_PUSH_TAGS = {
+  extra_bet_pending: "admin-extra",
+  entry_pending: "admin-entry",
+  change_request_pending: "admin-change-request",
+  password_reset_pending: "admin-password-reset",
+};
+
 self.addEventListener("push", (event) => {
   let payload = { title: "Polla", body: "", url: "/notifications" };
   try {
@@ -13,6 +27,7 @@ self.addEventListener("push", (event) => {
   }
 
   const title = payload.title || "Polla";
+  const isAdminUrgent = ADMIN_PENDING_TYPES.has(payload.type);
   const options = {
     body: payload.body || "",
     icon: "/icons/icon-192.png",
@@ -22,9 +37,16 @@ self.addEventListener("push", (event) => {
       notification_id: payload.notification_id || null,
       type: payload.type || null,
     },
-    tag: payload.notification_id || payload.type || "polla-notification",
+    tag: isAdminUrgent
+      ? ADMIN_PUSH_TAGS[payload.type] || "admin-pending"
+      : payload.notification_id || payload.type || "polla-notification",
     renotify: true,
   };
+
+  if (isAdminUrgent) {
+    options.requireInteraction = true;
+    options.vibrate = [200, 100, 200];
+  }
 
   event.waitUntil(self.registration.showNotification(title, options));
 });

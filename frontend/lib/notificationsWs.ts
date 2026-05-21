@@ -12,12 +12,14 @@ function getWsUrl(): string {
   return getApiBase().replace(/^http/, "ws") + "/api/v1/ws/notifications";
 }
 
-/** Admin inbox items — update the bell badge, no popup toast (avoids duplicate with form success). */
-const SILENT_NOTIFICATION_TYPES = new Set([
+/** Batch expiry — badge only, no toast (admin already acted or list refresh). */
+const SILENT_NOTIFICATION_TYPES = new Set(["change_request_expired_batch"]);
+
+/** Admin approval items — always show in-app toast when received via WebSocket. */
+export const ADMIN_URGENT_NOTIFICATION_TYPES = new Set([
   "extra_bet_pending",
   "entry_pending",
   "change_request_pending",
-  "change_request_expired_batch",
   "password_reset_pending",
 ]);
 
@@ -31,6 +33,16 @@ const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
 
 function shouldShowNotificationToast(notificationType: string, title: string): boolean {
+  if (ADMIN_URGENT_NOTIFICATION_TYPES.has(notificationType)) {
+    const key = `${notificationType}:${title}`;
+    const now = Date.now();
+    const last = recentToastKeys.get(key);
+    if (last != null && now - last < TOAST_DEDUPE_MS) {
+      return false;
+    }
+    recentToastKeys.set(key, now);
+    return true;
+  }
   if (SILENT_NOTIFICATION_TYPES.has(notificationType)) {
     return false;
   }

@@ -155,6 +155,9 @@ async def send_web_push_for_notification(
         "notification_id": str(n.id),
         "type": n.type,
     }
+    if n.type in ADMIN_ACTIONABLE_TYPES:
+        data["urgent"] = True
+        data["priority"] = "high"
     sent = 0
     stale_endpoints: list[str] = []
     last_error: str | None = None

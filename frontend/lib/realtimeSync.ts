@@ -113,6 +113,18 @@ export function invalidateForNotificationType(
       [["admin"], ["pool", "active"], ...ADMIN_POLLA_KEYS],
       opts,
     );
+    return;
+  }
+
+  if (notificationType === "password_reset_pending") {
+    invalidateKeys(
+      queryClient,
+      [
+        ["admin", "password-reset-count"],
+        ["admin", "password-reset-requests"],
+      ],
+      opts,
+    );
   }
 }
 
