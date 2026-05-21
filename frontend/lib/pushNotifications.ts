@@ -3,6 +3,27 @@ import { getApiErrorMessage } from "@/lib/challengeUtils";
 
 export type PushPermissionState = "unsupported" | "default" | "granted" | "denied";
 
+export type PushSubscribeProgress =
+  | "permission"
+  | "vapid"
+  | "service-worker"
+  | "subscribe"
+  | "server";
+
+const PERMISSION_TIMEOUT_MS = 90_000;
+const API_STEP_TIMEOUT_MS = 25_000;
+const SW_STEP_TIMEOUT_MS = 20_000;
+const SUBSCRIBE_TIMEOUT_MS = 45_000;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]);
+}
+
 export function isPushSupported(): boolean {
   if (typeof window === "undefined") return false;
   const secure =
@@ -90,10 +111,13 @@ function toApplicationServerKey(bytes: Uint8Array): ArrayBuffer {
 }
 
 async function preflightServiceWorkerScript(): Promise<void> {
-  const res = await fetch("/sw.js", { cache: "no-store" });
-  const ct = res.headers.get("content-type") ?? "";
+  const res = await withTimeout(
+    fetch("/sw.js", { cache: "no-store" }),
+    SW_STEP_TIMEOUT_MS,
+    "Tiempo agotado comprobando /sw.js. Recarga la pagina.",
+  );
   const text = await res.text();
-  if (!res.ok || text.trimStart().startsWith("<") || !ct.includes("javascript")) {
+  if (!res.ok || text.trimStart().startsWith("<") || !text.includes("addEventListener")) {
     throw new Error(
       "El archivo /sw.js no es valido (el servidor devolvio HTML o un error). " +
         "Cierra sesion no deberia bloquear sw.js; avisa al administrador.",
@@ -101,32 +125,32 @@ async function preflightServiceWorkerScript(): Promise<void> {
   }
 }
 
-async function waitForServiceWorkerActive(
-  reg: ServiceWorkerRegistration,
-  timeoutMs = 12000,
-): Promise<void> {
+async function waitForServiceWorkerActive(reg: ServiceWorkerRegistration): Promise<void> {
   if (reg.active) return;
-  const worker = reg.installing ?? reg.waiting;
-  if (!worker) {
-    await new Promise((r) => setTimeout(r, 400));
-    if (reg.active) return;
-    throw new Error("El service worker no termino de activarse. Cierra Chrome y vuelve a abrir el sitio.");
-  }
-  await new Promise<void>((resolve, reject) => {
-    const timer = window.setTimeout(() => {
-      reject(new Error("Tiempo de espera agotado activando notificaciones. Vuelve a intentar."));
-    }, timeoutMs);
-    worker.addEventListener("statechange", () => {
-      if (worker.state === "activated" || reg.active) {
-        window.clearTimeout(timer);
-        resolve();
-      }
-    });
-    if (worker.state === "activated" || reg.active) {
-      window.clearTimeout(timer);
-      resolve();
-    }
-  });
+  const readyPromise =
+    "ready" in reg && reg.ready instanceof Promise
+      ? (reg.ready as Promise<ServiceWorkerRegistration>)
+      : new Promise<void>((resolve, reject) => {
+          const worker = reg.installing ?? reg.waiting;
+          if (!worker) {
+            reject(
+              new Error(
+                "El service worker no arranco. Recarga la pagina o prueba en una ventana normal (no InPrivate).",
+              ),
+            );
+            return;
+          }
+          const onState = () => {
+            if (worker.state === "activated" || reg.active) resolve();
+          };
+          worker.addEventListener("statechange", onState);
+          onState();
+        });
+  await withTimeout(
+    readyPromise.then(() => undefined),
+    SW_STEP_TIMEOUT_MS,
+    "Tiempo agotado activando el service worker. Recarga la pagina e intentalo de nuevo.",
+  );
 }
 
 /** Unregister service workers and local push subscription (does not clear server). */
@@ -143,11 +167,13 @@ export async function resetLocalPushState(): Promise<void> {
         } catch {
           /* ignore */
         }
-        try {
-          await api.delete("/notifications/push/unsubscribe", { endpoint });
-        } catch {
-          /* ignore */
-        }
+        void withTimeout(
+          api.delete("/notifications/push/unsubscribe", { endpoint }),
+          5000,
+          "timeout",
+        ).catch(() => {
+          /* ignore — local reset must not block */
+        });
       }
     } catch {
       /* ignore */
@@ -181,9 +207,17 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   if (!isPushSupported()) return null;
   await preflightServiceWorkerScript();
   try {
-    let reg = await navigator.serviceWorker.getRegistration("/");
+    let reg = await withTimeout(
+      navigator.serviceWorker.getRegistration("/"),
+      SW_STEP_TIMEOUT_MS,
+      "Tiempo agotado leyendo el service worker.",
+    );
     if (!reg) {
-      reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+      reg = await withTimeout(
+        navigator.serviceWorker.register("/sw.js", { scope: "/" }),
+        SW_STEP_TIMEOUT_MS,
+        "Tiempo agotado registrando /sw.js.",
+      );
     }
     await waitForServiceWorkerActive(reg);
     return reg;
@@ -198,9 +232,21 @@ export async function getPushPermissionState(): Promise<PushPermissionState> {
   return Notification.permission as PushPermissionState;
 }
 
+async function getPushRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (!isPushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration("/");
+  if (reg?.active) return reg;
+  if (reg) {
+    await waitForServiceWorkerActive(reg);
+    return reg;
+  }
+  return registerServiceWorker();
+}
+
 export async function getLocalPushSubscription(): Promise<PushSubscription | null> {
   if (!isPushSupported()) return null;
-  const reg = await navigator.serviceWorker.ready;
+  const reg = await getPushRegistration();
+  if (!reg) return null;
   return reg.pushManager.getSubscription();
 }
 
@@ -342,8 +388,7 @@ async function saveSubscriptionOnServer(sub: PushSubscription): Promise<void> {
 /** Re-register browser subscription on the server (fixes permission granted but POST failed). */
 export async function syncPushSubscriptionToServer(): Promise<boolean> {
   if (!isPushSupported() || Notification.permission !== "granted") return false;
-  await navigator.serviceWorker.ready;
-  const reg = await navigator.serviceWorker.getRegistration("/");
+  const reg = await getPushRegistration();
   const sub = reg ? await reg.pushManager.getSubscription() : null;
   if (!sub) return false;
   await saveSubscriptionOnServer(sub);
@@ -362,25 +407,41 @@ async function createBrowserSubscription(
   reg: ServiceWorkerRegistration,
   appKey: BufferSource,
 ): Promise<PushSubscription> {
-  return reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: appKey,
-  });
+  return withTimeout(
+    reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: appKey,
+    }),
+    SUBSCRIBE_TIMEOUT_MS,
+    "Tiempo agotado registrando con el servicio push del navegador (FCM). Vuelve a intentar.",
+  );
 }
 
-export async function subscribeToPush(): Promise<PushSubscription> {
+export async function subscribeToPush(
+  onProgress?: (step: PushSubscribeProgress) => void,
+): Promise<PushSubscription> {
   if (!isPushSupported()) {
     throw new Error("Las notificaciones push no estan disponibles en este navegador.");
   }
 
-  const permission = await Notification.requestPermission();
+  onProgress?.("permission");
+  const permission = await withTimeout(
+    Notification.requestPermission(),
+    PERMISSION_TIMEOUT_MS,
+    "Tiempo agotado esperando permiso. En Edge/Chrome mira la barra de direcciones: puede haber un icono de campana o un aviso «Permitir/Bloquear» que debes pulsar.",
+  );
   if (permission !== "granted") {
     throw new Error("Permiso de notificaciones denegado.");
   }
 
+  onProgress?.("vapid");
   let publicKey: string;
   try {
-    const res = await api.get<{ publicKey: string }>("/notifications/push/vapid-public-key");
+    const res = await withTimeout(
+      api.get<{ publicKey: string }>("/notifications/push/vapid-public-key"),
+      API_STEP_TIMEOUT_MS,
+      "Tiempo agotado obteniendo clave VAPID del servidor.",
+    );
     publicKey = res.publicKey;
   } catch (err) {
     const detail = getApiErrorMessage(err, "");
@@ -402,12 +463,11 @@ export async function subscribeToPush(): Promise<PushSubscription> {
 
   const appKey = toApplicationServerKey(validateApplicationServerKey(publicKey));
 
+  onProgress?.("service-worker");
   let reg = await registerServiceWorker();
   if (!reg) {
     throw new Error("No se pudo registrar el service worker. Comprueba que /sw.js cargue correctamente.");
   }
-
-  await navigator.serviceWorker.ready;
 
   let sub = await reg.pushManager.getSubscription();
   if (sub) {
@@ -427,6 +487,7 @@ export async function subscribeToPush(): Promise<PushSubscription> {
   }
 
   if (!sub) {
+    onProgress?.("subscribe");
     try {
       sub = await createBrowserSubscription(reg, appKey);
     } catch (e) {
@@ -435,7 +496,6 @@ export async function subscribeToPush(): Promise<PushSubscription> {
       }
       await resetLocalPushState();
       reg = (await registerServiceWorker())!;
-      await navigator.serviceWorker.ready;
       try {
         sub = await createBrowserSubscription(reg, appKey);
       } catch (retryErr) {
@@ -444,9 +504,18 @@ export async function subscribeToPush(): Promise<PushSubscription> {
     }
   }
 
-  await saveSubscriptionOnServer(sub);
+  onProgress?.("server");
+  await withTimeout(
+    saveSubscriptionOnServer(sub),
+    API_STEP_TIMEOUT_MS,
+    "Tiempo agotado guardando la suscripcion en el servidor.",
+  );
 
-  const status = await getPushServerStatus();
+  const status = await withTimeout(
+    getPushServerStatus(),
+    API_STEP_TIMEOUT_MS,
+    "Tiempo agotado comprobando el registro en el servidor.",
+  );
   if (!status.serverRegistered) {
     throw new Error(
       "El servidor no registro este dispositivo. Revisa VAPID en Dokploy o vuelve a intentar.",
@@ -460,16 +529,23 @@ export async function subscribeToPush(): Promise<PushSubscription> {
  * Reset push only on this browser (unregister SW + local subscription), then subscribe again.
  * Does not remove other devices registered on the server.
  */
-export async function resetAndSubscribeToPush(): Promise<PushSubscription> {
-  await resetLocalPushState();
-  await new Promise((r) => setTimeout(r, 1500));
-  return subscribeToPush();
+export async function resetAndSubscribeToPush(
+  onProgress?: (step: PushSubscribeProgress) => void,
+): Promise<PushSubscription> {
+  await withTimeout(
+    resetLocalPushState(),
+    SW_STEP_TIMEOUT_MS,
+    "Tiempo agotado reiniciando el service worker local.",
+  );
+  await new Promise((r) => setTimeout(r, 800));
+  return subscribeToPush(onProgress);
 }
 
 export async function unsubscribeFromPush(): Promise<void> {
   if (!isPushSupported()) return;
   try {
-    const reg = await navigator.serviceWorker.ready;
+    const reg = await getPushRegistration();
+    if (!reg) return;
     const sub = await reg.pushManager.getSubscription();
     if (sub) {
       const endpoint = sub.endpoint;

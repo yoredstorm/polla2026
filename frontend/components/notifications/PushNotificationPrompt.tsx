@@ -9,9 +9,19 @@ import {
   getPushPermissionState,
   getPushServerStatus,
   isPushSupported,
-  resetAndSubscribeToPush,
+  subscribeToPush,
   syncPushSubscriptionToServer,
+  type PushSubscribeProgress,
 } from "@/lib/pushNotifications";
+
+const PROGRESS_HINT: Record<PushSubscribeProgress, string> = {
+  permission:
+    "Mira la barra de direcciones de Edge: debe aparecer «¿Permitir notificaciones?». Pulsa Permitir (no cierres este cuadro antes).",
+  vapid: "Conectando con el servidor...",
+  "service-worker": "Preparando el service worker...",
+  subscribe: "Registrando con el servicio push del navegador...",
+  server: "Guardando este dispositivo en el servidor...",
+};
 
 const SNOOZE_KEY = "polla_push_prompt_snooze_until";
 const SNOOZE_MS = 7 * 24 * 60 * 60 * 1000;
@@ -35,6 +45,7 @@ export function PushNotificationPrompt() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [busyStep, setBusyStep] = useState<PushSubscribeProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
 
@@ -85,9 +96,10 @@ export function PushNotificationPrompt() {
 
   async function handleEnable() {
     setBusy(true);
+    setBusyStep("permission");
     setError(null);
     try {
-      await resetAndSubscribeToPush();
+      await subscribeToPush((step) => setBusyStep(step));
       setOpen(false);
     } catch (e) {
       setError(formatPushSubscribeError(e));
@@ -95,6 +107,7 @@ export function PushNotificationPrompt() {
       setPermission(p as NotificationPermission);
     } finally {
       setBusy(false);
+      setBusyStep(null);
     }
   }
 
@@ -114,7 +127,9 @@ export function PushNotificationPrompt() {
         {user?.is_admin ? " y pendientes de aprobacion." : "."}
       </p>
       {busy && !denied && (
-        <p className="text-xs text-accent mb-3">Esperando respuesta del navegador...</p>
+        <p className="text-xs text-accent mb-3">
+          {busyStep ? PROGRESS_HINT[busyStep] : "Iniciando..."}
+        </p>
       )}
       {denied && (
         <p className="text-xs text-amber-300 mb-3">

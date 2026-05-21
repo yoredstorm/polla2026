@@ -15,6 +15,7 @@ import {
   unsubscribeFromPush,
   type PushDiagnostics,
   type PushPermissionState,
+  type PushSubscribeProgress,
 } from "@/lib/pushNotifications";
 
 export function usePushNotifications() {
@@ -29,6 +30,7 @@ export function usePushNotifications() {
   const [testMessage, setTestMessage] = useState<string | null>(null);
   const [diagnostics, setDiagnostics] = useState<PushDiagnostics | null>(null);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const [busyStep, setBusyStep] = useState<PushSubscribeProgress | null>(null);
 
   const refresh = useCallback(async () => {
     const sup = isPushSupported();
@@ -79,7 +81,7 @@ export function usePushNotifications() {
     setError(null);
     setDiagnostics(null);
     try {
-      await subscribeToPush();
+      await subscribeToPush((step) => setBusyStep(step));
       await refresh();
     } catch (e) {
       setError(formatPushSubscribeError(e));
@@ -88,6 +90,7 @@ export function usePushNotifications() {
       await refresh();
     } finally {
       setLoading(false);
+      setBusyStep(null);
     }
   }
 
@@ -124,7 +127,7 @@ export function usePushNotifications() {
     setTestMessage(null);
     setDiagnostics(null);
     try {
-      await resetAndSubscribeToPush();
+      await resetAndSubscribeToPush((step) => setBusyStep(step));
       await refresh();
       setTestMessage("Push reiniciado en este dispositivo.");
     } catch (e) {
@@ -134,6 +137,7 @@ export function usePushNotifications() {
       await refresh();
     } finally {
       setLoading(false);
+      setBusyStep(null);
     }
   }
 
@@ -150,6 +154,7 @@ export function usePushNotifications() {
     diagnostics,
     showDiagnostics,
     setShowDiagnostics,
+    busyStep,
     enable,
     disable,
     sendTest,
