@@ -23,6 +23,7 @@ from app.services.push_service import (
     get_vapid_public_key,
     upsert_push_subscription,
     delete_push_subscription,
+    delete_all_push_subscriptions_for_user,
     count_push_subscriptions,
 )
 from app.core.config import settings
@@ -227,6 +228,18 @@ async def push_test(
         "serverSubscriptionCount": sub_count,
         "pushDelivered": push_delivered,
     }
+
+
+@router.delete("/push/subscriptions")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def push_clear_all_subscriptions(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    """Remove all push subscriptions for the current user (fixes stale FCM endpoints)."""
+    removed = await delete_all_push_subscriptions_for_user(db, current_user.id)
+    return {"ok": True, "removed": removed}
 
 
 @router.delete("/push/unsubscribe")

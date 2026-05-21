@@ -18,6 +18,7 @@ export function PushNotificationSettings({ className }: { className?: string }) 
     enable,
     disable,
     sendTest,
+    resetAndEnable,
   } = usePushNotifications();
 
   if (!supported) {
@@ -79,6 +80,12 @@ export function PushNotificationSettings({ className }: { className?: string }) 
           Bloqueaste los permisos. Activalos en la configuracion del navegador para este sitio.
         </p>
       )}
+      {!subscribed && subscriptionCount > 0 && (
+        <p className="text-xs text-amber-300">
+          Hay {subscriptionCount} dispositivo(s) guardados en el servidor, pero este telefono aun no esta
+          activo. Pulsa Activar o Reiniciar push.
+        </p>
+      )}
       {subscribed && !serverRegistered && (
         <p className="text-xs text-amber-300">
           El navegador tiene permiso pero el servidor no guardo la suscripcion. Pulsa Activar de nuevo.
@@ -117,14 +124,26 @@ export function PushNotificationSettings({ className }: { className?: string }) 
             {loading ? "Sincronizando..." : "Volver a activar"}
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={() => void enable()}
-            disabled={loading || permission === "denied"}
-            className="text-xs px-4 py-2 rounded-lg bg-accent text-background font-medium hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? "Activando..." : "Activar notificaciones"}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => void enable()}
+              disabled={loading || permission === "denied"}
+              className="text-xs px-4 py-2 rounded-lg bg-accent text-background font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {loading ? "Activando..." : "Activar notificaciones"}
+            </button>
+            {(error || subscriptionCount > 0) && (
+              <button
+                type="button"
+                onClick={() => void resetAndEnable()}
+                disabled={loading || permission === "denied"}
+                className="text-xs px-3 py-2 rounded-lg border border-amber-400/50 text-amber-200 hover:bg-amber-400/10 disabled:opacity-50"
+              >
+                {loading ? "Reiniciando..." : "Reiniciar push en este dispositivo"}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

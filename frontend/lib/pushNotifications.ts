@@ -10,6 +10,20 @@ export function isPushSupported(): boolean {
   return secure && "serviceWorker" in navigator && "PushManager" in window;
 }
 
+function isPushServiceRegistrationError(err: unknown): boolean {
+  const msg =
+    err instanceof DOMException
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : "";
+  return (
+    msg.includes("push service error") ||
+    msg.includes("Registration failed") ||
+    msg.includes("applicationServerKey is not valid")
+  );
+}
+
 /** User-facing message for push subscribe failures (API, browser, or generic Error). */
 export function formatPushSubscribeError(
   err: unknown,
@@ -22,6 +36,12 @@ export function formatPushSubscribeError(
       return (
         "La clave VAPID del servidor no es valida. El administrador debe ejecutar " +
         "python scripts/generate_vapid_keys.py, actualizar Dokploy (backend) y redesplegar."
+      );
+    }
+    if (isPushServiceRegistrationError(err)) {
+      return (
+        "Chrome no pudo registrar este telefono con el servicio push (suscripcion antigua o corrupta). " +
+        "Pulsa «Reiniciar push en este dispositivo» o cierra Chrome por completo y vuelve a intentar."
       );
     }
     return `El navegador no pudo crear la suscripcion push: ${err.message}`;
@@ -48,13 +68,64 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return output;
 }
 
+function validateApplicationServerKey(publicKey: string): Uint8Array {
+  const bytes = urlBase64ToUint8Array(publicKey);
+  if (bytes.length !== 65 || bytes[0] !== 0x04) {
+    throw new Error(
+      "La clave VAPID publica del servidor no es valida. Regenera las claves en Dokploy y redesplega el backend.",
+    );
+  }
+  return bytes;
+}
+
+/** Unregister service workers and local push subscription (does not clear server). */
+export async function resetLocalPushState(): Promise<void> {
+  if (!isPushSupported()) return;
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  for (const reg of registrations) {
+    try {
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        const endpoint = sub.endpoint;
+        try {
+          await sub.unsubscribe();
+        } catch {
+          /* ignore */
+        }
+        try {
+          await api.delete("/notifications/push/unsubscribe", { endpoint });
+        } catch {
+          /* ignore */
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    try {
+      await reg.unregister();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+/** Remove every server-side subscription for this user, then reset locally. */
+export async function clearAllPushSubscriptions(): Promise<number> {
+  const res = await api.delete<{ ok: boolean; removed: number }>(
+    "/notifications/push/subscriptions",
+  );
+  await resetLocalPushState();
+  return res.removed ?? 0;
+}
+
 export async function registerServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   if (!isPushSupported()) return null;
   try {
-    return await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    const reg = await navigator.serviceWorker.register("/sw.js", { scope: "/" });
+    await reg.update();
+    return reg;
   } catch (e) {
-    const hint =
-      e instanceof Error ? e.message : "error desconocido";
+    const hint = e instanceof Error ? e.message : "error desconocido";
     throw new Error(`No se pudo cargar /sw.js (${hint}).`);
   }
 }
@@ -120,6 +191,16 @@ export async function sendPushTest(): Promise<{
   return api.post("/notifications/push/test", {});
 }
 
+async function createBrowserSubscription(
+  reg: ServiceWorkerRegistration,
+  appKey: BufferSource,
+): Promise<PushSubscription> {
+  return reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: appKey,
+  });
+}
+
 export async function subscribeToPush(): Promise<PushSubscription> {
   if (!isPushSupported()) {
     throw new Error("Las notificaciones push no estan disponibles en este navegador.");
@@ -152,7 +233,9 @@ export async function subscribeToPush(): Promise<PushSubscription> {
     );
   }
 
-  const reg = await registerServiceWorker();
+  const appKey = validateApplicationServerKey(publicKey) as BufferSource;
+
+  let reg = await registerServiceWorker();
   if (!reg) {
     throw new Error("No se pudo registrar el service worker. Comprueba que /sw.js cargue correctamente.");
   }
@@ -160,15 +243,13 @@ export async function subscribeToPush(): Promise<PushSubscription> {
   await navigator.serviceWorker.ready;
 
   let sub = await reg.pushManager.getSubscription();
-  const appKey = urlBase64ToUint8Array(publicKey) as BufferSource;
-
   if (sub) {
     try {
       await saveSubscriptionOnServer(sub);
       const status = await getPushServerStatus();
       if (status.serverRegistered) return sub;
     } catch {
-      /* re-subscribe with current VAPID key */
+      /* re-subscribe with current VAPID */
     }
     try {
       await sub.unsubscribe();
@@ -180,12 +261,19 @@ export async function subscribeToPush(): Promise<PushSubscription> {
 
   if (!sub) {
     try {
-      sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: appKey,
-      });
+      sub = await createBrowserSubscription(reg, appKey);
     } catch (e) {
-      throw new Error(formatPushSubscribeError(e));
+      if (!isPushServiceRegistrationError(e)) {
+        throw new Error(formatPushSubscribeError(e));
+      }
+      await resetLocalPushState();
+      reg = (await registerServiceWorker())!;
+      await navigator.serviceWorker.ready;
+      try {
+        sub = await createBrowserSubscription(reg, appKey);
+      } catch (retryErr) {
+        throw new Error(formatPushSubscribeError(retryErr));
+      }
     }
   }
 
@@ -201,15 +289,22 @@ export async function subscribeToPush(): Promise<PushSubscription> {
   return sub;
 }
 
+/** Full reset (server + browser) then subscribe — use when «push service error» persists. */
+export async function resetAndSubscribeToPush(): Promise<PushSubscription> {
+  await clearAllPushSubscriptions();
+  return subscribeToPush();
+}
+
 export async function unsubscribeFromPush(): Promise<void> {
   if (!isPushSupported()) return;
   try {
     const reg = await navigator.serviceWorker.ready;
     const sub = await reg.pushManager.getSubscription();
-    if (!sub) return;
-    const endpoint = sub.endpoint;
-    await sub.unsubscribe();
-    await api.delete("/notifications/push/unsubscribe", { endpoint });
+    if (sub) {
+      const endpoint = sub.endpoint;
+      await sub.unsubscribe();
+      await api.delete("/notifications/push/unsubscribe", { endpoint });
+    }
   } catch {
     /* best effort on logout */
   }

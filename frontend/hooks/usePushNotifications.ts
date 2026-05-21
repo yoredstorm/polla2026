@@ -8,6 +8,7 @@ import {
   isPushSupported,
   registerServiceWorker,
   sendPushTest,
+  resetAndSubscribeToPush,
   subscribeToPush,
   syncPushSubscriptionToServer,
   unsubscribeFromPush,
@@ -102,6 +103,22 @@ export function usePushNotifications() {
     }
   }
 
+  async function resetAndEnable() {
+    setLoading(true);
+    setError(null);
+    setTestMessage(null);
+    try {
+      await resetAndSubscribeToPush();
+      await refresh();
+      setTestMessage("Push reiniciado en este dispositivo.");
+    } catch (e) {
+      setError(formatPushSubscribeError(e));
+      await refresh();
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return {
     supported,
     permission,
@@ -115,6 +132,7 @@ export function usePushNotifications() {
     enable,
     disable,
     sendTest,
+    resetAndEnable,
     refresh,
   };
 }

@@ -265,3 +265,11 @@ async def delete_push_subscription(db: AsyncSession, *, user_id: uuid.UUID, endp
     )
     await db.flush()
     return (result.rowcount or 0) > 0
+
+
+async def delete_all_push_subscriptions_for_user(db: AsyncSession, user_id: uuid.UUID) -> int:
+    result = await db.execute(
+        delete(PushSubscription).where(PushSubscription.user_id == user_id)
+    )
+    await db.flush()
+    return result.rowcount or 0

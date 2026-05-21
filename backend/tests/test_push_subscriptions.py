@@ -98,6 +98,22 @@ async def test_push_status(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_clear_all_push_subscriptions(client: AsyncClient, db_session: AsyncSession):
+    cookies = await _register(client, "push_clear_user")
+    endpoint = f"https://push.example.com/sub/{uuid.uuid4()}"
+    await client.post(
+        "/api/v1/notifications/push/subscribe",
+        json={"endpoint": endpoint, "keys": {"p256dh": "k1", "auth": "a1"}},
+        cookies=cookies,
+    )
+    cleared = await client.delete("/api/v1/notifications/push/subscriptions", cookies=cookies)
+    assert cleared.status_code == 200
+    assert cleared.json()["removed"] >= 1
+    status = await client.get("/api/v1/notifications/push/status", cookies=cookies)
+    assert status.json()["serverSubscriptionCount"] == 0
+
+
+@pytest.mark.asyncio
 async def test_push_test_requires_subscription(client: AsyncClient):
     cookies = await _register(client, "push_test_user")
     r = await client.post("/api/v1/notifications/push/test", cookies=cookies)
