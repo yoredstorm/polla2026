@@ -4,11 +4,12 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Modal } from "@/components/ui/Modal";
 import {
+  beginNotificationPermissionRequest,
   formatPushSubscribeError,
-  getLocalPushSubscription,
   getPushPermissionState,
   getPushServerStatus,
   isPushSupported,
+  permissionBlockedMessage,
   subscribeToPush,
   syncPushSubscriptionToServer,
   type PushSubscribeProgress,
@@ -16,7 +17,7 @@ import {
 
 const PROGRESS_HINT: Record<PushSubscribeProgress, string> = {
   permission:
-    "Mira la barra de direcciones de Edge: debe aparecer «¿Permitir notificaciones?». Pulsa Permitir (no cierres este cuadro antes).",
+    "Mira la barra de direcciones de Edge: debe aparecer «¿Permitir notificaciones?». Pulsa Permitir.",
   vapid: "Conectando con el servidor...",
   "service-worker": "Preparando el service worker...",
   subscribe: "Registrando con el servicio push del navegador...",
@@ -57,36 +58,43 @@ export function PushNotificationPrompt() {
       return;
     }
 
+    const perm = getPushPermissionState();
+    setPermission(perm as NotificationPermission);
+    if (perm === "unsupported") {
+      setOpen(false);
+      return;
+    }
+
+    // Show the button immediately — do not wait for API or service worker.
+    setOpen(true);
+
     let cancelled = false;
-
     void (async () => {
-      const perm = await getPushPermissionState();
-      if (cancelled) return;
-      setPermission(perm as NotificationPermission);
-      if (perm === "unsupported") return;
-
       try {
         const status = await getPushServerStatus();
         if (cancelled) return;
-        if (status.serverRegistered) return;
-      } catch {
-        /* show prompt so user can retry */
-      }
-
-      const existing = await getLocalPushSubscription();
-      if (cancelled) return;
-
-      if (existing && perm === "granted") {
-        try {
-          await syncPushSubscriptionToServer();
-          const status = await getPushServerStatus();
-          if (!cancelled && status.serverRegistered) return;
-        } catch {
-          /* need manual activation */
+        if (status.serverRegistered) {
+          setOpen(false);
+          return;
         }
+      } catch {
+        /* keep modal open */
       }
 
-      if (!cancelled) setOpen(true);
+      if (perm !== "granted") return;
+
+      const reg = await navigator.serviceWorker.getRegistration("/");
+      if (!reg?.active || cancelled) return;
+      const existing = await reg.pushManager.getSubscription();
+      if (!existing || cancelled) return;
+
+      try {
+        await syncPushSubscriptionToServer();
+        const status = await getPushServerStatus();
+        if (!cancelled && status.serverRegistered) setOpen(false);
+      } catch {
+        /* keep modal open */
+      }
     })();
 
     return () => {
@@ -94,21 +102,33 @@ export function PushNotificationPrompt() {
     };
   }, [user, onAuthPage, pathname]);
 
-  async function handleEnable() {
+  function handleEnableClick() {
+    setError(null);
+    const permissionPromise = beginNotificationPermissionRequest();
     setBusy(true);
     setBusyStep("permission");
-    setError(null);
-    try {
-      await subscribeToPush((step) => setBusyStep(step));
-      setOpen(false);
-    } catch (e) {
-      setError(formatPushSubscribeError(e));
-      const p = await getPushPermissionState();
-      setPermission(p as NotificationPermission);
-    } finally {
-      setBusy(false);
-      setBusyStep(null);
-    }
+
+    void permissionPromise.then(async (perm) => {
+      setPermission(perm);
+      if (perm !== "granted") {
+        setError(permissionBlockedMessage(perm));
+        setBusy(false);
+        setBusyStep(null);
+        return;
+      }
+
+      setBusy(true);
+      try {
+        await subscribeToPush((step) => setBusyStep(step), { permissionGranted: true });
+        setOpen(false);
+      } catch (e) {
+        setError(formatPushSubscribeError(e));
+        setPermission(getPushPermissionState() as NotificationPermission);
+      } finally {
+        setBusy(false);
+        setBusyStep(null);
+      }
+    });
   }
 
   function handleLater() {
@@ -119,6 +139,7 @@ export function PushNotificationPrompt() {
   if (!open || permission === "unsupported") return null;
 
   const denied = permission === "denied";
+  const needsPermission = permission === "default";
 
   return (
     <Modal open={open} onClose={handleLater} title="Activar notificaciones" size="sm">
@@ -126,6 +147,13 @@ export function PushNotificationPrompt() {
         Recibe avisos en este dispositivo aunque no tengas la app abierta: partidos, retos, menciones
         {user?.is_admin ? " y pendientes de aprobacion." : "."}
       </p>
+      {needsPermission && !busy && (
+        <p className="text-xs text-amber-200 mb-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2">
+          El aviso de permiso lo muestra <strong className="text-white">Edge</strong>, no el servidor
+          (suele aparecer junto a la URL, no en este cuadro). Pulsa el boton y luego{" "}
+          <strong className="text-white">Permitir</strong> en la barra de direcciones.
+        </p>
+      )}
       {busy && !denied && (
         <p className="text-xs text-accent mb-3">
           {busyStep ? PROGRESS_HINT[busyStep] : "Iniciando..."}
@@ -133,15 +161,15 @@ export function PushNotificationPrompt() {
       )}
       {denied && (
         <p className="text-xs text-amber-300 mb-3">
-          Bloqueaste las notificaciones. En la configuracion del sitio (icono del candado en la barra
-          de direcciones) permitelas y vuelve a pulsar Activar.
+          Bloqueaste las notificaciones. Candado en la barra de direcciones → Notificaciones → Permitir,
+          o edge://settings/content/notifications
         </p>
       )}
       {error && <p className="text-xs text-red-300 mb-3">{error}</p>}
       <div className="flex flex-col gap-2">
         <button
           type="button"
-          onClick={() => void handleEnable()}
+          onClick={handleEnableClick}
           disabled={busy}
           className="w-full py-2.5 rounded-lg bg-accent text-background font-semibold text-sm hover:opacity-90 disabled:opacity-50"
         >

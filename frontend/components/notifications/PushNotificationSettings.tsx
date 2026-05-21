@@ -15,10 +15,10 @@ export function PushNotificationSettings({ className }: { className?: string }) 
     loading,
     error,
     testMessage,
-    enable,
+    enableFromClick,
     disable,
     sendTest,
-    resetAndEnable,
+    resetAndEnableFromClick,
     diagnostics,
     showDiagnostics,
     setShowDiagnostics,
@@ -84,9 +84,16 @@ export function PushNotificationSettings({ className }: { className?: string }) 
           </>
         )}
       </p>
+      {permission === "default" && !error && (
+        <p className="text-xs text-amber-200 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2">
+          Al activar, Edge preguntara arriba en la barra de direcciones (candado o campana). Pulsa{" "}
+          <strong className="text-white">Permitir</strong> en ese aviso.
+        </p>
+      )}
       {permission === "denied" && (
         <p className="text-xs text-amber-300">
-          Bloqueaste los permisos. Activalos en la configuracion del navegador para este sitio.
+          Bloqueaste los permisos. Candado junto a la URL → Notificaciones → Permitir, o
+          edge://settings/content/notifications
         </p>
       )}
       {!subscribed && subscriptionCount > 0 && (
@@ -166,7 +173,7 @@ export function PushNotificationSettings({ className }: { className?: string }) 
         ) : subscribed && !serverRegistered ? (
           <button
             type="button"
-            onClick={() => void enable()}
+            onClick={enableFromClick}
             disabled={loading || permission === "denied"}
             className="text-xs px-4 py-2 rounded-lg bg-accent text-background font-medium hover:opacity-90 disabled:opacity-50"
           >
@@ -176,7 +183,7 @@ export function PushNotificationSettings({ className }: { className?: string }) 
           <>
             <button
               type="button"
-              onClick={() => void enable()}
+              onClick={enableFromClick}
               disabled={loading || permission === "denied"}
               className="text-xs px-4 py-2 rounded-lg bg-accent text-background font-medium hover:opacity-90 disabled:opacity-50"
             >
@@ -185,7 +192,7 @@ export function PushNotificationSettings({ className }: { className?: string }) 
             {(error || subscriptionCount > 0) && (
               <button
                 type="button"
-                onClick={() => void resetAndEnable()}
+                onClick={resetAndEnableFromClick}
                 disabled={loading || permission === "denied"}
                 className="text-xs px-3 py-2 rounded-lg border border-amber-400/50 text-amber-200 hover:bg-amber-400/10 disabled:opacity-50"
               >

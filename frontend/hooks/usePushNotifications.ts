@@ -1,12 +1,14 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import {
+  beginNotificationPermissionRequest,
   collectPushDiagnostics,
   formatPushSubscribeError,
   getLocalPushSubscription,
   getPushPermissionState,
   getPushServerStatus,
   isPushSupported,
+  permissionBlockedMessage,
   registerServiceWorker,
   sendPushTest,
   resetAndSubscribeToPush,
@@ -41,8 +43,9 @@ export function usePushNotifications() {
       setServerRegistered(false);
       return;
     }
-    setPermission(await getPushPermissionState());
-    await registerServiceWorker();
+    setPermission(getPushPermissionState());
+    // Register SW in background — must not block the permission button or click gesture.
+    void registerServiceWorker().catch(() => {});
     const sub = await getLocalPushSubscription();
     setSubscribed(!!sub);
     if (sub && Notification.permission === "granted") {
@@ -76,22 +79,35 @@ export function usePushNotifications() {
     }
   }
 
-  async function enable() {
-    setLoading(true);
+  function enableFromClick() {
     setError(null);
     setDiagnostics(null);
-    try {
-      await subscribeToPush((step) => setBusyStep(step));
-      await refresh();
-    } catch (e) {
-      setError(formatPushSubscribeError(e));
-      await captureDiagnostics(e);
-      setShowDiagnostics(true);
-      await refresh();
-    } finally {
-      setLoading(false);
-      setBusyStep(null);
-    }
+    const permissionPromise = beginNotificationPermissionRequest();
+    setLoading(true);
+    setBusyStep("permission");
+    void permissionPromise.then(async (perm) => {
+      setPermission(perm);
+      if (perm !== "granted") {
+        setError(permissionBlockedMessage(perm));
+        await captureDiagnostics(new Error(permissionBlockedMessage(perm)));
+        setShowDiagnostics(true);
+        setLoading(false);
+        setBusyStep(null);
+        return;
+      }
+      try {
+        await subscribeToPush((step) => setBusyStep(step), { permissionGranted: true });
+        await refresh();
+      } catch (e) {
+        setError(formatPushSubscribeError(e));
+        await captureDiagnostics(e);
+        setShowDiagnostics(true);
+        await refresh();
+      } finally {
+        setLoading(false);
+        setBusyStep(null);
+      }
+    });
   }
 
   async function disable() {
@@ -121,24 +137,37 @@ export function usePushNotifications() {
     }
   }
 
-  async function resetAndEnable() {
-    setLoading(true);
+  function resetAndEnableFromClick() {
     setError(null);
     setTestMessage(null);
     setDiagnostics(null);
-    try {
-      await resetAndSubscribeToPush((step) => setBusyStep(step));
-      await refresh();
-      setTestMessage("Push reiniciado en este dispositivo.");
-    } catch (e) {
-      setError(formatPushSubscribeError(e));
-      await captureDiagnostics(e);
-      setShowDiagnostics(true);
-      await refresh();
-    } finally {
-      setLoading(false);
-      setBusyStep(null);
-    }
+    const permissionPromise = beginNotificationPermissionRequest();
+    setLoading(true);
+    setBusyStep("permission");
+    void permissionPromise.then(async (perm) => {
+      setPermission(perm);
+      if (perm !== "granted") {
+        setError(permissionBlockedMessage(perm));
+        await captureDiagnostics(new Error(permissionBlockedMessage(perm)));
+        setShowDiagnostics(true);
+        setLoading(false);
+        setBusyStep(null);
+        return;
+      }
+      try {
+        await resetAndSubscribeToPush((step) => setBusyStep(step), { permissionGranted: true });
+        await refresh();
+        setTestMessage("Push reiniciado en este dispositivo.");
+      } catch (e) {
+        setError(formatPushSubscribeError(e));
+        await captureDiagnostics(e);
+        setShowDiagnostics(true);
+        await refresh();
+      } finally {
+        setLoading(false);
+        setBusyStep(null);
+      }
+    });
   }
 
   return {
@@ -155,10 +184,10 @@ export function usePushNotifications() {
     showDiagnostics,
     setShowDiagnostics,
     busyStep,
-    enable,
+    enableFromClick,
     disable,
     sendTest,
-    resetAndEnable,
+    resetAndEnableFromClick,
     refresh,
   };
 }

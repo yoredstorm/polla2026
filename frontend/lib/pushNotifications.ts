@@ -10,10 +10,43 @@ export type PushSubscribeProgress =
   | "subscribe"
   | "server";
 
-const PERMISSION_TIMEOUT_MS = 90_000;
+const PERMISSION_TIMEOUT_MS = 120_000;
 const API_STEP_TIMEOUT_MS = 25_000;
 const SW_STEP_TIMEOUT_MS = 20_000;
 const SUBSCRIBE_TIMEOUT_MS = 45_000;
+
+export const PERMISSION_TIMEOUT_MESSAGE =
+  "No aparecio el aviso de permiso. En Edge: mira el icono de candado o campana junto a la URL y elige Permitir. " +
+  "Tambien revisa edge://settings/content/notifications y que Windows permita notificaciones para Edge.";
+
+/**
+ * Start permission request synchronously inside a click handler (before any await/setState).
+ * Then await the returned promise in the same handler chain.
+ */
+export function beginNotificationPermissionRequest(): Promise<NotificationPermission> {
+  if (!isPushSupported()) {
+    return Promise.resolve("denied" as NotificationPermission);
+  }
+  const current = Notification.permission;
+  if (current === "granted" || current === "denied") {
+    return Promise.resolve(current);
+  }
+  return withTimeout(
+    Notification.requestPermission(),
+    PERMISSION_TIMEOUT_MS,
+    PERMISSION_TIMEOUT_MESSAGE,
+  );
+}
+
+export function permissionBlockedMessage(perm: NotificationPermission): string {
+  if (perm === "denied") {
+    return (
+      "Notificaciones bloqueadas para este sitio. En Edge: candado junto a la URL → Permisos del sitio → " +
+      "Notificaciones → Permitir. O abre edge://settings/content/notifications y permite redcardtech.uk."
+    );
+  }
+  return PERMISSION_TIMEOUT_MESSAGE;
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return Promise.race([
@@ -227,7 +260,8 @@ export async function registerServiceWorker(): Promise<ServiceWorkerRegistration
   }
 }
 
-export async function getPushPermissionState(): Promise<PushPermissionState> {
+/** Synchronous — browser permission is local, not from the server. */
+export function getPushPermissionState(): PushPermissionState {
   if (!isPushSupported()) return "unsupported";
   return Notification.permission as PushPermissionState;
 }
@@ -417,21 +451,27 @@ async function createBrowserSubscription(
   );
 }
 
+export type SubscribeToPushOptions = {
+  /** When permission was already requested via beginNotificationPermissionRequest() in the click handler. */
+  permissionGranted?: boolean;
+};
+
 export async function subscribeToPush(
   onProgress?: (step: PushSubscribeProgress) => void,
+  options?: SubscribeToPushOptions,
 ): Promise<PushSubscription> {
   if (!isPushSupported()) {
     throw new Error("Las notificaciones push no estan disponibles en este navegador.");
   }
 
-  onProgress?.("permission");
-  const permission = await withTimeout(
-    Notification.requestPermission(),
-    PERMISSION_TIMEOUT_MS,
-    "Tiempo agotado esperando permiso. En Edge/Chrome mira la barra de direcciones: puede haber un icono de campana o un aviso «Permitir/Bloquear» que debes pulsar.",
-  );
-  if (permission !== "granted") {
-    throw new Error("Permiso de notificaciones denegado.");
+  if (!options?.permissionGranted) {
+    onProgress?.("permission");
+    const permission = await beginNotificationPermissionRequest();
+    if (permission !== "granted") {
+      throw new Error(permissionBlockedMessage(permission));
+    }
+  } else if (Notification.permission !== "granted") {
+    throw new Error(permissionBlockedMessage(Notification.permission));
   }
 
   onProgress?.("vapid");
@@ -531,6 +571,7 @@ export async function subscribeToPush(
  */
 export async function resetAndSubscribeToPush(
   onProgress?: (step: PushSubscribeProgress) => void,
+  options?: SubscribeToPushOptions,
 ): Promise<PushSubscription> {
   await withTimeout(
     resetLocalPushState(),
@@ -538,7 +579,7 @@ export async function resetAndSubscribeToPush(
     "Tiempo agotado reiniciando el service worker local.",
   );
   await new Promise((r) => setTimeout(r, 800));
-  return subscribeToPush(onProgress);
+  return subscribeToPush(onProgress, options);
 }
 
 export async function unsubscribeFromPush(): Promise<void> {
