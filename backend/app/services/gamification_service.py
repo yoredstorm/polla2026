@@ -149,7 +149,11 @@ async def compute_badges(
     early_bets = 0
     quick_bets = 0
 
+    from app.services.bet_service import bet_eligible_for_scoring
+
     for bet, fixture in rows:
+        if not bet_eligible_for_scoring(bet):
+            continue
         pts = bet.points_earned or 0
         if pts == 2:
             exact_count += 1

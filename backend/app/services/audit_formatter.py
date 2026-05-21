@@ -42,6 +42,7 @@ ACTION_LABELS_ES: dict[str, str] = {
     "admin_member_removed": "Miembro eliminado",
     "admin_patch_group": "Config polla actualizada",
     "admin_repair_challenge_ranking": "Reparar ranking retos",
+    "admin_repair_unconfirmed_extras": "Reparar puntos de extras no pagados",
     "profile_visibility_changed": "Privacidad de perfil",
     "fixture_betting_closed_snapshot": "Cierre de apuestas (tendencia)",
     "comment_created": "Comentario publicado",

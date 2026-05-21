@@ -236,7 +236,11 @@ export interface AdminFixture extends Fixture {
 
 export interface SettleResult {
   settled_count: number;
-  fixture: Fixture;
+  skipped_unconfirmed_extras?: number;
+  fixture_id: string;
+  home_score: number;
+  away_score: number;
+  status: string;
 }
 
 export interface AdminUserEntry {

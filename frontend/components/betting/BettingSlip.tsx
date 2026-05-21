@@ -26,6 +26,11 @@ export function BettingSlip({
   pendingRequest,
 }: BettingSlipProps) {
   const isSettled = bet.points_earned !== null;
+  const fixtureFinished =
+    fixture?.status === "finished" || bet.fixture_status === "finished";
+  const unpaidExtra =
+    parseFloat(bet.amount) > 0 && !bet.amount_confirmed;
+  const extraExcludedFromScoring = fixtureFinished && unpaidExtra && !isSettled;
   const [copying, setCopying] = useState(false);
   const [modifyOpen, setModifyOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -112,7 +117,11 @@ export function BettingSlip({
                 Copiar prediccion
               </button>
             )}
-            {isSettled ? (
+            {extraExcludedFromScoring ? (
+              <span className="text-amber-300/90 text-xs font-medium">
+                Sin puntos (extra sin pago confirmado)
+              </span>
+            ) : isSettled ? (
               <span className={cn("font-bold text-sm", getPointsColor(bet.points_earned))}>
                 {bet.points_earned === 3
                   ? "🎯"

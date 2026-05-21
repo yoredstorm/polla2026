@@ -1,6 +1,7 @@
 """
 Bet service — scoring logic, locking rules, prize distribution.
 """
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
@@ -30,6 +31,11 @@ __all__ = [
     "can_resolve_change_request_for_fixture",
     "create_bet",
     "settle_fixture_bets",
+    "settle_single_bet",
+    "bet_eligible_for_scoring",
+    "get_scoring_bet_for_fixture",
+    "repair_unconfirmed_extra_settlement",
+    "SettleResult",
     "calculate_prize_distribution",
 ]
 
@@ -61,6 +67,19 @@ def calculate_points(
     if _winner(predicted_home, predicted_away) == _winner(real_home, real_away):
         return 1
     return 0
+
+
+@dataclass
+class SettleResult:
+    settled_count: int
+    skipped_unconfirmed_extras: int
+
+
+def bet_eligible_for_scoring(bet: Bet) -> bool:
+    """Free bets and zero-amount extras always count; paid extras require admin confirmation."""
+    if bet.amount is None or bet.amount <= 0:
+        return True
+    return bet.amount_confirmed
 
 
 def is_fixture_bettable(fixture: Fixture) -> bool:
@@ -164,10 +183,85 @@ async def create_bet(
     return bet
 
 
-async def settle_fixture_bets(db: AsyncSession, fixture: Fixture) -> int:
-    """Calculate and assign points for all bets of a finished fixture."""
+async def _resolve_target_group_id(db: AsyncSession, bet: Bet) -> uuid.UUID | None:
+    target_group_id = bet.group_id
+    if not target_group_id:
+        polla_res = await db.execute(
+            select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+        )
+        polla = polla_res.scalar_one_or_none()
+        if polla:
+            target_group_id = polla.id
+    return target_group_id
+
+
+async def _apply_settled_points_to_member(
+    db: AsyncSession,
+    bet: Bet,
+    fixture: Fixture,
+    pts: int,
+) -> None:
+    target_group_id = await _resolve_target_group_id(db, bet)
+    if not target_group_id:
+        return
+    if await user_has_active_challenge_on_fixture(db, bet.user_id, fixture.id):
+        return
+    member_result = await db.execute(
+        select(GroupMember).where(
+            and_(GroupMember.group_id == target_group_id, GroupMember.user_id == bet.user_id)
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if member:
+        member.total_points += pts
+
+
+async def settle_single_bet(db: AsyncSession, bet: Bet, fixture: Fixture) -> bool:
+    """
+    Settle one bet if eligible and fixture is finished with scores.
+    Returns True if points were assigned, False if skipped or already settled.
+    """
     if fixture.status != "finished" or fixture.home_score is None or fixture.away_score is None:
-        return 0
+        return False
+    if bet.points_earned is not None:
+        return False
+    if not bet_eligible_for_scoring(bet):
+        return False
+
+    pts = calculate_points(
+        bet.predicted_home_score,
+        bet.predicted_away_score,
+        fixture.home_score,
+        fixture.away_score,
+    )
+    bet.points_earned = pts
+    await _apply_settled_points_to_member(db, bet, fixture, pts)
+    await db.flush()
+    return True
+
+
+async def get_scoring_bet_for_fixture(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    fixture_id: uuid.UUID,
+) -> Bet | None:
+    """Best eligible bet for challenge/display: prefer settled points, then any eligible bet."""
+    result = await db.execute(
+        select(Bet).where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
+    )
+    bets = [b for b in result.scalars().all() if bet_eligible_for_scoring(b)]
+    if not bets:
+        return None
+    with_points = [b for b in bets if b.points_earned is not None]
+    if with_points:
+        return max(with_points, key=lambda b: (b.points_earned or 0, b.created_at))
+    return bets[0]
+
+
+async def settle_fixture_bets(db: AsyncSession, fixture: Fixture) -> SettleResult:
+    """Calculate and assign points for all unsettled bets of a finished fixture."""
+    if fixture.status != "finished" or fixture.home_score is None or fixture.away_score is None:
+        return SettleResult(0, 0)
 
     result = await db.execute(
         select(Bet).where(
@@ -176,29 +270,44 @@ async def settle_fixture_bets(db: AsyncSession, fixture: Fixture) -> int:
     )
     bets = result.scalars().all()
     settled = 0
+    skipped = 0
 
     for bet in bets:
-        pts = calculate_points(
-            bet.predicted_home_score,
-            bet.predicted_away_score,
-            fixture.home_score,
-            fixture.away_score,
-        )
-        bet.points_earned = pts
-        # Free bets (group_id NULL) still count for the active polla ranking.
-        target_group_id = bet.group_id
-        if not target_group_id:
-            polla_res = await db.execute(
-                select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+        if not bet_eligible_for_scoring(bet):
+            skipped += 1
+            continue
+        if await settle_single_bet(db, bet, fixture):
+            settled += 1
+
+    logger.info(
+        "bets_settled",
+        fixture_id=str(fixture.id),
+        count=settled,
+        skipped_unconfirmed=skipped,
+    )
+    return SettleResult(settled_count=settled, skipped_unconfirmed_extras=skipped)
+
+
+async def repair_unconfirmed_extra_settlement(db: AsyncSession) -> int:
+    """
+    Undo points wrongly assigned to unpaid extras (amount > 0, not confirmed).
+    Returns number of bets repaired.
+    """
+    result = await db.execute(
+        select(Bet).where(
+            and_(
+                Bet.amount > 0,
+                Bet.amount_confirmed == False,  # noqa: E712
+                Bet.points_earned.isnot(None),  # noqa: E711
             )
-            polla = polla_res.scalar_one_or_none()
-            if polla:
-                target_group_id = polla.id
-        if target_group_id:
-            # With an active reto, fixture pts only decide the duel; ranking updates on challenge settle.
-            if await user_has_active_challenge_on_fixture(db, bet.user_id, fixture.id):
-                settled += 1
-                continue
+        )
+    )
+    bets = result.scalars().all()
+    repaired = 0
+    for bet in bets:
+        pts = bet.points_earned or 0
+        target_group_id = await _resolve_target_group_id(db, bet)
+        if target_group_id and pts > 0:
             member_result = await db.execute(
                 select(GroupMember).where(
                     and_(GroupMember.group_id == target_group_id, GroupMember.user_id == bet.user_id)
@@ -206,12 +315,13 @@ async def settle_fixture_bets(db: AsyncSession, fixture: Fixture) -> int:
             )
             member = member_result.scalar_one_or_none()
             if member:
-                member.total_points += pts
-        settled += 1
-
-    await db.flush()
-    logger.info("bets_settled", fixture_id=str(fixture.id), count=settled)
-    return settled
+                member.total_points = max(0, member.total_points - pts)
+        bet.points_earned = None
+        repaired += 1
+    if repaired:
+        await db.flush()
+        logger.info("repair_unconfirmed_extra_settlement", count=repaired)
+    return repaired
 
 
 def calculate_prize_distribution(prize_pool: Decimal) -> dict:

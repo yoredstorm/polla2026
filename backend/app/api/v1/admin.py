@@ -20,7 +20,12 @@ from app.models.password_reset_request import PasswordResetRequest
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember, GroupEntryProof
 from app.models.user import User, RefreshToken
-from app.services.bet_service import settle_fixture_bets, can_resolve_change_request_for_fixture
+from app.services.bet_service import (
+    settle_fixture_bets,
+    settle_single_bet,
+    repair_unconfirmed_extra_settlement,
+    can_resolve_change_request_for_fixture,
+)
 from app.services.audit import log_action
 from app.services.payment_upload_service import (
     entry_proof_data_url,
@@ -63,6 +68,7 @@ class FixtureStatusIn(BaseModel):
 
 class SettleResponse(BaseModel):
     settled_count: int
+    skipped_unconfirmed_extras: int = 0
     fixture_id: str
     home_score: int
     away_score: int
@@ -183,7 +189,7 @@ async def update_fixture_result(
     fixture.betting_open = False
     await db.flush()
 
-    settled = await settle_fixture_bets(db, fixture)
+    settle_result = await settle_fixture_bets(db, fixture)
     from app.services.challenge_service import settle_challenges_for_fixture
 
     breakdown_q = (
@@ -192,6 +198,7 @@ async def update_fixture_result(
         .where(
             Bet.fixture_id == fixture_id,
             Bet.points_earned.isnot(None),  # noqa: E711
+            (Bet.amount <= 0) | (Bet.amount_confirmed == True),  # noqa: E712
         )
         .order_by(Bet.points_earned.desc())
     )
@@ -227,15 +234,23 @@ async def update_fixture_result(
     )
     await log_action(db, user_id=admin.id, action="admin_settle", detail={
         "fixture_id": str(fixture_id), "home_score": body.home_score, "away_score": body.away_score,
-        "status": body.status, "settled_count": settled,
+        "status": body.status, "settled_count": settle_result.settled_count,
+        "skipped_unconfirmed_extras": settle_result.skipped_unconfirmed_extras,
         "notified_users_count": len(notified),
         "user_breakdown": user_breakdown,
     }, ip=request.client.host if request.client else None)
     await db.commit()
 
-    logger.info("admin_fixture_settled", fixture_id=str(fixture_id), admin=str(admin.id), settled=settled)
+    logger.info(
+        "admin_fixture_settled",
+        fixture_id=str(fixture_id),
+        admin=str(admin.id),
+        settled=settle_result.settled_count,
+        skipped=settle_result.skipped_unconfirmed_extras,
+    )
     return SettleResponse(
-        settled_count=settled,
+        settled_count=settle_result.settled_count,
+        skipped_unconfirmed_extras=settle_result.skipped_unconfirmed_extras,
         fixture_id=str(fixture.id),
         home_score=fixture.home_score,
         away_score=fixture.away_score,
@@ -1059,8 +1074,15 @@ async def confirm_extra_bet(
     if member:
         member.total_amount_bet += bet.amount
 
+    points_settled = False
+    fx_res = await db.execute(select(Fixture).where(Fixture.id == bet.fixture_id))
+    fixture = fx_res.scalar_one_or_none()
+    if fixture and fixture.status == "finished" and bet.points_earned is None:
+        points_settled = await settle_single_bet(db, bet, fixture)
+
     await log_action(db, user_id=admin.id, action="admin_confirm_extra", detail={
         "bet_id": str(bet_id), "group_id": str(group_id), "bet_user_id": str(bet.user_id), "amount": str(bet.amount),
+        "points_settled": points_settled,
     }, ip=request.client.host if request.client else None)
     count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
     member_count = int(count_res.scalar() or 0)
@@ -1080,8 +1102,19 @@ async def confirm_extra_bet(
         member_count=member_count,
         reason="extra_confirmed",
     )
-    logger.info("extra_confirmed", bet_id=str(bet_id), amount=str(bet.amount), admin=str(admin.id))
-    return {"ok": True, "amount": str(bet.amount), "prize_pool": str(group.prize_pool)}
+    logger.info(
+        "extra_confirmed",
+        bet_id=str(bet_id),
+        amount=str(bet.amount),
+        admin=str(admin.id),
+        points_settled=points_settled,
+    )
+    return {
+        "ok": True,
+        "amount": str(bet.amount),
+        "prize_pool": str(group.prize_pool),
+        "points_settled": points_settled,
+    }
 
 
 # ── Audit Log ─────────────────────────────────────────────────────────
@@ -1703,6 +1736,24 @@ async def reject_password_reset_request(
     await db.commit()
     logger.info("password_reset_rejected", request_id=str(request_id), admin=str(admin.id))
     return {"ok": True, "status": "rejected"}
+
+
+@router.post("/polla/repair-unconfirmed-extra-settlements")
+@limiter.limit("10/minute")
+async def repair_unconfirmed_extra_settlements_endpoint(
+    request: Request, admin: CurrentAdmin, db: DBSession,
+):
+    """Revert points wrongly assigned to extras that were never payment-confirmed."""
+    repaired = await repair_unconfirmed_extra_settlement(db)
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_repair_unconfirmed_extras",
+        detail={"repaired_bets": repaired},
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return {"ok": True, "repaired_bets": repaired}
 
 
 @router.post("/polla/repair-challenge-ranking")

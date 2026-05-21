@@ -92,6 +92,7 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
     if week_start is not None:
         cond.append(Bet.created_at >= week_start)
     where_clause = and_(*cond) if cond else True
+    scoring_bet = or_(Bet.amount <= 0, Bet.amount_confirmed == True)  # noqa: E712
     return (
         select(
             User.id.label("user_id"),
@@ -102,12 +103,12 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
             User.avatar_url.label("avatar_url"),
             User.bets_profile_visibility.label("bets_profile_visibility"),
             User.show_bet_amounts.label("show_bet_amounts"),
-            func.coalesce(func.sum(Bet.points_earned), 0).label("total_points"),
-            func.count(Bet.id).filter(Bet.points_earned.isnot(None)).label("settled_bets"),
+            func.coalesce(func.sum(Bet.points_earned).filter(scoring_bet), 0).label("total_points"),
+            func.count(Bet.id).filter(and_(Bet.points_earned.isnot(None), scoring_bet)).label("settled_bets"),
             func.count(Bet.id).label("wager_count"),
-            func.count(Bet.id).filter(Bet.points_earned > 0).label("correct_results"),
+            func.count(Bet.id).filter(and_(Bet.points_earned > 0, scoring_bet)).label("correct_results"),
             func.count(Bet.id)
-            .filter(and_(Bet.points_earned.isnot(None), Bet.points_earned == 0))
+            .filter(and_(Bet.points_earned.isnot(None), Bet.points_earned == 0, scoring_bet))
             .label("wrong_results"),
             # Total amount this user has contributed (entry fee + confirmed extras)
             func.coalesce(func.max(GroupMember.total_amount_bet), Decimal("0")).label("total_wagered"),

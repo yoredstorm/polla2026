@@ -355,15 +355,11 @@ async def settle_challenges_for_fixture(db: AsyncSession, redis: aioredis.Redis 
     challenges = res.scalars().all()
     settled = 0
 
+    from app.services.bet_service import get_scoring_bet_for_fixture
+
     for ch in challenges:
-        c_bet_res = await db.execute(
-            select(Bet).where(and_(Bet.user_id == ch.challenger_id, Bet.fixture_id == fixture.id))
-        )
-        d_bet_res = await db.execute(
-            select(Bet).where(and_(Bet.user_id == ch.challenged_id, Bet.fixture_id == fixture.id))
-        )
-        c_bet = c_bet_res.scalar_one_or_none()
-        d_bet = d_bet_res.scalar_one_or_none()
+        c_bet = await get_scoring_bet_for_fixture(db, ch.challenger_id, fixture.id)
+        d_bet = await get_scoring_bet_for_fixture(db, ch.challenged_id, fixture.id)
 
         ch.challenger_fixture_points = c_bet.points_earned if c_bet and c_bet.points_earned is not None else 0
         ch.challenged_fixture_points = d_bet.points_earned if d_bet and d_bet.points_earned is not None else 0
@@ -610,8 +606,12 @@ async def compute_bet_points_for_ranking(
     for ch in ch_res.scalars().all():
         if ch.winner_id != user_id:
             lost_fixture_ids.add(ch.fixture_id)
+    from app.services.bet_service import bet_eligible_for_scoring
+
     total = 0
     for bet in bets:
+        if not bet_eligible_for_scoring(bet):
+            continue
         if bet.fixture_id in lost_fixture_ids:
             continue
         total += bet.points_earned or 0

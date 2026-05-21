@@ -28,7 +28,11 @@ function SettleModal({
       { fixtureId: fixture.id, homeScore, awayScore },
       {
         onSuccess: (res) => {
-          setMsg(`Liquidadas ${res.settled_count} apuestas.`);
+          let text = `Liquidadas ${res.settled_count} apuestas.`;
+          if (res.skipped_unconfirmed_extras && res.skipped_unconfirmed_extras > 0) {
+            text += ` ${res.skipped_unconfirmed_extras} extra(s) sin pago confirmado no sumaron puntos.`;
+          }
+          setMsg(text);
           setTimeout(onClose, 1500);
         },
       },
