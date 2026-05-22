@@ -85,8 +85,20 @@ export function invalidateForNotificationType(
 ) {
   invalidateKeys(queryClient, NOTIFICATION_KEYS, opts);
 
-  if (notificationType === "fixture_finished") {
+  if (notificationType === "fixture_finished" || notificationType === "fixture_betting_closed") {
     invalidateKeys(queryClient, FIXTURE_FINISHED_KEYS, opts);
+    return;
+  }
+
+  if (
+    notificationType === "fixture_betting_closed_admin" ||
+    notificationType === "fixture_betting_soon_admin"
+  ) {
+    invalidateKeys(
+      queryClient,
+      [["admin"], ["fixtures"], ["fixture"], ["admin", "action-queue"]],
+      opts,
+    );
     return;
   }
 
@@ -179,6 +191,7 @@ export async function handleRealtimeMessage(
 
     const needsDataRefetch =
       msg.data.type === "fixture_finished" ||
+      msg.data.type === "fixture_betting_closed" ||
       msg.data.type.startsWith("change_request") ||
       msg.data.type.startsWith("challenge") ||
       msg.data.type === "entry_pending" ||

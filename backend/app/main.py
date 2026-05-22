@@ -57,14 +57,21 @@ async def _redis_notification_listener() -> None:
 
 async def _fixture_betting_close_loop() -> None:
     from app.db.session import AsyncSessionLocal
-    from app.services.betting_close_service import close_due_fixtures_batch
+    from app.services.betting_close_service import (
+        close_due_fixtures_batch,
+        warn_fixtures_betting_closing_soon,
+    )
 
     while True:
         try:
+            redis = await get_redis()
             async with AsyncSessionLocal() as db:
                 try:
-                    n = await close_due_fixtures_batch(db)
+                    await warn_fixtures_betting_closing_soon(db, redis)
+                    n = await close_due_fixtures_batch(db, redis)
                     if n:
+                        await db.commit()
+                    else:
                         await db.commit()
                 except Exception:
                     await db.rollback()

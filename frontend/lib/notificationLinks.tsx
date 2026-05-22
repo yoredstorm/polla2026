@@ -22,7 +22,11 @@ export function notificationHref(n: Notification): string | null {
   }
   switch (n.type) {
     case "fixture_finished":
+    case "fixture_betting_closed":
       return p.fixture_id ? `/fixtures/${p.fixture_id}` : "/fixtures#culminados";
+    case "fixture_betting_closed_admin":
+    case "fixture_betting_soon_admin":
+      return p.fixture_id ? `/admin/fixtures` : "/admin";
     case "change_request_resolved":
     case "change_request_expired":
       return "/my-bets?tab=pronosticos";
@@ -55,7 +59,11 @@ export function notificationHref(n: Notification): string | null {
 export function notificationLinkLabel(n: Notification): string {
   switch (n.type) {
     case "fixture_finished":
+    case "fixture_betting_closed":
       return "Ver partido";
+    case "fixture_betting_closed_admin":
+    case "fixture_betting_soon_admin":
+      return "Gestionar partido";
     case "badge_earned":
       return "Ver medallas";
     case "change_request_resolved":

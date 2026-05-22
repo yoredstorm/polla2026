@@ -1,9 +1,32 @@
 "use client";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import { usePushNotifications } from "@/hooks/usePushNotifications";
 import { cn } from "@/lib/utils";
 
-export function PushNotificationSettings({ className }: { className?: string }) {
+export type PushCategoryPrefs = {
+  challenges: boolean;
+  fixtures: boolean;
+  social: boolean;
+  admin: boolean;
+};
+
+const CATEGORY_LABELS: { key: keyof PushCategoryPrefs; label: string }[] = [
+  { key: "challenges", label: "Retos" },
+  { key: "fixtures", label: "Partidos" },
+  { key: "social", label: "Social" },
+  { key: "admin", label: "Admin / pagos" },
+];
+
+export function PushNotificationSettings({
+  className,
+  showCategoryPrefs = false,
+}: {
+  className?: string;
+  showCategoryPrefs?: boolean;
+}) {
   const { user } = useAuth();
   const {
     supported,
@@ -23,6 +46,25 @@ export function PushNotificationSettings({ className }: { className?: string }) 
     showDiagnostics,
     setShowDiagnostics,
   } = usePushNotifications();
+
+  const qc = useQueryClient();
+  const { data: prefs } = useQuery({
+    queryKey: ["push", "preferences"],
+    queryFn: () => api.get<PushCategoryPrefs>("/notifications/push/preferences"),
+    enabled: showCategoryPrefs,
+  });
+  const [localPrefs, setLocalPrefs] = useState<PushCategoryPrefs | null>(null);
+  useEffect(() => {
+    if (prefs) setLocalPrefs(prefs);
+  }, [prefs]);
+  const savePrefs = useMutation({
+    mutationFn: (body: Partial<PushCategoryPrefs>) =>
+      api.patch<PushCategoryPrefs>("/notifications/push/preferences", body),
+    onSuccess: (data) => {
+      setLocalPrefs(data);
+      qc.setQueryData(["push", "preferences"], data);
+    },
+  });
 
   if (!supported) {
     return (
@@ -149,6 +191,31 @@ export function PushNotificationSettings({ className }: { className?: string }) 
         </div>
       )}
       {testMessage && <p className="text-xs text-emerald-300">{testMessage}</p>}
+      {showCategoryPrefs && localPrefs && (
+        <div className="border-t border-white/10 pt-3 space-y-2">
+          <p className="text-xs font-medium text-white">Categorias de push</p>
+          <div className="grid grid-cols-2 gap-2">
+            {CATEGORY_LABELS.map(({ key, label }) => (
+              <label
+                key={key}
+                className="flex items-center gap-2 text-xs text-muted cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={localPrefs[key]}
+                  onChange={(e) => {
+                    const next = { ...localPrefs, [key]: e.target.checked };
+                    setLocalPrefs(next);
+                    void savePrefs.mutate({ [key]: e.target.checked });
+                  }}
+                  className="rounded border-white/20 accent-accent"
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap gap-2 pt-1">
         {subscribed && serverRegistered ? (
           <>

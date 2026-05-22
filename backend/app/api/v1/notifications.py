@@ -28,7 +28,11 @@ from app.services.push_service import (
 )
 from app.services.vapid_keys import env_public_matches_derived
 from app.core.config import settings
-from app.core.config import settings
+from app.services.push_preferences import (
+    NOTIFICATION_CATEGORY_TYPES,
+    parse_push_preferences,
+    serialize_push_preferences,
+)
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -53,6 +57,7 @@ async def list_notifications(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     filter: Literal["unread", "read", "all"] = Query("all", alias="filter"),
+    category: Optional[str] = Query(None),
     unread_only: bool = Query(False, deprecated=True),
 ):
     effective = "unread" if unread_only else filter
@@ -61,6 +66,13 @@ async def list_notifications(
         base = base.where(Notification.read_at == None)  # noqa: E711
     elif effective == "read":
         base = base.where(Notification.read_at != None)  # noqa: E711
+    if category:
+        types = NOTIFICATION_CATEGORY_TYPES.get(category)
+        if types:
+            base = base.where(Notification.type.in_(types))
+        elif category == "system":
+            all_typed = {t for ts in NOTIFICATION_CATEGORY_TYPES.values() for t in ts}
+            base = base.where(Notification.type.not_in(all_typed))
 
     count_q = select(func.count()).select_from(base.subquery())
     total = (await db.execute(count_q)).scalar() or 0
@@ -200,6 +212,45 @@ async def push_status(request: Request, current_user: CurrentUser, db: DBSession
         "serverSubscriptionCount": count,
         "serverRegistered": count > 0,
     }
+
+
+class PushPreferencesIn(BaseModel):
+    challenges: bool | None = None
+    fixtures: bool | None = None
+    social: bool | None = None
+    admin: bool | None = None
+
+
+@router.get("/push/preferences")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_push_preferences(request: Request, current_user: CurrentUser, db: DBSession):
+    from app.models.user import User
+
+    res = await db.execute(select(User).where(User.id == current_user.id))
+    user = res.scalar_one()
+    return parse_push_preferences(user.push_preferences)
+
+
+@router.patch("/push/preferences")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def patch_push_preferences(
+    request: Request,
+    body: PushPreferencesIn,
+    current_user: CurrentUser,
+    db: DBSession,
+):
+    from app.models.user import User
+
+    res = await db.execute(select(User).where(User.id == current_user.id))
+    user = res.scalar_one()
+    prefs = parse_push_preferences(user.push_preferences)
+    for key in ("challenges", "fixtures", "social", "admin"):
+        val = getattr(body, key, None)
+        if val is not None:
+            prefs[key] = val
+    user.push_preferences = serialize_push_preferences(prefs)
+    await db.commit()
+    return prefs
 
 
 @router.post("/push/test")

@@ -4,6 +4,47 @@ import api, { getApiBase } from "@/lib/api";
 import type { AdminNonMember } from "@/types/api";
 import type { AdminStats, SettleResult } from "@/types/api";
 
+export interface AdminActionQueue {
+  pending: {
+    change_requests: number;
+    password_resets: number;
+    entries: number;
+    extras: number;
+    total: number;
+  };
+  group_id: string | null;
+  fixtures_attention: {
+    id: string;
+    home_team: string;
+    away_team: string;
+    match_date: string;
+    status: string;
+    betting_open: boolean;
+    is_locked: boolean;
+    home_score: number | null;
+    away_score: number | null;
+    urgency: string;
+    betting_closes_at: string | null;
+  }[];
+  recent_critical: {
+    id: string;
+    action: string;
+    action_label: string;
+    summary: string;
+    created_at: string;
+    username: string | null;
+  }[];
+}
+
+export function useAdminActionQueue() {
+  return useQuery({
+    queryKey: ["admin", "action-queue"],
+    queryFn: () => api.get<AdminActionQueue>("/admin/action-queue"),
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+  });
+}
+
 export function useAdminStats() {
   return useQuery({
     queryKey: ["admin", "stats"],

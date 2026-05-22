@@ -2,18 +2,21 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import redis.asyncio as aioredis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.audit_log import AuditLog
 from app.models.fixture import Fixture
 from app.services.audit import log_action
-from app.core.match_timing import BETTING_CLOSE_BEFORE, should_lock_fixture
+from app.core.match_timing import BETTING_CLOSE_BEFORE, betting_close_at, should_lock_fixture
 from app.services.betting_trends_service import get_fixture_betting_trends
 from app.services.bet_service import cancel_unpaid_extras_for_fixture
 import structlog
 
 logger = structlog.get_logger(__name__)
+
+BETTING_SOON_WARN_MINUTES = 15
 
 
 async def _snapshot_already_logged(db: AsyncSession, fixture_id: uuid.UUID) -> bool:
@@ -34,6 +37,7 @@ async def close_fixture_betting(
     fixture: Fixture,
     *,
     reason: str = "lock_window",
+    redis: aioredis.Redis | None = None,
 ) -> bool:
     """
     Set is_locked + betting_open=false and log one trends snapshot.
@@ -80,10 +84,19 @@ async def close_fixture_betting(
         reason=reason,
         total_bets=trends.get("total_bets") if trends else 0,
     )
+    if was_open:
+        from app.services.notification_service import notify_fixture_betting_closed
+
+        await notify_fixture_betting_closed(db, redis, fixture, reason=reason)
     return was_open
 
 
-async def close_fixture_betting_if_due(db: AsyncSession, fixture: Fixture) -> bool:
+async def close_fixture_betting_if_due(
+    db: AsyncSession,
+    fixture: Fixture,
+    *,
+    redis: aioredis.Redis | None = None,
+) -> bool:
     """Close when within 1 minute of kickoff (same rule as should_lock_fixture)."""
     if fixture.status != "scheduled":
         return False
@@ -92,10 +105,73 @@ async def close_fixture_betting_if_due(db: AsyncSession, fixture: Fixture) -> bo
     if fixture.is_locked and not fixture.betting_open:
         await cancel_unpaid_extras_for_fixture(db, fixture, reason="lock_window")
         return False
-    return await close_fixture_betting(db, fixture, reason="lock_window")
+    return await close_fixture_betting(db, fixture, reason="lock_window", redis=redis)
 
 
-async def close_due_fixtures_batch(db: AsyncSession) -> int:
+async def _soon_warn_already_logged(db: AsyncSession, fixture_id: uuid.UUID) -> bool:
+    fid = str(fixture_id)
+    res = await db.execute(
+        select(AuditLog.id)
+        .where(
+            AuditLog.action == "fixture_betting_soon_warned",
+            AuditLog.detail.contains(fid),
+        )
+        .limit(1)
+    )
+    return res.scalar_one_or_none() is not None
+
+
+async def warn_fixtures_betting_closing_soon(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+) -> int:
+    """Notify admins once per fixture ~15 minutes before betting closes."""
+    from app.services.notification_service import (
+        build_fixture_betting_soon_admin,
+        notify_admins,
+    )
+
+    now = datetime.now(timezone.utc)
+    warned = 0
+    res = await db.execute(
+        select(Fixture).where(
+            Fixture.status == "scheduled",
+            Fixture.betting_open == True,  # noqa: E712
+            Fixture.match_date > now,
+        )
+    )
+    for fixture in res.scalars().all():
+        close_at = betting_close_at(fixture)
+        seconds_left = (close_at - now).total_seconds()
+        minutes_left = int(seconds_left // 60)
+        if minutes_left < BETTING_SOON_WARN_MINUTES - 1 or minutes_left > BETTING_SOON_WARN_MINUTES + 1:
+            continue
+        if await _soon_warn_already_logged(db, fixture.id):
+            continue
+        await log_action(
+            db,
+            user_id=None,
+            action="fixture_betting_soon_warned",
+            detail={"fixture_id": str(fixture.id), "minutes_left": minutes_left},
+            ip=None,
+        )
+        nt, nb, np = build_fixture_betting_soon_admin(
+            fixture_id=str(fixture.id),
+            home_team=fixture.home_team,
+            away_team=fixture.away_team,
+            minutes_left=minutes_left,
+        )
+        await notify_admins(
+            db, redis, type="fixture_betting_soon_admin", title=nt, body=nb, payload=np,
+        )
+        warned += 1
+    return warned
+
+
+async def close_due_fixtures_batch(
+    db: AsyncSession,
+    redis: aioredis.Redis | None = None,
+) -> int:
     """Scan scheduled fixtures that should lock; used by background job."""
     now = datetime.now(timezone.utc)
     res = await db.execute(
@@ -108,6 +184,6 @@ async def close_due_fixtures_batch(db: AsyncSession) -> int:
     closed = 0
     for fixture in res.scalars().all():
         if should_lock_fixture(fixture):
-            if await close_fixture_betting_if_due(db, fixture):
+            if await close_fixture_betting_if_due(db, fixture, redis=redis):
                 closed += 1
     return closed

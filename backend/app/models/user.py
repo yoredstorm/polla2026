@@ -32,6 +32,7 @@ class User(Base):
     social_spam_strikes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     avatar_preset: Mapped[str | None] = mapped_column(String(32), nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    push_preferences: Mapped[str | None] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

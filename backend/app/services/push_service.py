@@ -72,8 +72,10 @@ def push_url_for_notification(n: Notification) -> str:
     if t in ADMIN_ACTIONABLE_TYPES:
         return f"/notifications?focus={nid}"
 
-    if t == "fixture_finished" and p.get("fixture_id"):
+    if t in ("fixture_finished", "fixture_betting_closed") and p.get("fixture_id"):
         return f"/fixtures/{p['fixture_id']}"
+    if t in ("fixture_betting_closed_admin", "fixture_betting_soon_admin") and p.get("fixture_id"):
+        return f"/admin/fixtures"
     if t in ("change_request_resolved", "change_request_expired"):
         return "/my-bets?tab=pronosticos"
     if t == "change_request_expired_batch":
@@ -142,6 +144,14 @@ async def send_web_push_for_notification(
 ) -> tuple[int, str | None]:
     """Send push to all subscriptions. Returns (sent_count, last_error)."""
     if not vapid_configured():
+        return 0, None
+
+    from app.models.user import User
+    from app.services.push_preferences import parse_push_preferences, should_send_push_for_type
+
+    user_res = await db.execute(select(User).where(User.id == n.user_id))
+    user = user_res.scalar_one_or_none()
+    if user and not should_send_push_for_type(n.type, parse_push_preferences(user.push_preferences)):
         return 0, None
 
     result = await db.execute(

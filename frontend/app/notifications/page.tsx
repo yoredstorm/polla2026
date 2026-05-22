@@ -9,6 +9,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   type NotificationFilter,
+  type NotificationCategory,
 } from "@/hooks/useNotifications";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
@@ -20,6 +21,16 @@ import type { Notification } from "@/types/api";
 const TABS: { id: NotificationFilter; label: string }[] = [
   { id: "unread", label: "Nuevas" },
   { id: "read", label: "Leídas" },
+  { id: "all", label: "Todas" },
+];
+
+const CATEGORIES: { id: NotificationCategory; label: string }[] = [
+  { id: "all", label: "Todas" },
+  { id: "challenges", label: "Retos" },
+  { id: "fixtures", label: "Partidos" },
+  { id: "social", label: "Social" },
+  { id: "admin", label: "Admin" },
+  { id: "system", label: "Sistema" },
 ];
 
 function NotificationsPageContent() {
@@ -28,9 +39,10 @@ function NotificationsPageContent() {
   const focusId = searchParams.get("focus");
   const focusRef = useRef<HTMLLIElement | null>(null);
   const [tab, setTab] = useState<NotificationFilter>(focusId ? "all" : "unread");
+  const [category, setCategory] = useState<NotificationCategory>("all");
   const [page, setPage] = useState(1);
   const limit = 20;
-  const { data, isLoading } = useNotifications(page, limit, tab);
+  const { data, isLoading } = useNotifications(page, limit, tab, category);
   const markAll = useMarkAllNotificationsRead();
   const markRead = useMarkNotificationRead();
   const { handleReject, rejectCr, rejectPasswordReset } = useNotificationAdminActions();
@@ -48,6 +60,11 @@ function NotificationsPageContent() {
 
   function switchTab(next: NotificationFilter) {
     setTab(next);
+    setPage(1);
+  }
+
+  function switchCategory(next: NotificationCategory) {
+    setCategory(next);
     setPage(1);
   }
 
@@ -71,27 +88,45 @@ function NotificationsPageContent() {
             onClick={() => markAll.mutate()}
             className="text-sm text-accent hover:underline"
           >
-            Marcar todas leidas
+            Marcar todas leídas
           </button>
         )}
       </div>
 
       <PushNotificationSettings className="mb-6" />
 
-      <div className="flex gap-2 mb-6 border-b border-white/10 pb-2">
+      <div className="flex gap-2 mb-4 border-b border-white/10 pb-2 overflow-x-auto">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => switchTab(t.id)}
             className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium transition-colors",
+              "px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer",
               tab === t.id
                 ? "bg-accent/20 text-accent"
                 : "text-muted hover:text-white",
             )}
           >
             {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => switchCategory(c.id)}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer",
+              category === c.id
+                ? "bg-white/15 text-white border border-white/20"
+                : "text-muted border border-transparent hover:text-white",
+            )}
+          >
+            {c.label}
           </button>
         ))}
       </div>

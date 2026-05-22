@@ -258,6 +258,56 @@ async def get_user_public_bets(
     )
 
 
+SECURITY_EVENT_ACTIONS = (
+    "register",
+    "login",
+    "logout",
+    "change_password",
+    "password_reset_request",
+    "profile_visibility_changed",
+    "profile_name_updated",
+    "avatar_updated",
+)
+
+
+@router.get("/me/security-events")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def my_security_events(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    limit: int = Query(10, ge=1, le=30),
+):
+    from app.models.audit_log import AuditLog
+    from app.services.audit_formatter import enrich_audit_rows
+
+    rows = (
+        await db.execute(
+            select(AuditLog)
+            .where(
+                AuditLog.user_id == current_user.id,
+                AuditLog.action.in_(SECURITY_EVENT_ACTIONS),
+            )
+            .order_by(AuditLog.created_at.desc())
+            .limit(limit)
+        )
+    ).scalars().all()
+    enriched = await enrich_audit_rows(db, rows)
+    return {
+        "data": [
+            {
+                "id": str(r.id),
+                "action": r.action,
+                "action_label": label,
+                "summary": summary,
+                "created_at": r.created_at.isoformat(),
+                "ip_address": r.ip_address,
+            }
+            for r, (label, summary) in zip(rows, enriched)
+        ],
+    }
+
+
 @router.patch("/me/profile", response_model=UserOut)
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def update_my_profile(

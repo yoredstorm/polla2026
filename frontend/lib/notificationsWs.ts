@@ -21,7 +21,11 @@ export const ADMIN_URGENT_NOTIFICATION_TYPES = new Set([
   "entry_pending",
   "change_request_pending",
   "password_reset_pending",
+  "fixture_betting_soon_admin",
+  "fixture_betting_closed_admin",
 ]);
+
+const USER_FIXTURE_ALERT_TYPES = new Set(["fixture_betting_closed"]);
 
 const recentToastKeys = new Map<string, number>();
 const TOAST_DEDUPE_MS = 4000;
@@ -33,6 +37,16 @@ const PING_INTERVAL_MS = 25_000;
 const PONG_TIMEOUT_MS = 10_000;
 
 function shouldShowNotificationToast(notificationType: string, title: string): boolean {
+  if (USER_FIXTURE_ALERT_TYPES.has(notificationType)) {
+    const key = `${notificationType}:${title}`;
+    const now = Date.now();
+    const last = recentToastKeys.get(key);
+    if (last != null && now - last < TOAST_DEDUPE_MS) {
+      return false;
+    }
+    recentToastKeys.set(key, now);
+    return true;
+  }
   if (ADMIN_URGENT_NOTIFICATION_TYPES.has(notificationType)) {
     const key = `${notificationType}:${title}`;
     const now = Date.now();

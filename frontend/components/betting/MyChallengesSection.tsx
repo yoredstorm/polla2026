@@ -1,10 +1,12 @@
 "use client";
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { Swords } from "lucide-react";
 import { useMyChallenges, type Challenge } from "@/hooks/useChallenges";
 import { ChallengeHistoryCard } from "@/components/betting/ChallengeHistoryCard";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/Card";
+import { Button } from "@/components/ui/Button";
 
 type Filter = "all" | "won" | "lost" | "open";
 
@@ -44,8 +46,53 @@ export function MyChallengesSection() {
     [challenges, filter],
   );
 
+  const incomingPending = useMemo(
+    () =>
+      (challenges ?? []).filter(
+        (ch) =>
+          ch.duel_result === "pending" &&
+          ch.status === "pending" &&
+          ch.is_challenger === false,
+      ),
+    [challenges],
+  );
+
   return (
     <section className="mt-12 pt-10 border-t border-white/10">
+      {incomingPending.length > 0 && (
+        <Card className="mb-6 border-amber-500/30 bg-amber-500/10 p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
+            <div className="flex items-start gap-3">
+              <Swords className="w-6 h-6 text-amber-300 shrink-0" aria-hidden />
+              <div>
+                <p className="font-medium text-white">
+                  {incomingPending.length} reto{incomingPending.length !== 1 ? "s" : ""} esperando tu respuesta
+                </p>
+                <p className="text-sm text-muted mt-0.5">
+                  Acepta o rechaza antes de que cierre el partido.
+                </p>
+              </div>
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="shrink-0"
+              onClick={() => setFilter("open")}
+            >
+              Ver retos pendientes
+            </Button>
+          </div>
+          <ul className="mt-4 space-y-2">
+            {incomingPending.slice(0, 3).map((ch) => (
+              <li key={ch.id}>
+                <ChallengeHistoryCard challenge={ch} highlight />
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+
       <div className="mb-6">
         <h2 className="font-display text-2xl text-white">Retos 1v1</h2>
         <p className="text-sm text-muted mt-1">

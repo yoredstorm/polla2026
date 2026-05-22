@@ -378,7 +378,57 @@ export default function AdminFixturesPage() {
         <p className="text-muted">Cargando partidos...</p>
       ) : filtered.length ? (
         <>
-          <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm overflow-x-auto">
+          <ul className="md:hidden space-y-3">
+            {filtered.map((f: any) => (
+              <li
+                key={f.id}
+                className="rounded-xl border border-white/10 bg-glass p-4 space-y-3 cursor-default"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-white font-medium text-sm">
+                    {f.home_team} vs {f.away_team}
+                  </p>
+                  <span className={cn("text-[10px] uppercase", getStatusColor(f.status))}>
+                    {getStatusLabel(f.status)}
+                  </span>
+                </div>
+                <p className="text-xs text-muted">{formatMatchDate(f.match_date)}</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => quickToggle(f)}
+                    className={cn(
+                      "text-[10px] font-bold px-2.5 py-1 rounded-full border cursor-pointer",
+                      f.betting_open
+                        ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
+                        : "border-red-500/30 bg-red-500/10 text-red-300",
+                    )}
+                  >
+                    {f.betting_open ? "Apuestas abiertas" : "Apuestas cerradas"}
+                  </button>
+                  <span className="text-xs text-muted self-center">{f.bet_count} apuestas</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditModal(f)}
+                    className="flex-1 text-xs py-2 rounded-lg border border-white/10 text-muted hover:text-white cursor-pointer"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSettleModal(f)}
+                    className="flex-1 text-xs py-2 rounded-lg bg-accent/10 text-accent cursor-pointer"
+                  >
+                    Resultado
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          <div className="hidden md:block rounded-xl border border-white/10 bg-glass backdrop-blur-sm overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-muted text-xs uppercase">

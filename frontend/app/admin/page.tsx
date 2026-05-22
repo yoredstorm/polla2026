@@ -1,5 +1,6 @@
 "use client";
 import { useAdminStats, useAdminTopWinners } from "@/hooks/useAdmin";
+import { AdminCommandCenter } from "@/components/admin/AdminCommandCenter";
 
 export default function AdminDashboardPage() {
   const { data: stats, isLoading: loadingStats } = useAdminStats();
@@ -7,7 +8,9 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="font-display text-3xl text-white">Panel de Administracion</h1>
+      <h1 className="font-display text-3xl text-white">Centro de mando</h1>
+
+      <AdminCommandCenter />
 
       {loadingStats ? (
         <p className="text-muted">Cargando estadisticas...</p>

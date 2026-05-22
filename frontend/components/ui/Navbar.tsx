@@ -6,6 +6,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { useInactivityTimeout } from "@/hooks/useInactivityTimeout";
 import { cn } from "@/lib/utils";
 import { NotificationBell } from "@/components/ui/NotificationBell";
+import { useUnreadCount } from "@/hooks/useNotifications";
+import { Bell } from "lucide-react";
 import { MobileBottomNav } from "@/components/ui/MobileBottomNav";
 import { HelpTooltip } from "@/components/help/HelpTooltip";
 import type { HelpKey } from "@/lib/systemHelp";
@@ -20,6 +22,8 @@ const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string 
 export function Navbar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const { data: unreadData } = useUnreadCount(!!user);
+  const unreadCount = unreadData?.count ?? 0;
   useInactivityTimeout(!!user);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -71,6 +75,21 @@ export function Navbar() {
                   <HelpTooltip helpKey={link.helpKey} label={link.label} side="bottom" />
                 </span>
               ))}
+              <Link
+                href="/notifications"
+                className={cn(
+                  "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1 inline-flex items-center gap-1",
+                  pathname.startsWith("/notifications") ? "text-accent" : "text-muted hover:text-white",
+                )}
+              >
+                <Bell className="w-4 h-4" aria-hidden />
+                Avisos
+                {unreadCount > 0 && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-background text-[10px] font-bold flex items-center justify-center">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </Link>
               {user?.is_admin && (
                 <Link
                   href="/admin"
@@ -131,7 +150,7 @@ export function Navbar() {
                       }}
                       className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-white/5 transition-colors cursor-pointer focus-ring"
                     >
-                      Cerrar sesion
+                      Cerrar sesión
                     </button>
                   </div>
                 )}

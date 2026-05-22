@@ -29,7 +29,13 @@ function formatMatchDate(iso: string | null | undefined) {
   }
 }
 
-export function ChallengeHistoryCard({ challenge: ch }: { challenge: Challenge }) {
+export function ChallengeHistoryCard({
+  challenge: ch,
+  highlight = false,
+}: {
+  challenge: Challenge;
+  highlight?: boolean;
+}) {
   const result = ch.duel_result ?? ch.status;
   const resultStyle = RESULT_STYLES[result] ?? {
     label: challengeStatusLabel(ch.status),
@@ -44,10 +50,12 @@ export function ChallengeHistoryCard({ challenge: ch }: { challenge: Challenge }
   return (
     <div
       className={cn(
-        "rounded-xl border bg-glass backdrop-blur-sm p-4",
+        "rounded-xl border bg-glass backdrop-blur-sm p-4 transition-colors duration-200",
+        highlight && "border-amber-500/40 ring-1 ring-amber-500/20",
         result === "won" && "border-emerald-500/25",
         result === "lost" && "border-red-500/20",
         result === "active" && "border-accent/30",
+        !highlight && result !== "won" && result !== "lost" && result !== "active" && "border-white/10",
       )}
     >
       <div className="flex items-start justify-between gap-3 mb-2">

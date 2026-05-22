@@ -2,6 +2,7 @@
 Admin endpoints — all protected by CurrentAdmin dependency.
 """
 import uuid
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Literal, Optional
 
@@ -332,6 +333,7 @@ async def edit_fixture(
     body: FixtureEditIn,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     """Edit fixture metadata: teams, flags, betting gate, venue, date."""
     from app.services.worldcup_loader import _FLAG_ISO2
@@ -362,7 +364,7 @@ async def edit_fixture(
         if body.betting_open is False and fixture.betting_open:
             from app.services.betting_close_service import close_fixture_betting
 
-            await close_fixture_betting(db, fixture, reason="admin_close")
+            await close_fixture_betting(db, fixture, reason="admin_close", redis=redis)
         else:
             fixture.betting_open = body.betting_open
 
@@ -414,6 +416,170 @@ async def admin_stats(request: Request, admin: CurrentAdmin, db: DBSession):
         finished_fixtures=finished_fixtures,
         total_prize_pools=str(pools),
     )
+
+
+CRITICAL_AUDIT_ACTIONS = (
+    "entry_proof_uploaded",
+    "admin_confirm_entry",
+    "admin_confirm_extra",
+    "extra_bet_cancelled_unpaid",
+    "admin_approve_change_request",
+    "admin_reject_change_request",
+    "change_request_auto_expired",
+    "admin_edit_fixture",
+    "admin_settle",
+    "fixture_betting_closed_snapshot",
+    "password_reset_request",
+    "admin_password_reset",
+)
+
+
+@router.get("/action-queue")
+@limiter.limit(ADMIN_RATE)
+async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSession):
+    """Aggregated pending work and fixtures needing admin attention."""
+    from app.core.match_timing import betting_close_at, fixture_deadline_fields
+    from app.models.audit_log import AuditLog
+
+    now = datetime.now(timezone.utc)
+    attention_before = now + timedelta(hours=2)
+
+    pending_change = (
+        await db.execute(
+            select(func.count()).select_from(BetChangeRequest).where(BetChangeRequest.status == "pending")
+        )
+    ).scalar() or 0
+    pending_password = (
+        await db.execute(
+            select(func.count())
+            .select_from(PasswordResetRequest)
+            .where(PasswordResetRequest.status == "pending")
+        )
+    ).scalar() or 0
+
+    group_res = await db.execute(
+        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+    )
+    group = group_res.scalar_one_or_none()
+    pending_entries = 0
+    pending_extras = 0
+    group_id = None
+    if group:
+        group_id = str(group.id)
+        member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group.id)
+        pending_entries = (
+            await db.execute(
+                select(func.count()).select_from(User).where(
+                    User.is_active == True,  # noqa: E712
+                    User.id.not_in(member_ids_q),
+                )
+            )
+        ).scalar() or 0
+        pending_extras = (
+            await db.execute(
+                select(func.count())
+                .select_from(Bet)
+                .join(Fixture, Bet.fixture_id == Fixture.id)
+                .where(
+                    Bet.group_id == group.id,
+                    Bet.amount > 0,
+                    Bet.amount_confirmed == False,  # noqa: E712
+                    Bet.cancelled_at.is_(None),
+                    Fixture.status == "scheduled",
+                )
+            )
+        ).scalar() or 0
+
+    fx_rows = (
+        await db.execute(
+            select(Fixture)
+            .where(
+                Fixture.match_date <= attention_before,
+                Fixture.match_date >= now - timedelta(hours=6),
+                Fixture.status.in_(("scheduled", "live", "finished")),
+            )
+            .order_by(Fixture.match_date.asc())
+            .limit(12)
+        )
+    ).scalars().all()
+
+    fixtures_attention = []
+    for f in fx_rows:
+        urgency = "normal"
+        if f.status == "scheduled" and f.betting_open and betting_close_at(f) <= attention_before:
+            urgency = "high" if betting_close_at(f) <= now + timedelta(minutes=30) else "medium"
+        elif f.status == "live":
+            urgency = "high"
+        elif f.status == "finished" and (f.home_score is None or f.away_score is None):
+            urgency = "high"
+        elif f.status == "scheduled" and f.betting_open:
+            urgency = "medium"
+        deadlines = fixture_deadline_fields(f)
+        fixtures_attention.append(
+            {
+                "id": str(f.id),
+                "home_team": f.home_team,
+                "away_team": f.away_team,
+                "match_date": f.match_date.isoformat(),
+                "status": f.status,
+                "betting_open": f.betting_open,
+                "is_locked": f.is_locked,
+                "home_score": f.home_score,
+                "away_score": f.away_score,
+                "urgency": urgency,
+                "betting_closes_at": (
+                    deadlines["betting_closes_at"].isoformat()
+                    if deadlines.get("betting_closes_at")
+                    else None
+                ),
+            }
+        )
+
+    audit_q = (
+        select(
+            AuditLog.id,
+            AuditLog.user_id,
+            User.username.label("username"),
+            AuditLog.action,
+            AuditLog.detail,
+            AuditLog.created_at,
+        )
+        .select_from(AuditLog)
+        .outerjoin(User, AuditLog.user_id == User.id)
+        .where(AuditLog.action.in_(CRITICAL_AUDIT_ACTIONS))
+        .order_by(AuditLog.created_at.desc())
+        .limit(10)
+    )
+    audit_rows = (await db.execute(audit_q)).all()
+    from app.services.audit_formatter import enrich_audit_rows
+
+    enriched = await enrich_audit_rows(db, audit_rows)
+    recent_critical = [
+        {
+            "id": str(r.id),
+            "action": r.action,
+            "action_label": label,
+            "summary": summary,
+            "created_at": r.created_at.isoformat(),
+            "username": r.username,
+        }
+        for r, (label, summary) in zip(audit_rows, enriched)
+    ]
+
+    total_pending = int(pending_change) + int(pending_password) + int(pending_entries) + int(pending_extras)
+
+    return {
+        "pending": {
+            "change_requests": int(pending_change),
+            "password_resets": int(pending_password),
+            "entries": int(pending_entries),
+            "extras": int(pending_extras),
+            "total": total_pending,
+        },
+        "group_id": group_id,
+        "fixtures_attention": fixtures_attention,
+        "recent_critical": recent_critical,
+    }
 
 
 @router.get("/top-winners")

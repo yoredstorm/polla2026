@@ -4,19 +4,28 @@ import api from "@/lib/api";
 import type { Notification, PaginatedResponse } from "@/types/api";
 
 export type NotificationFilter = "unread" | "read" | "all";
+export type NotificationCategory =
+  | "all"
+  | "challenges"
+  | "fixtures"
+  | "social"
+  | "admin"
+  | "system";
 
 export function useNotifications(
   page = 1,
   limit = 20,
   filter: NotificationFilter = "all",
+  category: NotificationCategory = "all",
 ) {
   return useQuery({
-    queryKey: ["notifications", page, limit, filter],
+    queryKey: ["notifications", page, limit, filter, category],
     queryFn: () =>
       api.get<PaginatedResponse<Notification>>("/notifications", {
         page,
         limit,
         filter,
+        ...(category !== "all" ? { category } : {}),
       }),
     staleTime: 10_000,
   });

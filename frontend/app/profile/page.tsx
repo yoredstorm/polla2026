@@ -15,6 +15,7 @@ import { getMe } from "@/lib/auth";
 import { BadgeGrid } from "@/components/gamification/BadgeGrid";
 import { AvatarPicker } from "@/components/profile/AvatarPicker";
 import { ChangePasswordSection } from "@/components/profile/ChangePasswordSection";
+import { ProfileSecuritySection } from "@/components/profile/ProfileSecuritySection";
 import { useMyBadgeProgress } from "@/hooks/useBadgeCatalog";
 import { cn } from "@/lib/utils";
 import type { BadgeOut } from "@/types/api";
@@ -354,6 +355,8 @@ export default function ProfilePage() {
                 : "Tus montos se mostraran borrosos en tu perfil publico."}
             </p>
           </div>
+
+          <ProfileSecuritySection />
 
           <ChangePasswordSection />
 

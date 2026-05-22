@@ -654,3 +654,102 @@ def build_fixture_finished(
         "away_score": away_score,
     }
     return title, body, payload
+
+
+def build_fixture_betting_closed(
+    *,
+    fixture_id: str,
+    home_team: str,
+    away_team: str,
+    reason: str,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"Apuestas cerradas: {home_team} vs {away_team}"
+    body = "Ya no puedes modificar pronosticos para este partido."
+    return title, body, {
+        "fixture_id": fixture_id,
+        "home_team": home_team,
+        "away_team": away_team,
+        "reason": reason,
+    }
+
+
+def build_fixture_betting_soon_admin(
+    *,
+    fixture_id: str,
+    home_team: str,
+    away_team: str,
+    minutes_left: int,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"Cierra pronto: {home_team} vs {away_team}"
+    body = f"Las apuestas se cierran en ~{minutes_left} min. Revisa pendientes."
+    return title, body, {
+        "fixture_id": fixture_id,
+        "home_team": home_team,
+        "away_team": away_team,
+        "minutes_left": minutes_left,
+    }
+
+
+def build_fixture_betting_closed_admin(
+    *,
+    fixture_id: str,
+    home_team: str,
+    away_team: str,
+    reason: str,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"Apuestas cerradas: {home_team} vs {away_team}"
+    body = "El partido ya no acepta pronosticos. Liquida cuando termine."
+    return title, body, {
+        "fixture_id": fixture_id,
+        "home_team": home_team,
+        "away_team": away_team,
+        "reason": reason,
+    }
+
+
+async def notify_fixture_betting_closed(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    fixture: "Fixture",
+    *,
+    reason: str,
+) -> None:
+    """WS broadcast + inbox for bettors and admins after betting closes."""
+    from app.models.bet import Bet
+    from app.models.fixture import Fixture
+
+    fid = str(fixture.id)
+    await broadcast_fixture_updated(
+        db,
+        redis,
+        fixture_id=fixture.id,
+        status=fixture.status,
+        home_score=fixture.home_score,
+        away_score=fixture.away_score,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+    )
+
+    nt, nb, np = build_fixture_betting_closed(
+        fixture_id=fid,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+        reason=reason,
+    )
+    bettors = await db.execute(
+        select(Bet.user_id)
+        .where(Bet.fixture_id == fixture.id, Bet.cancelled_at == None)  # noqa: E711
+        .distinct()
+    )
+    for (uid,) in bettors.all():
+        await create_notification(
+            db, redis, user_id=uid, type="fixture_betting_closed", title=nt, body=nb, payload=np,
+        )
+
+    at, ab, ap = build_fixture_betting_closed_admin(
+        fixture_id=fid,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+        reason=reason,
+    )
+    await notify_admins(db, redis, type="fixture_betting_closed_admin", title=at, body=ab, payload=ap)
