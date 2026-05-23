@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -7,7 +8,6 @@ import { getHelpText, type HelpKey } from "@/lib/systemHelp";
 
 export interface HelpTooltipProps {
   helpKey: HelpKey;
-  /** Etiqueta accesible, p. ej. "Ranking" */
   label?: string;
   className?: string;
   iconClassName?: string;
@@ -21,11 +21,25 @@ export function HelpTooltip({
   iconClassName,
   side = "top",
 }: HelpTooltipProps) {
+  const [open, setOpen] = useState(false);
   const text = getHelpText(helpKey, "short");
   const ariaLabel = label ? `Ayuda sobre ${label}` : "Ayuda";
 
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation();
+    // Solo tomar control en touch; en desktop el hover de Radix es suficiente
+    if (window.matchMedia("(hover: none)").matches) {
+      setOpen((v) => !v);
+    }
+  }
+
   return (
-    <Tooltip.Root>
+    <Tooltip.Root
+      open={window !== undefined && window.matchMedia("(hover: none)").matches ? open : undefined}
+      onOpenChange={(v) => {
+        if (!window.matchMedia("(hover: none)").matches) setOpen(v);
+      }}
+    >
       <Tooltip.Trigger asChild>
         <button
           type="button"
@@ -35,7 +49,7 @@ export function HelpTooltip({
             className,
           )}
           aria-label={ariaLabel}
-          onClick={(e) => e.stopPropagation()}
+          onClick={handleClick}
         >
           <HelpCircle className={cn("w-4 h-4", iconClassName)} strokeWidth={1.75} aria-hidden />
         </button>

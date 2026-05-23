@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { PageShell } from "@/components/ui/PageShell";
 import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
 import { HelpTooltip } from "@/components/help/HelpTooltip";
@@ -9,16 +10,126 @@ import { LeaderboardListSkeleton } from "@/components/ui/Skeleton";
 import { useGlobalLeaderboard, useWeeklyLeaderboard, type LeaderboardSort } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/hooks/useAuth";
 import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
-import { LeaderboardPodium } from "@/components/leaderboard/LeaderboardPodium";
 import { useMyRival } from "@/hooks/useRival";
 import { Card } from "@/components/ui/Card";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { cn } from "@/lib/utils";
+import type { LeaderboardEntry } from "@/types/api";
+import { LeaderboardPodium } from "@/components/leaderboard/LeaderboardPodium";
 
 const PAGE_SIZE = 20;
 const MIN_WAGERS = 1;
 
+// ── Podium card heights por posición ──────────────────────────────
+const PODIUM_CONFIG = [
+  { order: 2, height: "h-[160px]", medal: "🥇", ringColor: "ring-yellow-400/60 shadow-yellow-400/20", borderColor: "border-yellow-500/50", bg: "bg-yellow-500/8" },
+  { order: 1, height: "h-[130px]", medal: "🥈", ringColor: "ring-zinc-400/50 shadow-zinc-400/10", borderColor: "border-zinc-400/35", bg: "bg-white/[0.04]" },
+  { order: 3, height: "h-[110px]", medal: "🥉", ringColor: "ring-amber-600/50 shadow-amber-600/10", borderColor: "border-amber-700/40", bg: "bg-amber-900/10" },
+] as const;
+
+
+// ── Tabla general paginada ────────────────────────────────────────
+function LeaderboardTable({
+  entries,
+  currentUserId,
+  page,
+  pageSize,
+}: {
+  entries: LeaderboardEntry[];
+  currentUserId?: string;
+  page: number;
+  pageSize: number;
+}) {
+  const rankOffset = (page - 1) * pageSize;
+
+  return (
+    <div className="rounded-xl border border-white/10 overflow-hidden">
+      {/* Header */}
+      <div className="grid grid-cols-[2rem_1fr_3.5rem_3.5rem_4rem] gap-x-2 px-3 py-2 bg-white/[0.04] border-b border-white/10 text-[10px] uppercase tracking-wider text-muted/60">
+        <span>#</span>
+        <span>Jugador</span>
+        <span className="text-right">Apuestas</span>
+        <span className="text-right">Acierto</span>
+        <span className="text-right">Puntos</span>
+      </div>
+
+      {/* Rows */}
+      <div className="divide-y divide-white/[0.06]">
+        {entries.map((entry, i) => {
+          const rank = rankOffset + i + 1;
+          const isMe = entry.user_id === currentUserId;
+          const rankEmoji =
+            rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
+
+          return (
+            <div
+              key={entry.user_id}
+              className={cn(
+                "grid grid-cols-[2rem_1fr_3.5rem_3.5rem_4rem] gap-x-2 px-3 py-2.5 items-center text-sm transition-colors",
+                isMe ? "bg-accent/8 hover:bg-accent/12" : "hover:bg-white/[0.03]",
+              )}
+            >
+              {/* Rank */}
+              <span className={cn(
+                "font-display text-center text-sm shrink-0",
+                rank === 1 ? "text-yellow-400" : rank === 2 ? "text-zinc-300" : rank === 3 ? "text-amber-600" : "text-muted/50",
+              )}>
+                {rankEmoji ?? rank}
+              </span>
+
+              {/* Player */}
+              <div className="flex items-center gap-2 min-w-0">
+                <UserAvatar
+                  username={entry.username}
+                  avatarDisplay={entry.avatar_display}
+                  size="sm"
+                />
+                <Link href={`/u/${encodeURIComponent(entry.username)}`} className="min-w-0 group">
+                  <UserDisplayName
+                    username={entry.username}
+                    firstName={entry.first_name}
+                    lastName={entry.last_name}
+                    layout="stack"
+                    nameClassName={cn("text-xs group-hover:text-accent transition-colors", isMe && "text-accent")}
+                    usernameClassName="text-[10px]"
+                  />
+                </Link>
+                {isMe && (
+                  <span className="text-[9px] text-accent bg-accent/15 px-1 py-0.5 rounded shrink-0">Tú</span>
+                )}
+              </div>
+
+              {/* Bets */}
+              <span className="text-right text-xs text-muted tabular-nums">
+                {entry.total_bets}
+              </span>
+
+              {/* Accuracy */}
+              <span className="text-right text-xs text-muted tabular-nums">
+                {entry.accuracy_pct}%
+              </span>
+
+              {/* Points */}
+              <span className={cn(
+                "text-right font-display font-bold tabular-nums",
+                isMe ? "text-accent" : rank <= 3 ? "text-white" : "text-white/80",
+              )}>
+                {entry.total_points}
+                <span className="text-[9px] font-normal text-muted ml-0.5">pts</span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────
 export default function LeaderboardPage() {
   const [view, setView] = useState<"global" | "weekly">("global");
+  const [displayMode, setDisplayMode] = useState<"top3" | "tabla">("top3");
   const [page, setPage] = useState(1);
   const [sort, setSort] = useState<LeaderboardSort>("points");
   const { user } = useAuth();
@@ -29,7 +140,6 @@ export default function LeaderboardPage() {
 
   const data = view === "global" ? global : weekly;
   const isLoading = view === "global" ? globalLoading : weeklyLoading;
-  const rest = data && data.length > 3 ? data.slice(3) : [];
 
   return (
     <PageShell maxWidth="md">
@@ -49,7 +159,8 @@ export default function LeaderboardPage() {
         </Card>
       )}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
+      {/* ── Título + filtros período ── */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
         <HelpSectionTitle as="h1" helpKey="page.leaderboard">
           Ranking
         </HelpSectionTitle>
@@ -64,6 +175,7 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
+      {/* ── Ordenar ── */}
       <div className="flex flex-wrap gap-2 mb-2">
         <span className="text-xs text-muted self-center mr-2 inline-flex items-center gap-1">
           Ordenar por
@@ -76,52 +188,80 @@ export default function LeaderboardPage() {
           % acierto
         </Chip>
         <Chip active={sort === "bets"} onClick={() => { setSort("bets"); setPage(1); }} className="!px-3 !py-1.5 !text-xs">
-          Mas apuestas
+          Más apuestas
         </Chip>
       </div>
-      <p className="text-xs text-muted mb-6">
-        Minimo {MIN_WAGERS} apuesta(s) registrada(s). El % acierto usa solo apuestas liquidadas.
+      <p className="text-xs text-muted mb-5">
+        Mínimo {MIN_WAGERS} apuesta(s) registrada(s). El % acierto usa solo apuestas liquidadas.
       </p>
 
+      {/* ── Tabs Top 3 / Tabla general ── */}
+      <div className="flex gap-1 p-1 rounded-xl bg-white/[0.05] border border-white/10 mb-6 w-fit">
+        <button
+          type="button"
+          onClick={() => setDisplayMode("top3")}
+          className={cn(
+            "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
+            displayMode === "top3"
+              ? "bg-accent text-black shadow-sm"
+              : "text-muted hover:text-white",
+          )}
+        >
+          🏆 Podio
+        </button>
+        <button
+          type="button"
+          onClick={() => setDisplayMode("tabla")}
+          className={cn(
+            "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
+            displayMode === "tabla"
+              ? "bg-accent text-black shadow-sm"
+              : "text-muted hover:text-white",
+          )}
+        >
+          Tabla general
+        </button>
+      </div>
+
+      {/* ── Contenido ── */}
       {isLoading ? (
         <LeaderboardListSkeleton count={6} />
       ) : !data || data.length === 0 ? (
-        <p className="text-muted text-center py-20">Sin datos de ranking aun</p>
+        <p className="text-muted text-center py-20">Sin datos de ranking aún</p>
+      ) : displayMode === "top3" ? (
+         <>
+          <LeaderboardPodium entries={data} currentUserId={user?.id} />
+        </>
       ) : (
         <>
-          {page === 1 && <LeaderboardPodium entries={data} currentUserId={user?.id} />}
-          <div className="space-y-3">
-            {(page === 1 ? rest : data).map((entry, i) => (
-              <LeaderboardEntryCard
-                key={entry.user_id}
-                entry={entry}
-                isMe={entry.user_id === user?.id}
-                rankIndex={page === 1 ? i + 3 : i}
-              />
-            ))}
+          <LeaderboardTable
+            entries={data}
+            currentUserId={user?.id}
+            page={page}
+            pageSize={PAGE_SIZE}
+          />
+          <div className="flex justify-center gap-3 mt-6">
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page === 1}
+              onClick={() => setPage((p) => p - 1)}
+            >
+              Anterior
+            </Button>
+            <span className="px-4 py-2 text-muted self-center text-sm">Página {page}</span>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!data || data.length < PAGE_SIZE}
+              onClick={() => setPage((p) => p + 1)}
+            >
+              Siguiente
+            </Button>
           </div>
         </>
       )}
 
-      <div className="flex justify-center gap-3 mt-8">
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={page === 1}
-          onClick={() => setPage((p) => p - 1)}
-        >
-          Anterior
-        </Button>
-        <span className="px-4 py-2 text-muted self-center">Pagina {page}</span>
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={!data || data.length < PAGE_SIZE}
-          onClick={() => setPage((p) => p + 1)}
-        >
-          Siguiente
-        </Button>
-      </div>
     </PageShell>
   );
 }
