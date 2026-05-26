@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import * as Tooltip from "@radix-ui/react-tooltip";
 import { HelpCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -22,22 +22,27 @@ export function HelpTooltip({
   side = "top",
 }: HelpTooltipProps) {
   const [open, setOpen] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
+
+  useEffect(() => {
+    setIsTouch(window.matchMedia("(hover: none)").matches);
+  }, []);
+
   const text = getHelpText(helpKey, "short");
   const ariaLabel = label ? `Ayuda sobre ${label}` : "Ayuda";
 
   function handleClick(e: React.MouseEvent) {
     e.stopPropagation();
-    // Solo tomar control en touch; en desktop el hover de Radix es suficiente
-    if (window.matchMedia("(hover: none)").matches) {
+    if (isTouch) {
       setOpen((v) => !v);
     }
   }
 
   return (
     <Tooltip.Root
-      open={window !== undefined && window.matchMedia("(hover: none)").matches ? open : undefined}
+      open={isTouch ? open : undefined}
       onOpenChange={(v) => {
-        if (!window.matchMedia("(hover: none)").matches) setOpen(v);
+        if (!isTouch) setOpen(v);
       }}
     >
       <Tooltip.Trigger asChild>
