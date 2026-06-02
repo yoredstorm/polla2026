@@ -8,7 +8,7 @@ from sqlalchemy import select
 from app.models.audit_log import AuditLog
 from app.models.fixture import Fixture
 from app.services.bet_service import should_lock_fixture
-from app.services.betting_close_service import close_fixture_betting_if_due
+from app.services.betting_close_service import close_fixture_betting_if_due, open_fixture_betting
 
 
 def _fixture(hours_from_now: float = 0.5) -> Fixture:
@@ -64,3 +64,31 @@ async def test_close_fixture_betting_logs_snapshot(db_session):
     logs = res.scalars().all()
     assert len(logs) >= 1
     assert str(f.id) in (logs[0].detail or "")
+
+
+@pytest.mark.asyncio
+async def test_open_fixture_betting_clears_is_locked(db_session):
+    """Re-opening after admin close must reset is_locked (betting_open + is_locked sync)."""
+    f = _fixture(hours_from_now=48)
+    f.is_locked = True
+    f.betting_open = True
+    db_session.add(f)
+    await db_session.flush()
+
+    opened = await open_fixture_betting(db_session, f)
+    assert opened is True
+    assert f.is_locked is False
+    assert f.betting_open is True
+
+
+@pytest.mark.asyncio
+async def test_open_fixture_betting_rejects_past_lock_window(db_session):
+    f = _fixture(hours_from_now=0.5 / 60)
+    f.is_locked = True
+    f.betting_open = False
+    db_session.add(f)
+    await db_session.flush()
+
+    assert await open_fixture_betting(db_session, f) is False
+    assert f.is_locked is True
+    assert f.betting_open is False

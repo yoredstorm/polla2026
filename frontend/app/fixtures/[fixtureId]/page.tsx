@@ -108,7 +108,10 @@ export default function FixtureDetailPage() {
           <p className="text-muted text-xs mt-1">
             {formatMatchDate(fixture.match_date)}
           </p>
-          {fixture.status === "scheduled" && isBettingWindowOpen(fixture) && (
+          {fixture.status === "scheduled" &&
+            fixture.betting_open &&
+            !fixture.is_locked &&
+            isBettingWindowOpen(fixture) && (
             <div className="mt-2 flex justify-center">
               <FixtureDeadlineCountdown
                 deadlineMs={getBettingClosesAt(fixture)}

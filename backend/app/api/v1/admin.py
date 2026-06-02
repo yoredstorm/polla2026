@@ -370,12 +370,18 @@ async def edit_fixture(
         fixture.away_logo_url = body.away_logo_url
 
     if body.betting_open is not None:
-        if body.betting_open is False and fixture.betting_open:
+        if body.betting_open is True:
+            from app.services.betting_close_service import open_fixture_betting
+
+            if not await open_fixture_betting(db, fixture):
+                raise HTTPException(
+                    status_code=400,
+                    detail="No se pueden abrir apuestas en este partido (estado o ventana de cierre)",
+                )
+        elif body.betting_open is False and fixture.betting_open:
             from app.services.betting_close_service import close_fixture_betting
 
             await close_fixture_betting(db, fixture, reason="admin_close", redis=redis)
-        else:
-            fixture.betting_open = body.betting_open
 
     if body.venue is not None:
         fixture.venue = body.venue

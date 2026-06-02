@@ -91,6 +91,21 @@ async def close_fixture_betting(
     return was_open
 
 
+async def open_fixture_betting(
+    db: AsyncSession,
+    fixture: Fixture,
+) -> bool:
+    """Re-open betting for a scheduled fixture still outside the lock window."""
+    if fixture.status != "scheduled":
+        return False
+    if should_lock_fixture(fixture):
+        return False
+    fixture.is_locked = False
+    fixture.betting_open = True
+    await db.flush()
+    return True
+
+
 async def close_fixture_betting_if_due(
     db: AsyncSession,
     fixture: Fixture,
