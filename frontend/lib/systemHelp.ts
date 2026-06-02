@@ -136,6 +136,8 @@ export const HELP_CONTENT = {
   // Ganadores
   "page.winners": {
     short: "Podio de la polla activa",
+    detail:
+      "Quien lidera en puntos se lleva el 100% del pozo confirmado. Si varios empatan arriba, el premio se reparte entre ellos. El podio muestra el top 3 del ranking; solo el líder (o los empatados) reciben dinero.",
   },
 
   // Conceptos
@@ -163,7 +165,8 @@ export const HELP_CONTENT = {
   },
   "tour.prizePool": {
     short: "Pozo de premios",
-    detail: "Aquí ves el dinero acumulado del torneo. un solo ganador!!",
+    detail:
+      "Dinero acumulado del torneo (inscripciones y extras confirmados). Un solo ganador se lleva el pozo; si hay empate en puntos arriba, se reparte entre los empatados.",
   },
   "tour.notifications": {
     short: "Campana de avisos",

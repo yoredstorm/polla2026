@@ -175,6 +175,8 @@ async def confirm_phase_enrollment(
     enr.entry_fee_paid = entry_fee
     enr.confirmed_at = datetime.now(timezone.utc)
     enr.confirmed_by = admin_id
-    group.prize_pool += entry_fee
+    from app.services.group_service import sync_group_prize_pool
+
+    await sync_group_prize_pool(db, group)
     await db.flush()
     return enr

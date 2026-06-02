@@ -35,13 +35,33 @@ class TestCalculatePoints:
 
 
 class TestPrizeDistribution:
-    def test_prize_distribution(self):
+    def test_single_winner_gets_full_pool(self):
         from decimal import Decimal
-        from app.services.bet_service import calculate_prize_distribution
+        from types import SimpleNamespace
+        from app.services.bet_service import allocate_first_place_prizes
 
-        pool = Decimal("1000.00")
-        dist = calculate_prize_distribution(pool)
-        assert dist[1] == Decimal("600.00")
-        assert dist[2] == Decimal("300.00")
-        assert dist[3] == Decimal("100.00")
-        assert dist[1] + dist[2] + dist[3] == pool
+        pool = Decimal("30.00")
+        lb = [
+            SimpleNamespace(total_points=10, position=1),
+            SimpleNamespace(total_points=5, position=2),
+        ]
+        out = allocate_first_place_prizes(lb, pool)
+        assert len(out) == 1
+        assert out[0][1] == Decimal("30.00")
+
+    def test_tied_first_place_splits_pool(self):
+        from decimal import Decimal
+        from types import SimpleNamespace
+        from app.services.bet_service import allocate_first_place_prizes
+
+        pool = Decimal("30.00")
+        lb = [
+            SimpleNamespace(total_points=10, position=1),
+            SimpleNamespace(total_points=10, position=2),
+            SimpleNamespace(total_points=3, position=3),
+        ]
+        out = allocate_first_place_prizes(lb, pool)
+        assert len(out) == 2
+        assert sum(a for _, a in out) == pool
+        assert out[0][1] == Decimal("15.00")
+        assert out[1][1] == Decimal("15.00")

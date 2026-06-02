@@ -46,7 +46,7 @@ __all__ = [
     "get_scoring_bet_for_fixture",
     "repair_unconfirmed_extra_settlement",
     "SettleResult",
-    "calculate_prize_distribution",
+    "allocate_first_place_prizes",
 ]
 
 logger = structlog.get_logger(__name__)
@@ -527,10 +527,28 @@ async def repair_unconfirmed_extra_settlement(db: AsyncSession) -> int:
     return repaired
 
 
-def calculate_prize_distribution(prize_pool: Decimal) -> dict:
-    """60% 1st, 30% 2nd, 10% 3rd."""
-    return {
-        1: round(prize_pool * Decimal("0.60"), 2),
-        2: round(prize_pool * Decimal("0.30"), 2),
-        3: round(prize_pool * Decimal("0.10"), 2),
-    }
+def allocate_first_place_prizes(
+    leaderboard: list,
+    prize_pool: Decimal,
+) -> list[tuple[object, Decimal]]:
+    """
+    One winner takes 100% of the pool. If several players tie for most points,
+    the pool is split equally among them (remainder cents go to the first).
+    """
+    from decimal import ROUND_DOWN
+
+    if not leaderboard or prize_pool <= 0:
+        return []
+    max_points = leaderboard[0].total_points
+    leaders = [e for e in leaderboard if e.total_points == max_points]
+    if not leaders:
+        return []
+    n = len(leaders)
+    per = (prize_pool / Decimal(n)).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
+    amounts = [per] * n
+    remainder = prize_pool - per * n
+    if remainder > 0:
+        amounts[0] += remainder
+    return list(zip(leaders, amounts))
+
+

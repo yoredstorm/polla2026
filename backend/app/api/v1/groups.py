@@ -27,8 +27,13 @@ from app.schemas.group import (
     GroupFixtureStandingEntry,
 )
 from app.schemas.bet import BetOut, BetWithUserOut
-from app.services.group_service import create_group, join_group, get_group_leaderboard
-from app.services.bet_service import calculate_prize_distribution
+from app.services.group_service import (
+    create_group,
+    join_group,
+    get_group_leaderboard,
+    sync_group_prize_pool,
+)
+from app.services.bet_service import allocate_first_place_prizes
 from app.services.audit import log_action
 from app.services.notification_service import build_entry_pending, notify_admins
 from app.services.payment_upload_service import (
@@ -151,11 +156,14 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         if group.payment_qr_path:
             qr_data_url = payment_qr_data_url(group.payment_qr_path)
 
+    confirmed_pool = await sync_group_prize_pool(db, group)
+    await db.commit()
+
     return ActivePollaOut(
         id=group.id,
         name=group.name,
         entry_fee=group.entry_fee,
-        prize_pool=group.prize_pool,
+        prize_pool=confirmed_pool,
         currency=group.currency,
         per_match_amount=per_match,
         is_member=is_member,
@@ -363,6 +371,8 @@ class WinnersOut(BaseModel):
     prize_pool: str
     currency: str
     winners: list[WinnerEntry]
+    podium: list[WinnerEntry] = Field(default_factory=list)
+    tied_for_first: bool = False
 
 
 @router.get("/pool/active/winners", response_model=WinnersOut | None)
@@ -375,30 +385,45 @@ async def get_active_polla_winners(request: Request, current_user: CurrentUser, 
     if not group:
         return None
 
+    prize_pool = await sync_group_prize_pool(db, group)
+    await db.commit()
+
     leaderboard = await get_group_leaderboard(db, group.id, sort="points", min_bets=1)
-    distribution = calculate_prize_distribution(group.prize_pool)
+    allocations = allocate_first_place_prizes(leaderboard, prize_pool)
     winners: list[WinnerEntry] = []
-    for entry in leaderboard[:3]:
-        pos = entry.position
-        if pos not in distribution:
-            continue
+    for entry, amount in allocations:
         winners.append(
             WinnerEntry(
-                position=pos,
+                position=entry.position,
                 user_id=str(entry.user_id),
                 username=entry.username,
                 first_name=entry.first_name,
                 last_name=entry.last_name,
                 total_points=entry.total_points,
-                prize_amount=str(distribution[pos]),
+                prize_amount=str(amount),
+            )
+        )
+    podium: list[WinnerEntry] = []
+    for entry in leaderboard[:3]:
+        podium.append(
+            WinnerEntry(
+                position=entry.position,
+                user_id=str(entry.user_id),
+                username=entry.username,
+                first_name=entry.first_name,
+                last_name=entry.last_name,
+                total_points=entry.total_points,
+                prize_amount="0.00",
             )
         )
     return WinnersOut(
         group_id=str(group.id),
         group_name=group.name,
-        prize_pool=str(group.prize_pool),
+        prize_pool=str(prize_pool),
         currency=group.currency,
         winners=winners,
+        podium=podium,
+        tied_for_first=len(winners) > 1,
     )
 
 

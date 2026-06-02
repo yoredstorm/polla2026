@@ -11,6 +11,7 @@ from sqlalchemy import select, and_, or_, func, desc, cast, Float
 import structlog
 
 from app.models.group import Group, GroupMember
+from app.models.group_phase import GroupPhaseEnrollment
 from app.models.bet import Bet
 from app.models.user import User
 from app.schemas.group import GroupCreate, LeaderboardEntry, BadgeOut
@@ -19,6 +20,41 @@ from app.services.challenge_service import compute_challenge_stats, compute_bet_
 from app.services.gamification_service import compute_badges
 
 logger = structlog.get_logger(__name__)
+
+
+async def compute_confirmed_prize_pool(db: AsyncSession, group_id: uuid.UUID) -> Decimal:
+    """Sum confirmed phase entry fees and confirmed extra bet amounts (source of truth)."""
+    enr_sum = (
+        await db.execute(
+            select(func.coalesce(func.sum(GroupPhaseEnrollment.entry_fee_paid), 0)).where(
+                and_(
+                    GroupPhaseEnrollment.group_id == group_id,
+                    GroupPhaseEnrollment.status == "confirmed",
+                )
+            )
+        )
+    ).scalar()
+    extras_sum = (
+        await db.execute(
+            select(func.coalesce(func.sum(Bet.amount), 0)).where(
+                and_(
+                    Bet.group_id == group_id,
+                    Bet.amount > 0,
+                    Bet.amount_confirmed == True,  # noqa: E712
+                    Bet.cancelled_at.is_(None),
+                )
+            )
+        )
+    ).scalar()
+    return Decimal(str(enr_sum or 0)) + Decimal(str(extras_sum or 0))
+
+
+async def sync_group_prize_pool(db: AsyncSession, group: Group) -> Decimal:
+    """Align cached prize_pool with confirmed payments."""
+    pool = await compute_confirmed_prize_pool(db, group.id)
+    group.prize_pool = pool
+    await db.flush()
+    return pool
 
 
 async def create_group(db: AsyncSession, owner_id: uuid.UUID, data: GroupCreate) -> Group:
@@ -43,8 +79,6 @@ async def create_group(db: AsyncSession, owner_id: uuid.UUID, data: GroupCreate)
     )
     db.add(member)
 
-    # Add entry fee to prize pool
-    group.prize_pool += data.entry_fee
     await db.flush()
     await db.refresh(group)
     return group
@@ -81,7 +115,6 @@ async def join_group(db: AsyncSession, user_id: uuid.UUID, invite_code: str) -> 
         total_amount_bet=Decimal("0.00"),
     )
     db.add(member)
-    group.prize_pool += group.entry_fee
     await db.flush()
     await db.refresh(group)
     return group

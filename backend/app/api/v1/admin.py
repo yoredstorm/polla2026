@@ -857,6 +857,14 @@ async def list_groups(
     total = (await db.execute(select(func.count()).select_from(Group))).scalar() or 0
     rows = (await db.execute(base.offset((page - 1) * limit).limit(limit))).scalars().all()
 
+    from app.services.group_service import sync_group_prize_pool
+
+    for g in rows:
+        if g.is_active:
+            await sync_group_prize_pool(db, g)
+    if any(g.is_active for g in rows):
+        await db.commit()
+
     group_ids = [g.id for g in rows]
     member_counts: dict[uuid.UUID, int] = {}
     if group_ids:
@@ -1136,11 +1144,24 @@ async def remove_group_member(
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
 
+    from sqlalchemy import delete
+
+    from app.models.group_phase import GroupPhaseEnrollment
+    from app.services.group_service import sync_group_prize_pool
+
     prev_pool = group.prize_pool
     user_res = await db.execute(select(User).where(User.id == user_id))
     removed_user = user_res.scalar_one_or_none()
+    await db.execute(
+        delete(GroupPhaseEnrollment).where(
+            and_(
+                GroupPhaseEnrollment.group_id == group_id,
+                GroupPhaseEnrollment.user_id == user_id,
+            )
+        )
+    )
     await db.delete(member)
-    group.prize_pool = max(Decimal("0"), group.prize_pool - group.entry_fee)
+    await sync_group_prize_pool(db, group)
     count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group_id))
     member_count = max(0, int(count_res.scalar() or 0) - 1)
     await log_action(
@@ -1574,9 +1595,10 @@ async def confirm_extra_bet(
         await db.commit()
         return {"ok": True, "amount": str(bet.amount), "prize_pool": str(group.prize_pool), "already_confirmed": True}
 
+    from app.services.group_service import sync_group_prize_pool
+
     prev_pool = group.prize_pool
     bet.amount_confirmed = True
-    group.prize_pool += bet.amount
 
     # Also update member total_amount_bet
     member_res = await db.execute(
@@ -1587,6 +1609,8 @@ async def confirm_extra_bet(
     member = member_res.scalar_one_or_none()
     if member:
         member.total_amount_bet += bet.amount
+
+    await sync_group_prize_pool(db, group)
 
     points_settled = False
     if fixture.status == "finished" and bet.points_earned is None:
@@ -1981,11 +2005,11 @@ async def approve_change_request(
         bet.predicted_home_score = cr.new_predicted_home_score
         bet.predicted_away_score = cr.new_predicted_away_score
     elif cr.request_type == "delete":
+        pool_group = None
         if bet.group_id and bet.amount_confirmed and bet.amount > 0:
             group_res = await db.execute(select(Group).where(Group.id == bet.group_id))
-            group = group_res.scalar_one_or_none()
-            if group:
-                group.prize_pool = max(Decimal("0"), group.prize_pool - bet.amount)
+            pool_group = group_res.scalar_one_or_none()
+            if pool_group:
                 member_res = await db.execute(
                     select(GroupMember).where(
                         and_(GroupMember.group_id == bet.group_id, GroupMember.user_id == bet.user_id)
@@ -1995,6 +2019,10 @@ async def approve_change_request(
                 if member:
                     member.total_amount_bet = max(Decimal("0"), member.total_amount_bet - bet.amount)
         await db.delete(bet)
+        if pool_group:
+            from app.services.group_service import sync_group_prize_pool
+
+            await sync_group_prize_pool(db, pool_group)
 
     cr.status = "approved"
     cr.admin_notes = body.admin_notes
