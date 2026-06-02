@@ -110,7 +110,9 @@ async def test_get_fixture_not_found(client: AsyncClient, db_session: AsyncSessi
     import uuid
     resp = await client.get(f"/api/v1/fixtures/{uuid.uuid4()}", cookies=cookies)
     assert resp.status_code == 404
-    assert resp.json()["detail"]["error"]["code"] == "FIXTURE_NOT_FOUND"
+    from tests.conftest import assert_api_error
+
+    assert_api_error(resp, "FIXTURE_NOT_FOUND", status=404)
 
 
 @pytest.mark.asyncio

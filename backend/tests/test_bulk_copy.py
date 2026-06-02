@@ -197,8 +197,9 @@ async def test_duplicate_extra_score_rejected(client: AsyncClient, db_session: A
             "amount": "5.00",
         },
     )
-    assert second.status_code == 400
-    assert second.json()["detail"]["error"]["code"] == "DUPLICATE_PREDICTION_SCORE"
+    from tests.conftest import assert_api_error
+
+    assert_api_error(second, "DUPLICATE_PREDICTION_SCORE", status=400)
 
 
 @pytest.mark.asyncio
@@ -234,5 +235,4 @@ async def test_duplicate_extra_vs_free_rejected(client: AsyncClient, db_session:
             "amount": "5.00",
         },
     )
-    assert extra.status_code == 400
-    assert extra.json()["detail"]["error"]["code"] == "DUPLICATE_PREDICTION_SCORE"
+    assert_api_error(extra, "DUPLICATE_PREDICTION_SCORE", status=400)

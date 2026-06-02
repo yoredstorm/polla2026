@@ -46,8 +46,9 @@ async def test_non_admin_forbidden_on_admin_stats(client: AsyncClient, db_sessio
     assert login.status_code == 200
 
     stats = await client.get("/api/v1/admin/stats", cookies=login.cookies)
-    assert stats.status_code == 403
-    assert stats.json()["detail"]["error"]["code"] == "FORBIDDEN"
+    from tests.conftest import assert_api_error
+
+    assert_api_error(stats, "FORBIDDEN", status=403)
 
 
 @pytest.mark.asyncio

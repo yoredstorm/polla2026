@@ -56,7 +56,9 @@ async def test_login_wrong_password(client: AsyncClient):
     await _register(client, "carol", "CarolPass1!")
     resp = await _login(client, "carol", "WrongPass!")
     assert resp.status_code == 401
-    assert resp.json()["detail"]["error"]["code"] == "INVALID_CREDENTIALS"
+    from tests.conftest import assert_api_error
+
+    assert_api_error(resp, "INVALID_CREDENTIALS", status=401)
 
 
 @pytest.mark.asyncio

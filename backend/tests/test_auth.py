@@ -84,10 +84,9 @@ async def test_login_invalid_credentials(client: AsyncClient):
         "username": "nobody_user_xyz",
         "password": "wrongpassword",
     })
-    assert response.status_code == 401
-    data = response.json()
-    assert "error" in data["detail"]
-    assert data["detail"]["error"]["code"] == "INVALID_CREDENTIALS"
+    from tests.conftest import assert_api_error
+
+    assert_api_error(response, "INVALID_CREDENTIALS", status=401)
 
 
 @pytest.mark.asyncio

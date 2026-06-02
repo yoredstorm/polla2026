@@ -18,6 +18,25 @@ from app.core.rate_limiter import limiter
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+def get_api_error_code(body: dict) -> str:
+    """Extract error code from API JSON (top-level `error` or legacy `detail.error`)."""
+    err = body.get("error")
+    if isinstance(err, dict) and err.get("code"):
+        return str(err["code"])
+    detail = body.get("detail")
+    if isinstance(detail, dict):
+        nested = detail.get("error")
+        if isinstance(nested, dict) and nested.get("code"):
+            return str(nested["code"])
+    raise AssertionError(f"No error code in response body: {body!r}")
+
+
+def assert_api_error(response, expected_code: str, *, status: int | None = None) -> None:
+    if status is not None:
+        assert response.status_code == status
+    assert get_api_error_code(response.json()) == expected_code
+
+
 def register_payload(
     username: str,
     password: str = "SecurePass1",

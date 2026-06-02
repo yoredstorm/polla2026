@@ -61,9 +61,10 @@ async def test_cannot_get_another_users_bet(client: AsyncClient, db_session: Asy
     db_session.add(bet)
     await db_session.flush()
 
+    from tests.conftest import assert_api_error
+
     resp = await client.get(f"/api/v1/bets/{bet.id}", cookies=victim_cookies)
-    assert resp.status_code == 403
-    assert resp.json()["detail"]["error"]["code"] == "FORBIDDEN"
+    assert_api_error(resp, "FORBIDDEN", status=403)
 
 
 @pytest.mark.asyncio
