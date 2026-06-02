@@ -10,6 +10,7 @@ import { PollaBadge } from "@/components/features/admin/groups/PollaBadge";
 import { PendingEntriesPanel } from "@/components/features/admin/groups/PendingEntriesPanel";
 import { PendingExtrasPanel } from "@/components/features/admin/groups/PendingExtrasPanel";
 import { MembersPanel } from "@/components/features/admin/groups/MembersPanel";
+import { PhaseWinnersPanel } from "@/components/features/admin/groups/PhaseWinnersPanel";
 
 export default function AdminPollaPage() {
   const { data, isLoading, refetch } = useAdminGroups(1, 1);
@@ -62,6 +63,16 @@ export default function AdminPollaPage() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
+            <h2 className="font-display text-lg text-white mb-1">Ganadores por fase</h2>
+            <p className="text-xs text-muted mb-4">
+              Cinco fases: grupos, octavos, cuartos, semifinal y final. Al cerrar cada una se
+              registra el líder en puntos, el pozo acumulado y se reinician puntos y pozo para la
+              siguiente fase.
+            </p>
+            <PhaseWinnersPanel pollaId={polla.id} currency={currency} />
           </div>
 
           <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">

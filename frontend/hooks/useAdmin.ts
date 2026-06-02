@@ -8,6 +8,7 @@ import type {
   AdminFixture,
   AdminUserEntry,
   AdminGroupDetail,
+  AdminPhaseWinnersResponse,
   PaginatedResponse,
 } from "@/types/api";
 
@@ -172,6 +173,17 @@ export function useAdminGroups(page = 1, limit = 20) {
     queryFn: () =>
       api.get<PaginatedResponse<AdminGroupDetail>>("/admin/groups", { page, limit }),
     staleTime: 15_000,
+  });
+}
+
+export function useAdminPhaseWinners(groupId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "phase-winners", groupId],
+    queryFn: () =>
+      api.get<AdminPhaseWinnersResponse>(`/admin/groups/${groupId}/phase-winners`),
+    enabled: !!groupId,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
   });
 }
 

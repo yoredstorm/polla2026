@@ -54,7 +54,9 @@ export const HELP_CONTENT = {
     short: "Vista rápida del ranking; el listado completo está en la sección Ranking.",
   },
   "page.dashboard.progress": {
-    short: "Cuántos partidos del torneo ya terminaron respecto al total programado.",
+    short: "Avance por partidos y hitos entre fases (grupos, octavos, cuartos, semifinal, final).",
+    detail:
+      "Cada línea vertical marca el cierre de una fase y su ganador. Los puntos y el pozo se reinician al terminar cada etapa.",
   },
 
   // Páginas — fixtures

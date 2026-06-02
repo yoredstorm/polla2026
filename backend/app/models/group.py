@@ -38,6 +38,9 @@ class Group(Base):
     )
     members: Mapped[list["GroupMember"]] = relationship("GroupMember", back_populates="group", lazy="select")
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="group", lazy="select")
+    phase_winners: Mapped[list["PhaseWinnerHistory"]] = relationship(
+        "PhaseWinnerHistory", back_populates="group", lazy="select"
+    )
 
 
 class GroupMember(Base):

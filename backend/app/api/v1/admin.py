@@ -220,6 +220,13 @@ async def update_fixture_result(
     ]
 
     await settle_challenges_for_fixture(db, redis, fixture)
+    from app.services.tournament_phase_service import get_active_polla, try_close_completed_phases
+
+    polla = await get_active_polla(db)
+    if polla:
+        closed_phases = await try_close_completed_phases(db, polla.id)
+        if closed_phases:
+            await broadcast_polla_updated(db, redis)
     from app.services.badge_notify_service import notify_new_badges_for_fixture
 
     await notify_new_badges_for_fixture(db, redis, fixture_id)
@@ -1194,6 +1201,24 @@ async def get_entry_proof(
     path = resolve_readable_path(proof.file_path)
     response = FileResponse(path, media_type="image/jpeg")
     return apply_cors_headers(request, response)
+
+
+@router.get("/groups/{group_id}/phase-winners")
+@limiter.limit(ADMIN_RATE)
+async def get_group_phase_winners(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    """Historial y estado de ganadores por fase (grupos → final)."""
+    from app.services.tournament_phase_service import list_phase_winners_admin
+
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=404, detail="Group not found")
+    phases = await list_phase_winners_admin(db, group_id)
+    return {"group_id": str(group_id), "phases": phases}
 
 
 @router.get("/groups/{group_id}/pending-extras")

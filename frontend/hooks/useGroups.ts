@@ -1,13 +1,32 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { getApiBase } from "@/lib/api";
-import type { ActivePolla, Group, GroupMember, LeaderboardEntry, BetWithUser, GroupFixtureStandingEntry } from "@/types/api";
+import type {
+  ActivePolla,
+  Group,
+  GroupMember,
+  LeaderboardEntry,
+  BetWithUser,
+  GroupFixtureStandingEntry,
+  TournamentProgress,
+} from "@/types/api";
 
 export function useActivePolla() {
   return useQuery({
     queryKey: ["pool", "active"],
     queryFn: () => api.get<ActivePolla | null>("/groups/pool/active"),
     staleTime: 5_000,
+    refetchOnWindowFocus: true,
+    refetchInterval: 30_000,
+    retry: false,
+  });
+}
+
+export function useTournamentProgress() {
+  return useQuery({
+    queryKey: ["pool", "tournament-progress"],
+    queryFn: () => api.get<TournamentProgress | null>("/groups/pool/active/tournament-progress"),
+    staleTime: 10_000,
     refetchOnWindowFocus: true,
     refetchInterval: 30_000,
     retry: false,

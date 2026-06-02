@@ -260,6 +260,70 @@ export interface AdminGroupEntry extends Group {
 }
 
 /** Admin polla detail (settings + payment + challenges). */
+export interface PhaseWinnerInfo {
+  user_id: string;
+  username?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  points: number;
+  prize_pool: string;
+}
+
+export interface PhaseWinnerPhaseRow {
+  phase_key: string;
+  label: string;
+  status: "pending" | "active" | "closed";
+  total_fixtures: number;
+  finished_fixtures: number;
+  winner: PhaseWinnerInfo | null;
+  top_snapshot: {
+    position: number;
+    user_id: string;
+    username: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    total_points: number;
+  }[];
+  closed_at: string | null;
+  phase_prize_pool: string | null;
+}
+
+export interface AdminPhaseWinnersResponse {
+  group_id: string;
+  phases: PhaseWinnerPhaseRow[];
+}
+
+export interface TournamentPhaseProgress {
+  phase_key: string;
+  label: string;
+  total_fixtures: number;
+  finished_fixtures: number;
+  status: "pending" | "active" | "closed";
+  milestone_end: number;
+  winner?: {
+    user_id: string;
+    points: number;
+    prize_pool: string;
+    closed_at?: string;
+  } | null;
+}
+
+export interface TournamentProgress {
+  group_id: string;
+  total_fixtures: number;
+  finished_fixtures: number;
+  current_phase_key: string | null;
+  phases: TournamentPhaseProgress[];
+  phase_winners: {
+    phase_key: string;
+    label: string;
+    closed_at: string;
+    closed_by: string;
+    winner: PhaseWinnerInfo | null;
+    top_snapshot: PhaseWinnerPhaseRow["top_snapshot"];
+  }[];
+}
+
 export interface AdminGroupDetail extends Group {
   member_count: number;
   challenges_enabled?: boolean;

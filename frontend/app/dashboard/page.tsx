@@ -13,7 +13,7 @@ import { MatchCard } from "@/components/features/betting/MatchCard";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { useFixtures } from "@/hooks/useFixtures";
 import { useGlobalLeaderboard } from "@/hooks/useLeaderboard";
-import { useActivePolla } from "@/hooks/useGroups";
+import { useActivePolla, useTournamentProgress } from "@/hooks/useGroups";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useAnimatedPrizePool,
@@ -30,6 +30,7 @@ import { useChallengeAvailablePoints } from "@/hooks/useChallenges";
 import { ChallengeQuotaBars } from "@/components/features/betting/ChallengeQuotaBars";
 import { NeonPiggyBank } from "@/components/features/dashboard/NeonPiggyBank";
 import { LiveStatusStrip } from "@/components/features/dashboard/LiveStatusStrip";
+import { TournamentProgressTimeline } from "@/components/features/dashboard/TournamentProgressTimeline";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -42,8 +43,7 @@ export default function DashboardPage() {
     status: "scheduled",
     limit: 6,
   });
-  const { data: statsAll } = useFixtures({ limit: 1 });
-  const { data: statsFinished } = useFixtures({ status: "finished", limit: 1 });
+  const { data: tournamentProgress } = useTournamentProgress();
   const { data: leaderboard } = useGlobalLeaderboard(1, 50, "points", 1);
   const { data: polla } = useActivePolla();
   const { data: rivalData } = useMyRival(!!user);
@@ -54,11 +54,6 @@ export default function DashboardPage() {
     useAnimatedPrizePool(serverPrize);
   const prizeDisplayed = prizeAnimated ?? serverPrize;
   const currency = polla?.currency ?? "USD";
-
-  const totalFixtures = statsAll?.pagination?.total ?? 0;
-  const playedFixtures = statsFinished?.pagination?.total ?? 0;
-  const progressPct =
-    totalFixtures > 0 ? Math.round((playedFixtures / totalFixtures) * 100) : 0;
 
   const hero = fixturesData?.data?.[0];
   const myEntry = leaderboard?.find((e) => e.user_id === user?.id);
@@ -119,26 +114,15 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {totalFixtures > 0 && (
+      {tournamentProgress && tournamentProgress.total_fixtures > 0 && (
         <Card className="mb-8 p-4 rounded-2xl">
-          <div className="flex justify-between text-xs text-muted mb-2">
-            <span className="inline-flex items-center gap-1">
-              Progreso del torneo
-              <HelpTooltip
-                helpKey="page.dashboard.progress"
-                label="Progreso del torneo"
-              />
-            </span>
-            <span>
-              {playedFixtures} / {totalFixtures} partidos ({progressPct}%)
-            </span>
-          </div>
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-            <div
-              className="h-full bg-accent transition-all duration-500"
-              style={{ width: `${progressPct}%` }}
+          <div className="inline-flex items-center gap-1 mb-2">
+            <HelpTooltip
+              helpKey="page.dashboard.progress"
+              label="Progreso del torneo"
             />
           </div>
+          <TournamentProgressTimeline progress={tournamentProgress} />
         </Card>
       )}
 

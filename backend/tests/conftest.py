@@ -12,6 +12,7 @@ from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.db.session import Base, get_db
 from app.models.jwt_signing_key import JwtSigningKey  # noqa: F401 — register metadata
+from app.models.phase_winner import PhaseWinnerHistory  # noqa: F401 — register metadata
 from app.core.rate_limiter import limiter
 
 # Use SQLite in-memory for tests (no PostgreSQL required)

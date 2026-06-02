@@ -38,7 +38,7 @@ from app.services.payment_upload_service import (
 )
 
 from decimal import Decimal
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
@@ -265,6 +265,49 @@ async def get_active_polla_winners(request: Request, current_user: CurrentUser, 
         currency=group.currency,
         winners=winners,
     )
+
+
+class PhaseWinnerBrief(BaseModel):
+    user_id: str
+    username: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    points: int
+    prize_pool: str
+
+
+class PhaseProgressItem(BaseModel):
+    phase_key: str
+    label: str
+    total_fixtures: int
+    finished_fixtures: int
+    status: str
+    milestone_end: int
+    winner: dict | None = None
+
+
+class TournamentProgressOut(BaseModel):
+    group_id: str
+    total_fixtures: int
+    finished_fixtures: int
+    current_phase_key: str | None
+    phases: list[PhaseProgressItem]
+    phase_winners: list[dict] = Field(default_factory=list)
+
+
+@router.get("/pool/active/tournament-progress", response_model=TournamentProgressOut | None)
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_active_tournament_progress(request: Request, current_user: CurrentUser, db: DBSession):
+    from app.services.tournament_phase_service import build_tournament_progress
+
+    result = await db.execute(
+        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
+    )
+    group = result.scalar_one_or_none()
+    if not group:
+        return None
+    progress = await build_tournament_progress(db, group.id)
+    return TournamentProgressOut(group_id=str(group.id), **progress)
 
 
 async def _assert_member(db, group_id: uuid.UUID, user_id: uuid.UUID):
