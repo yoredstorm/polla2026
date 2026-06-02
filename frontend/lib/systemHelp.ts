@@ -163,7 +163,7 @@ export const HELP_CONTENT = {
   },
   "tour.prizePool": {
     short: "Pozo de premios",
-    detail: "Aquí ves el dinero acumulado del torneo. Las cuotas y extras confirmados suman al pozo repartido entre el top 3.",
+    detail: "Aquí ves el dinero acumulado del torneo. un solo ganador!!",
   },
   "tour.notifications": {
     short: "Campana de avisos",
