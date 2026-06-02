@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { predictionExists } from "@/lib/betPredictionUtils";
 
 interface Props {
   open: boolean;
@@ -27,7 +28,6 @@ interface BulkItem {
   predicted_away_score: number;
   mode: "free" | "extra";
   source_is_extra: boolean;
-  also_add_extra?: boolean;
   fixture?: Fixture;
 }
 
@@ -55,21 +55,12 @@ function buildPayloadItems(items: BulkItem[]): BulkCopyPayloadItem[] {
       predicted_away_score: it.predicted_away_score,
       mode: it.mode,
     });
-    if (it.mode === "free" && it.also_add_extra) {
-      out.push({
-        fixture_id: it.fixture_id,
-        predicted_home_score: it.predicted_home_score,
-        predicted_away_score: it.predicted_away_score,
-        mode: "extra",
-      });
-    }
   }
   return out;
 }
 
 function effectiveExtrasCount(items: BulkItem[]): number {
-  return items.filter((i) => i.mode === "extra").length +
-    items.filter((i) => i.mode === "free" && i.also_add_extra).length;
+  return items.filter((i) => i.mode === "extra").length;
 }
 
 function effectiveFreeCount(items: BulkItem[]): number {
@@ -140,7 +131,6 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
         predicted_away_score: b.predicted_away_score,
         mode,
         source_is_extra: sourceIsExtra,
-        also_add_extra: false,
         fixture: fixtureMap.get(b.fixture_id),
       });
     }
@@ -162,12 +152,6 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
   const freeCount = effectiveFreeCount(items);
   const totalExtraCost = extrasCount * perMatchAmount;
   const isDataLoading = pollaLoading || fixturesLoading || myBetsLoading;
-
-  function hasExtraRowForFixture(fixtureId: string, excludeIdx?: number) {
-    return items.some(
-      (it, i) => i !== excludeIdx && it.fixture_id === fixtureId && it.mode === "extra",
-    );
-  }
 
   function updateItem(idx: number, patch: Partial<BulkItem>) {
     setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
@@ -191,9 +175,58 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
     return mode === "free" ? "Apuesta gratis" : "Apuesta extra";
   }
 
+  const myActiveBets = useMemo(() => myBetsPage?.data ?? [], [myBetsPage]);
+
+  function filterPayloadDuplicates(payload: BulkCopyPayloadItem[]): BulkCopyPayloadItem[] {
+    const seenByFixture = new Map<string, { home: number; away: number }[]>();
+    for (const b of myActiveBets) {
+      const list = seenByFixture.get(b.fixture_id) ?? [];
+      list.push({
+        home: b.predicted_home_score,
+        away: b.predicted_away_score,
+      });
+      seenByFixture.set(b.fixture_id, list);
+    }
+    const valid: BulkCopyPayloadItem[] = [];
+    for (const row of payload) {
+      const existing = (seenByFixture.get(row.fixture_id) ?? []).map((s) => ({
+        predicted_home_score: s.home,
+        predicted_away_score: s.away,
+      }));
+      if (predictionExists(row.predicted_home_score, row.predicted_away_score, existing)) {
+        continue;
+      }
+      valid.push(row);
+      existing.push({
+        predicted_home_score: row.predicted_home_score,
+        predicted_away_score: row.predicted_away_score,
+      });
+      seenByFixture.set(row.fixture_id, existing.map((e) => ({
+        home: e.predicted_home_score,
+        away: e.predicted_away_score,
+      })));
+    }
+    return valid;
+  }
+
   async function handleCopy() {
-    const payload = buildPayloadItems(items);
-    if (payload.length === 0) return;
+    const rawPayload = buildPayloadItems(items);
+    const payload = filterPayloadDuplicates(rawPayload);
+    if (payload.length === 0) {
+      if (rawPayload.length > 0) {
+        toast(
+          "Ninguna apuesta se puede copiar: el marcador ya existe en tus predicciones de ese partido.",
+          "error",
+        );
+      }
+      return;
+    }
+    if (payload.length < rawPayload.length) {
+      toast(
+        "Algunas apuestas se omitieron porque el marcador ya existe en ese partido.",
+        "success",
+      );
+    }
     try {
       const res = await bulkCopy.mutateAsync({
         bets: payload,
@@ -291,10 +324,6 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
                     {items.map((item, idx) => {
                       const fx = item.fixture;
                       const isExtraRow = item.mode === "extra";
-                      const showAlsoExtra =
-                        item.mode === "free" &&
-                        perMatchAmount > 0 &&
-                        !hasExtraRowForFixture(item.fixture_id, idx);
 
                       return (
                         <div
@@ -368,20 +397,6 @@ export function CopyProfileModal({ open, onClose, sourceBets, sourceUserId, sour
                               className="w-14 px-2 py-1 rounded-lg bg-white/10 border border-white/20 text-white text-center text-sm"
                             />
                           </div>
-
-                          {showAlsoExtra && (
-                            <label className="flex items-center gap-2 text-sm cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!!item.also_add_extra}
-                                onChange={(e) => updateItem(idx, { also_add_extra: e.target.checked })}
-                                className="accent-accent w-4 h-4"
-                              />
-                              <span className="text-muted">
-                                También agregar como extra ({formatAmount(String(perMatchAmount), currency)})
-                              </span>
-                            </label>
-                          )}
 
                           {isExtraRow && perMatchAmount > 0 && (
                             <p className="text-xs text-amber-200/70">

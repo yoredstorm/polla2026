@@ -55,6 +55,13 @@ function MyBetsPageContent() {
   }, [changeReqData]);
 
   const currency = polla?.currency ?? "USD";
+  const challengesEnabled = polla?.challenges_enabled !== false;
+
+  useEffect(() => {
+    if (!challengesEnabled && tab === "retos") {
+      selectTab("pronosticos");
+    }
+  }, [challengesEnabled, tab]);
 
   return (
     <PageShell maxWidth="md">
@@ -117,16 +124,18 @@ function MyBetsPageContent() {
           >
             Pronósticos
           </button>
-          <button
-            type="button"
-            onClick={() => selectTab("retos")}
-            className={cn(
-              "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
-              tab === "retos" ? "bg-accent text-background" : "text-muted hover:text-white",
-            )}
-          >
-            Retos 1v1
-          </button>
+          {challengesEnabled && (
+            <button
+              type="button"
+              onClick={() => selectTab("retos")}
+              className={cn(
+                "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
+                tab === "retos" ? "bg-accent text-background" : "text-muted hover:text-white",
+              )}
+            >
+              Retos 1v1
+            </button>
+          )}
         </div>
 
         {tab === "pronosticos" ? (

@@ -184,6 +184,7 @@ export function useCreatePolla() {
       challenge_max_stake?: number;
       challenge_daily_limit?: number;
       challenge_tournament_limit?: number;
+      challenges_enabled?: boolean;
       payment_contact_name?: string;
       payment_phone?: string;
     }) => api.post<any>("/admin/groups", body),
@@ -210,6 +211,7 @@ export function usePatchGroup() {
       challenge_max_stake?: number;
       challenge_daily_limit?: number;
       challenge_tournament_limit?: number;
+      challenges_enabled?: boolean;
       payment_contact_name?: string;
       payment_phone?: string;
     }) => api.patch<any>(`/admin/groups/${groupId}`, body),

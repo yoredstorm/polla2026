@@ -26,6 +26,7 @@ class Group(Base):
     challenge_max_stake: Mapped[int] = mapped_column(Integer, default=10, nullable=False)
     challenge_daily_limit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     challenge_tournament_limit: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    challenges_enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     payment_contact_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     payment_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     payment_qr_path: Mapped[str | None] = mapped_column(String(255), nullable=True)

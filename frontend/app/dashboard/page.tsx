@@ -137,7 +137,9 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {user && <ChallengeQuotaBars quota={challengeQuota} className="mb-8" />}
+      {user && polla?.challenges_enabled !== false && (
+        <ChallengeQuotaBars quota={challengeQuota} className="mb-8" />
+      )}
 
       {myEntry && (
         <section className="mb-8 grid grid-cols-2 lg:grid-cols-4 gap-3 auto-rows-fr">

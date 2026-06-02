@@ -243,6 +243,11 @@ async def _assert_bet_on_fixture(db: AsyncSession, user_id: uuid.UUID, fixture_i
     return bet
 
 
+def _assert_challenges_enabled(group: Group) -> None:
+    if not getattr(group, "challenges_enabled", True):
+        raise ValueError("CHALLENGES_DISABLED")
+
+
 async def create_challenge(
     db: AsyncSession,
     redis: aioredis.Redis | None,
@@ -256,6 +261,7 @@ async def create_challenge(
     group = await _get_active_group(db)
     if not group:
         raise ValueError("NO_ACTIVE_POLLA")
+    _assert_challenges_enabled(group)
 
     fixture_res = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
     fixture = fixture_res.scalar_one_or_none()
@@ -375,6 +381,11 @@ async def accept_challenge(
         raise ValueError("NOT_FOUND")
     if ch.status != "pending_accept":
         raise ValueError("INVALID_STATUS")
+
+    group_res = await db.execute(select(Group).where(Group.id == ch.group_id))
+    group = group_res.scalar_one_or_none()
+    if group:
+        _assert_challenges_enabled(group)
 
     fixture_res = await db.execute(select(Fixture).where(Fixture.id == ch.fixture_id))
     fixture = fixture_res.scalar_one_or_none()

@@ -78,7 +78,7 @@ async def _seed_polla_member(db: AsyncSession, user_id: uuid.UUID) -> tuple[Grou
 
 @pytest.mark.asyncio
 async def test_bulk_copy_free_and_extra_same_fixture(client: AsyncClient, db_session: AsyncSession):
-    """Two items on the same fixture (free + extra) create two bets."""
+    """Free bet succeeds; extra with duplicate score is rejected."""
     cookies = await _register_and_login(client, "bulk_free_extra")
 
     me_resp = await client.get("/api/v1/users/me", cookies=cookies)
@@ -110,20 +110,17 @@ async def test_bulk_copy_free_and_extra_same_fixture(client: AsyncClient, db_ses
     )
     assert resp.status_code == 201
     body = resp.json()
-    assert body["created"] == 2
+    assert body["created"] == 1
     assert body["skipped"] == 0
-    assert body["errors"] == []
+    assert len(body["errors"]) == 1
+    assert "DUPLICATE_PREDICTION_SCORE" in body["errors"][0]
 
     bets_res = await db_session.execute(
         select(Bet).where(Bet.user_id == user_id, Bet.fixture_id == fixture.id)
     )
     bets = list(bets_res.scalars().all())
-    assert len(bets) == 2
-    free = [b for b in bets if b.group_id is None]
-    extra = [b for b in bets if b.group_id == group.id]
-    assert len(free) == 1
-    assert len(extra) == 1
-    assert extra[0].amount == Decimal("5.00")
+    assert len(bets) == 1
+    assert bets[0].group_id is None
 
 
 @pytest.mark.asyncio
@@ -163,3 +160,79 @@ async def test_bulk_copy_extra_only_does_not_create_free(client: AsyncClient, db
     assert len(bets) == 1
     assert bets[0].group_id == group.id
     assert bets[0].group_id is not None
+
+
+@pytest.mark.asyncio
+async def test_duplicate_extra_score_rejected(client: AsyncClient, db_session: AsyncSession):
+    """Second extra with same score as first extra is rejected."""
+    cookies = await _register_and_login(client, "dup_extra")
+
+    me_resp = await client.get("/api/v1/users/me", cookies=cookies)
+    user_id = uuid.UUID(me_resp.json()["id"])
+
+    group, fixture = await _seed_polla_member(db_session, user_id)
+    await db_session.commit()
+
+    first = await client.post(
+        "/api/v1/bets",
+        cookies=cookies,
+        json={
+            "fixture_id": str(fixture.id),
+            "predicted_home_score": 2,
+            "predicted_away_score": 1,
+            "group_id": str(group.id),
+            "amount": "5.00",
+        },
+    )
+    assert first.status_code == 201
+
+    second = await client.post(
+        "/api/v1/bets",
+        cookies=cookies,
+        json={
+            "fixture_id": str(fixture.id),
+            "predicted_home_score": 2,
+            "predicted_away_score": 1,
+            "group_id": str(group.id),
+            "amount": "5.00",
+        },
+    )
+    assert second.status_code == 400
+    assert second.json()["detail"]["error"]["code"] == "DUPLICATE_PREDICTION_SCORE"
+
+
+@pytest.mark.asyncio
+async def test_duplicate_extra_vs_free_rejected(client: AsyncClient, db_session: AsyncSession):
+    """Extra with same score as free bet is rejected."""
+    cookies = await _register_and_login(client, "dup_free_extra")
+
+    me_resp = await client.get("/api/v1/users/me", cookies=cookies)
+    user_id = uuid.UUID(me_resp.json()["id"])
+
+    group, fixture = await _seed_polla_member(db_session, user_id)
+    await db_session.commit()
+
+    free = await client.post(
+        "/api/v1/bets",
+        cookies=cookies,
+        json={
+            "fixture_id": str(fixture.id),
+            "predicted_home_score": 3,
+            "predicted_away_score": 2,
+        },
+    )
+    assert free.status_code == 201
+
+    extra = await client.post(
+        "/api/v1/bets",
+        cookies=cookies,
+        json={
+            "fixture_id": str(fixture.id),
+            "predicted_home_score": 3,
+            "predicted_away_score": 2,
+            "group_id": str(group.id),
+            "amount": "5.00",
+        },
+    )
+    assert extra.status_code == 400
+    assert extra.json()["detail"]["error"]["code"] == "DUPLICATE_PREDICTION_SCORE"

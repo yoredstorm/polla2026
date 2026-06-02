@@ -8,6 +8,9 @@ export function getApiErrorMessage(err: unknown, fallback: string): string {
     if (e?.code === "TOURNAMENT_CHALLENGE_LIMIT") {
       return "Agotaste tus retos del mundial.";
     }
+    if (e?.code === "CHALLENGES_DISABLED") {
+      return "El sistema de retos esta desactivado por el administrador.";
+    }
   }
   return fallback;
 }

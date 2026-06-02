@@ -57,6 +57,7 @@ class ActivePollaOut(BaseModel):
     payment_qr_url: str | None = None
     payment_qr_data_url: str | None = None
     has_uploaded_proof: bool = False
+    challenges_enabled: bool = True
 
 
 async def _get_active_group(db: DBSession) -> Group | None:
@@ -124,6 +125,7 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         payment_qr_url=qr_url,
         payment_qr_data_url=qr_data_url,
         has_uploaded_proof=has_proof,
+        challenges_enabled=getattr(group, "challenges_enabled", True),
     )
 
 

@@ -34,6 +34,7 @@ __all__ = [
     "should_lock_fixture",
     "can_create_change_request_for_fixture",
     "can_resolve_change_request_for_fixture",
+    "assert_unique_prediction_for_fixture",
     "create_bet",
     "settle_fixture_bets",
     "settle_single_bet",
@@ -240,6 +241,35 @@ def is_fixture_bettable(fixture: Fixture) -> bool:
     return not fixture.is_locked and fixture.status == "scheduled" and fixture.betting_open
 
 
+async def assert_unique_prediction_for_fixture(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    fixture_id: uuid.UUID,
+    predicted_home: int,
+    predicted_away: int,
+    *,
+    exclude_bet_id: uuid.UUID | None = None,
+) -> None:
+    """Reject duplicate (home, away) among active bets for the same user and fixture."""
+    result = await db.execute(
+        select(Bet).where(
+            and_(
+                Bet.user_id == user_id,
+                Bet.fixture_id == fixture_id,
+                Bet.cancelled_at.is_(None),
+            )
+        )
+    )
+    for existing in result.scalars().all():
+        if exclude_bet_id and existing.id == exclude_bet_id:
+            continue
+        if (
+            existing.predicted_home_score == predicted_home
+            and existing.predicted_away_score == predicted_away
+        ):
+            raise ValueError("DUPLICATE_PREDICTION_SCORE")
+
+
 async def create_bet(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -319,6 +349,14 @@ async def create_bet(
     # Extra amounts require admin confirmation before they count toward the prize pool.
     # Bets without a group or with amount=0 are auto-confirmed (nothing to collect).
     extra_needs_confirmation = bool(data.group_id and effective_amount > 0)
+
+    await assert_unique_prediction_for_fixture(
+        db,
+        user_id,
+        data.fixture_id,
+        data.predicted_home_score,
+        data.predicted_away_score,
+    )
 
     bet = Bet(
         user_id=user_id,

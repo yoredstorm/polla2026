@@ -47,6 +47,7 @@ export interface ActivePolla {
   /** Base64 data URL — avoids a second cross-origin fetch for the QR image */
   payment_qr_data_url?: string | null;
   has_uploaded_proof?: boolean;
+  challenges_enabled?: boolean;
 }
 
 export interface AdminNonMember {

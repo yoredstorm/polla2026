@@ -14,6 +14,10 @@ import { useToast } from "@/components/ui/Toast";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import {
+  predictionExists,
+  DUPLICATE_PREDICTION_MESSAGE,
+} from "@/lib/betPredictionUtils";
 
 const betSchema = z.object({
   predicted_home_score: z.number().min(0).max(20),
@@ -98,6 +102,22 @@ export function BetForm({ fixture }: BetFormProps) {
     extraAmount > 0 &&
     fixtureOpen;
 
+  const existingPredictions = [
+    ...(freeBet ? [freeBet] : []),
+    ...extraBets,
+  ];
+
+  function extraScoreIsDuplicate(home: number, away: number): boolean {
+    return predictionExists(home, away, existingPredictions);
+  }
+
+  const extraDuplicate =
+    extraPending != null &&
+    extraScoreIsDuplicate(
+      extraPending.predicted_home_score,
+      extraPending.predicted_away_score,
+    );
+
   // ── Handler: submit main bet ─────────────────────────────────────
   function onSubmit(values: BetFormValues) {
     setPendingValues(values);
@@ -128,12 +148,20 @@ export function BetForm({ fixture }: BetFormProps) {
   function onExtraSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!extraPending) return;
+    if (extraScoreIsDuplicate(extraPending.predicted_home_score, extraPending.predicted_away_score)) {
+      toast(DUPLICATE_PREDICTION_MESSAGE, "error");
+      return;
+    }
     setShowExtraForm(false);
     setShowExtraConfirm(true);
   }
 
   function confirmExtraBet() {
     if (!extraPending || !polla) return;
+    if (extraScoreIsDuplicate(extraPending.predicted_home_score, extraPending.predicted_away_score)) {
+      toast(DUPLICATE_PREDICTION_MESSAGE, "error");
+      return;
+    }
     createBet.mutate(
       {
         fixture_id: fixture.id,
@@ -427,7 +455,10 @@ export function BetForm({ fixture }: BetFormProps) {
                 >
                   Cancelar
                 </Button>
-                <Button type="submit" className="flex-1">
+                {extraDuplicate && (
+                  <p className="text-danger text-xs text-center">{DUPLICATE_PREDICTION_MESSAGE}</p>
+                )}
+                <Button type="submit" className="flex-1" disabled={extraDuplicate}>
                   Siguiente →
                 </Button>
               </div>
@@ -470,11 +501,15 @@ export function BetForm({ fixture }: BetFormProps) {
               >
                 ← Volver
               </Button>
+              {extraDuplicate && (
+                <p className="text-danger text-xs text-center mb-2">{DUPLICATE_PREDICTION_MESSAGE}</p>
+              )}
               <Button
                 type="button"
                 className="flex-1"
                 onClick={confirmExtraBet}
                 loading={createBet.isPending}
+                disabled={extraDuplicate}
               >
                 Confirmar
               </Button>

@@ -34,6 +34,7 @@ function CreatePollaForm() {
   const [maxStake, setMaxStake] = useState("5");
   const [dailyLimit, setDailyLimit] = useState("3");
   const [tournamentLimit, setTournamentLimit] = useState("30");
+  const [challengesEnabled, setChallengesEnabled] = useState(true);
   const [paymentContact, setPaymentContact] = useState("Tesorería Polla 2026");
   const [paymentPhone, setPaymentPhone] = useState("+51 999 888 777");
   const [qrFile, setQrFile] = useState<File | null>(null);
@@ -58,6 +59,7 @@ function CreatePollaForm() {
         challenge_max_stake: Math.max(1, Math.min(20, parseInt(maxStake, 10) || 5)),
         challenge_daily_limit: Math.max(0, Math.min(99, parseInt(dailyLimit, 10) || 0)),
         challenge_tournament_limit: Math.max(0, Math.min(99, parseInt(tournamentLimit, 10) || 0)),
+        challenges_enabled: challengesEnabled,
         payment_contact_name: paymentContact.trim() || undefined,
         payment_phone: paymentPhone.trim() || undefined,
       });
@@ -150,6 +152,18 @@ function CreatePollaForm() {
             <p className="text-xs text-muted mt-1">0 = sin límite en todo el torneo.</p>
           </div>
         </div>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={challengesEnabled}
+            onChange={(e) => setChallengesEnabled(e.target.checked)}
+            className="accent-accent w-4 h-4"
+          />
+          <span className="text-sm text-white">Sistema de retos (Te reto) activo</span>
+        </label>
+        <p className="text-xs text-muted -mt-2">
+          Desactivalo en fases finales (cuartos, semifinal, final) si no quieres duelos 1v1.
+        </p>
         <AdminPaymentSettingsFields
           contactName={paymentContact}
           phone={paymentPhone}
@@ -180,6 +194,9 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
   const [formTournamentLimit, setFormTournamentLimit] = useState(
     String(polla.challenge_tournament_limit ?? 0),
   );
+  const [formChallengesEnabled, setFormChallengesEnabled] = useState(
+    polla.challenges_enabled !== false,
+  );
   const [formPaymentContact, setFormPaymentContact] = useState(polla.payment_contact_name ?? "");
   const [formPaymentPhone, setFormPaymentPhone] = useState(polla.payment_phone ?? "");
   const [formQrFile, setFormQrFile] = useState<File | null>(null);
@@ -197,6 +214,7 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
         challenge_max_stake: Math.max(1, Math.min(20, parseInt(formMaxStake, 10) || 10)),
         challenge_daily_limit: Math.max(0, Math.min(99, parseInt(formDailyLimit, 10) || 0)),
         challenge_tournament_limit: Math.max(0, Math.min(99, parseInt(formTournamentLimit, 10) || 0)),
+        challenges_enabled: formChallengesEnabled,
         payment_contact_name: formPaymentContact.trim() || undefined,
         payment_phone: formPaymentPhone.trim() || undefined,
       },
@@ -279,6 +297,12 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
                 : "Sin límite"}
             </p>
           </div>
+          <div className="col-span-2">
+            <p className="text-xs text-muted uppercase tracking-wide mb-1">Sistema de retos</p>
+            <p className="text-lg font-bold text-white">
+              {polla.challenges_enabled !== false ? "Activo" : "Desactivado"}
+            </p>
+          </div>
           <AdminPaymentSettingsView
             groupId={polla.id}
             paymentContactName={polla.payment_contact_name}
@@ -346,6 +370,15 @@ function PollaSettingsCard({ polla, onSaved }: { polla: any; onSaved: () => void
               placeholder="Ej: 5"
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-accent placeholder:text-muted/50" />
           </div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={formChallengesEnabled}
+              onChange={(e) => setFormChallengesEnabled(e.target.checked)}
+              className="accent-accent w-4 h-4"
+            />
+            <span className="text-sm text-white">Sistema de retos (Te reto) activo</span>
+          </label>
           <AdminPaymentSettingsFields
             contactName={formPaymentContact}
             phone={formPaymentPhone}

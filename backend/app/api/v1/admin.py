@@ -104,6 +104,7 @@ class AdminGroupPatch(BaseModel):
     challenge_max_stake: Optional[int] = None
     challenge_daily_limit: Optional[int] = None
     challenge_tournament_limit: Optional[int] = None
+    challenges_enabled: Optional[bool] = None
     payment_contact_name: Optional[str] = None
     payment_phone: Optional[str] = None
 
@@ -728,6 +729,7 @@ class CreatePollaIn(BaseModel):
     challenge_max_stake: int = 10
     challenge_daily_limit: int = 0
     challenge_tournament_limit: int = 0
+    challenges_enabled: bool = True
     payment_contact_name: str | None = None
     payment_phone: str | None = None
 
@@ -767,6 +769,7 @@ async def create_polla(
         challenge_max_stake=max(1, min(20, body.challenge_max_stake)),
         challenge_daily_limit=max(0, min(99, body.challenge_daily_limit)),
         challenge_tournament_limit=max(0, min(99, body.challenge_tournament_limit)),
+        challenges_enabled=body.challenges_enabled,
         payment_contact_name=body.payment_contact_name,
         payment_phone=body.payment_phone,
     )
@@ -784,6 +787,7 @@ async def create_polla(
         "challenge_max_stake": group.challenge_max_stake,
         "challenge_daily_limit": group.challenge_daily_limit,
         "challenge_tournament_limit": group.challenge_tournament_limit,
+        "challenges_enabled": group.challenges_enabled,
         **_group_payment_dict(group),
     }
 
@@ -852,6 +856,7 @@ async def list_groups(
                 "challenge_max_stake": g.challenge_max_stake,
                 "challenge_daily_limit": g.challenge_daily_limit,
                 "challenge_tournament_limit": g.challenge_tournament_limit,
+                "challenges_enabled": g.challenges_enabled,
                 "member_count": member_counts.get(g.id, 0),
                 "created_at": g.created_at.isoformat(),
                 **_group_payment_dict(g),
@@ -903,6 +908,9 @@ async def patch_group(
         val = max(0, min(99, body.challenge_tournament_limit))
         changes["challenge_tournament_limit"] = str(val)
         group.challenge_tournament_limit = val
+    if body.challenges_enabled is not None:
+        changes["challenges_enabled"] = str(body.challenges_enabled)
+        group.challenges_enabled = body.challenges_enabled
     if body.payment_contact_name is not None:
         changes["payment_contact_name"] = body.payment_contact_name
         group.payment_contact_name = body.payment_contact_name or None
@@ -926,6 +934,7 @@ async def patch_group(
         "challenge_max_stake": group.challenge_max_stake,
         "challenge_daily_limit": group.challenge_daily_limit,
         "challenge_tournament_limit": group.challenge_tournament_limit,
+        "challenges_enabled": group.challenges_enabled,
         "bet_amount_mode": group.bet_amount_mode,
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,
@@ -1658,6 +1667,32 @@ async def approve_change_request(
         )
 
     if cr.request_type == "modify":
+        from app.services.bet_service import assert_unique_prediction_for_fixture
+
+        try:
+            await assert_unique_prediction_for_fixture(
+                db,
+                bet.user_id,
+                bet.fixture_id,
+                cr.new_predicted_home_score,
+                cr.new_predicted_away_score,
+                exclude_bet_id=bet.id,
+            )
+        except ValueError as e:
+            if str(e) == "DUPLICATE_PREDICTION_SCORE":
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={
+                        "error": {
+                            "code": "DUPLICATE_PREDICTION_SCORE",
+                            "message": (
+                                "El nuevo marcador coincide con otra prediccion activa "
+                                "del usuario en este partido."
+                            ),
+                        }
+                    },
+                )
+            raise
         bet.predicted_home_score = cr.new_predicted_home_score
         bet.predicted_away_score = cr.new_predicted_away_score
     elif cr.request_type == "delete":

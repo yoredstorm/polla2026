@@ -111,6 +111,10 @@ async def create_bet(
             "NOT_GROUP_MEMBER": "No eres miembro de este grupo",
             "NOT_POLLA_MEMBER": "Tu pago de entrada aún no ha sido confirmado",
             "NO_ACTIVE_POLLA": "No hay polla activa. Contacta al administrador.",
+            "DUPLICATE_PREDICTION_SCORE": (
+                "Ya tienes una prediccion con ese marcador en este partido. "
+                "Cada apuesta (gratis o extra) debe usar un marcador distinto."
+            ),
         }
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

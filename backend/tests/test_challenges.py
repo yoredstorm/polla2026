@@ -45,6 +45,7 @@ async def _seed_polla(
     challenge_max_stake: int = 10,
     challenge_daily_limit: int = 0,
     challenge_tournament_limit: int = 0,
+    challenges_enabled: bool = True,
 ) -> tuple[Group, Fixture]:
     for g in (await db.execute(select(Group).where(Group.is_active == True))).scalars().all():
         g.is_active = False
@@ -89,6 +90,7 @@ async def _seed_polla(
         challenge_max_stake=challenge_max_stake,
         challenge_daily_limit=challenge_daily_limit,
         challenge_tournament_limit=challenge_tournament_limit,
+        challenges_enabled=challenges_enabled,
     )
     db.add(group)
     await db.flush()
@@ -192,6 +194,36 @@ async def test_accept_succeeds_when_challenger_at_stake_limit(
     )
     await db_session.commit()
     assert accepted.status == "active"
+
+
+@pytest.mark.asyncio
+async def test_create_challenge_when_disabled(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    _cookies_a, user_a = await _register(client, "ch_dis_a")
+    _cookies_b, user_b = await _register(client, "ch_dis_b")
+    group, fixture = await _seed_polla(
+        db_session,
+        [(user_a, 10), (user_b, 10)],
+        challenges_enabled=False,
+    )
+    db_session.add(_bet(user_a, fixture.id, group.id))
+    db_session.add(_bet(user_b, fixture.id, group.id))
+    await db_session.commit()
+
+    user_b_row = (await db_session.execute(select(User).where(User.id == user_b))).scalar_one()
+
+    with pytest.raises(ValueError, match="CHALLENGES_DISABLED"):
+        await create_challenge(
+            db_session,
+            None,
+            challenger_id=user_a,
+            challenged_username=user_b_row.username,
+            fixture_id=fixture.id,
+            stake_points=2,
+            ip=None,
+        )
 
 
 @pytest.mark.asyncio

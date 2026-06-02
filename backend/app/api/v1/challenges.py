@@ -208,6 +208,7 @@ async def post_challenge(
             "STAKE_ABOVE_HALF_BALANCE": "No puedes apostar mas del 50% de tus puntos disponibles",
             "DAILY_CHALLENGE_LIMIT": "Agotaste tus retos de hoy. Se reinician a medianoche.",
             "TOURNAMENT_CHALLENGE_LIMIT": "Agotaste tus retos del mundial.",
+            "CHALLENGES_DISABLED": "El sistema de retos esta desactivado por el administrador.",
         }
         raise HTTPException(status_code=400, detail={"error": {"code": code, "message": messages.get(code, code)}})
 
@@ -252,6 +253,7 @@ async def post_accept(
             "FIXTURE_LOCKED": "Partido ya bloqueado",
             "NOT_FOUND": "Reto no encontrado",
             "INVALID_STATUS": "Estado invalido",
+            "CHALLENGES_DISABLED": "El sistema de retos esta desactivado por el administrador.",
         }
         raise HTTPException(
             status_code=400,

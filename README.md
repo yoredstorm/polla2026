@@ -192,6 +192,30 @@ Los datos persistentes usan volúmenes Docker: `postgres_data` (BD), `uploads_da
 docker compose exec backend alembic upgrade head
 ```
 
+### Reinicio total (marcha blanca)
+
+Vacía **todas** las tablas de aplicación (usuarios, pollas, apuestas, retos, fixtures, etc.) y limpia Redis. El esquema (`alembic_version`) se conserva. Solo para entornos de prueba o reinicio controlado; haz backup antes ([docs/BACKUPS.md](docs/BACKUPS.md)).
+
+```bash
+CONFIRM_RESET=yes docker compose --profile tools run --rm db-reset
+```
+
+Tras el reset:
+
+1. El backend vuelve a cargar el calendario desde JSON si `fixtures` está vacío (al arrancar o al hacer `docker compose up`).
+2. Registra un usuario nuevo.
+3. Promueve el primer admin:
+
+```bash
+docker compose exec postgres psql -U polla_user -d polla_db -c \
+  "UPDATE users SET is_admin = true WHERE username = 'TU_USUARIO';"
+```
+
+4. Entra a `/admin/groups`, crea la polla y configura entrada, extras y retos.
+5. (Opcional) Borra archivos subidos (QR, avatares, comprobantes): elimina el volumen `uploads_data` o `docker compose down -v` solo si aceptas perder también la base.
+
+Variables opcionales: `SKIP_REDIS=1` (no limpia Redis), `CONFIRM_RESET=yes` (obligatorio).
+
 ### 5. Acceder
 
 | Servicio | URL |

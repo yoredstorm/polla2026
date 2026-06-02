@@ -187,7 +187,8 @@ export default function FixtureDetailPage() {
       {fixture.status === "scheduled" &&
         !fixture.is_locked &&
         fixture.betting_open &&
-        polla?.is_member && (
+        polla?.is_member &&
+        polla.challenges_enabled !== false && (
           <section className="mb-6">
             {hasBet ? (
               <button
@@ -204,6 +205,14 @@ export default function FixtureDetailPage() {
             )}
           </section>
         )}
+
+      {polla?.is_member && polla.challenges_enabled === false && (
+        <section className="mb-6 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3">
+          <p className="text-sm text-muted">
+            El sistema de retos esta desactivado por el administrador en esta fase del torneo.
+          </p>
+        </section>
+      )}
 
       {challenges && challenges.length > 0 && (
         <section className="mb-6 space-y-3">
