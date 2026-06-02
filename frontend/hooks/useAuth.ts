@@ -2,7 +2,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/store/authStore";
 import { getMe, login, logout, register, type LoginResponse } from "@/lib/auth";
-import { unsubscribeFromPush } from "@/lib/pushNotifications";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -54,10 +53,7 @@ export function useAuth() {
   });
 
   const logoutMutation = useMutation({
-    mutationFn: async () => {
-      await unsubscribeFromPush();
-      return logout();
-    },
+    mutationFn: () => logout(),
     onSuccess: () => {
       clearUser();
       queryClient.clear();

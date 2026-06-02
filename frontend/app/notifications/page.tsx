@@ -14,7 +14,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
 import { NotificationItem } from "@/components/features/notifications/NotificationItem";
-import { PushNotificationSettings } from "@/components/features/notifications/PushNotificationSettings";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/api";
 import { QueryState } from "@/components/ui/QueryState";
@@ -93,8 +92,6 @@ function NotificationsPageContent() {
           </button>
         )}
       </div>
-
-      <PushNotificationSettings className="mb-6" />
 
       <div className="flex gap-2 mb-4 border-b border-white/10 pb-2 overflow-x-auto">
         {TABS.map((t) => (
