@@ -16,6 +16,15 @@ export function TournamentProgressTimeline({
 
   const milestones = phases.filter((p) => p.milestone_end > 0);
   const maxMilestone = milestones.length ? milestones[milestones.length - 1].milestone_end : total_fixtures;
+  const phaseCount = phases.length;
+  const gridCols =
+    phaseCount <= 1
+      ? "grid-cols-1"
+      : phaseCount === 2
+        ? "grid-cols-2"
+        : phaseCount <= 4
+          ? "grid-cols-2 sm:grid-cols-4"
+          : "grid-cols-2 sm:grid-cols-4 lg:grid-cols-7";
 
   return (
     <div className={className}>
@@ -49,7 +58,7 @@ export function TournamentProgressTimeline({
           })}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+      <div className={cn("grid gap-2", gridCols)}>
         {phases.map((phase) => (
           <div
             key={phase.phase_key}

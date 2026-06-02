@@ -3,9 +3,14 @@ import { useState } from "react";
 import { useCreatePolla, useUploadPaymentQr } from "@/hooks/useAdmin";
 import { AdminPaymentSettingsFields } from "@/components/features/payment/AdminPaymentSettings";
 import { getApiErrorMessage } from "@/lib/challengeUtils";
+import {
+  PRIZE_STRUCTURE_OPTIONS,
+  type PrizeStructureMode,
+} from "@/lib/prizeStructure";
 
 export function CreatePollaForm() {
   const create = useCreatePolla();
+  const [prizeMode, setPrizeMode] = useState<PrizeStructureMode>("full_milestones");
   const [name, setName] = useState("Polla Global 2026");
   const [entry, setEntry] = useState("20");
   const [currency, setCurrency] = useState("PEN");
@@ -41,6 +46,7 @@ export function CreatePollaForm() {
         challenges_enabled: challengesEnabled,
         payment_contact_name: paymentContact.trim() || undefined,
         payment_phone: paymentPhone.trim() || undefined,
+        prize_structure_mode: prizeMode,
       });
       if (qrFile && created?.id) {
         await uploadQr.mutateAsync({ groupId: created.id, file: qrFile });
@@ -58,6 +64,35 @@ export function CreatePollaForm() {
         Configura el torneo. Los participantes se agregan manualmente al confirmar el pago.
       </p>
       <form onSubmit={handleSubmit} className="space-y-4">
+        <fieldset className="space-y-2">
+          <legend className="text-sm text-muted mb-2 block">Estructura de premios</legend>
+          {PRIZE_STRUCTURE_OPTIONS.map((opt) => (
+            <label
+              key={opt.value}
+              className={`flex gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${
+                prizeMode === opt.value
+                  ? "border-accent/50 bg-accent/10"
+                  : "border-white/10 bg-white/5 hover:border-white/20"
+              }`}
+            >
+              <input
+                type="radio"
+                name="prize_structure_mode"
+                value={opt.value}
+                checked={prizeMode === opt.value}
+                onChange={() => setPrizeMode(opt.value)}
+                className="mt-1 accent-accent"
+              />
+              <span>
+                <span className="text-sm font-medium text-white block">{opt.title}</span>
+                <span className="text-xs text-muted">{opt.description}</span>
+              </span>
+            </label>
+          ))}
+          <p className="text-xs text-muted">
+            No se puede cambiar después de crear la polla.
+          </p>
+        </fieldset>
         <div>
           <label className="text-sm text-muted mb-1 block">Nombre de la polla</label>
           <input value={name} onChange={(e) => setName(e.target.value)} required
@@ -65,7 +100,7 @@ export function CreatePollaForm() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-sm text-muted mb-1 block">Entrada al torneo</label>
+            <label className="text-sm text-muted mb-1 block">Entrada del primer hito</label>
             <input type="number" min={0} step="0.01" value={entry} onChange={(e) => setEntry(e.target.value)} required
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-accent" />
           </div>

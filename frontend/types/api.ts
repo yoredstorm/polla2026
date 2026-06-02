@@ -53,7 +53,13 @@ export interface ActivePolla {
   current_phase_entry_fee?: string;
   current_phase_extra_per_match?: string | null;
   phase_enrollment_status?: "confirmed" | "pending" | "none";
+  prize_structure_mode?: PrizeStructureMode;
 }
+
+export type PrizeStructureMode =
+  | "single_tournament"
+  | "groups_knockout"
+  | "full_milestones";
 
 export interface GroupPhaseFeeRow {
   phase_key: string;
@@ -336,6 +342,7 @@ export interface TournamentProgress {
   total_fixtures: number;
   finished_fixtures: number;
   current_phase_key: string | null;
+  prize_structure_mode?: PrizeStructureMode;
   phases: TournamentPhaseProgress[];
   phase_winners: {
     phase_key: string;
@@ -350,6 +357,7 @@ export interface TournamentProgress {
 export interface AdminGroupDetail extends Group {
   member_count: number;
   current_phase_key?: string;
+  prize_structure_mode?: PrizeStructureMode;
   challenges_enabled?: boolean;
   challenge_max_stake?: number;
   challenge_daily_limit?: number;

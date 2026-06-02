@@ -65,6 +65,7 @@ class ActivePollaOut(BaseModel):
     current_phase_entry_fee: str = "0.00"
     current_phase_extra_per_match: str | None = None
     phase_enrollment_status: str = "none"
+    prize_structure_mode: str = "full_milestones"
 
 
 async def _get_active_group(db: DBSession) -> Group | None:
@@ -97,7 +98,7 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         enrollment_status_for_user,
         get_phase_fee,
     )
-    from app.services.tournament_phase_service import PHASE_LABELS
+    from app.services.prize_structure_service import get_effective_phases, phase_label
 
     group = await _get_active_group(db)
     if not group:
@@ -124,14 +125,15 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
     phase_fee = await get_phase_fee(db, group.id, phase_key)
     phase_entry = phase_fee.entry_fee if phase_fee else group.entry_fee
     phase_extra = phase_fee.extra_per_match if phase_fee else group.fixed_bet_amount
+    first_phase = get_effective_phases(group)[0]
     enroll_status = (
         await enrollment_status_for_user(db, group, current_user.id)
         if is_member
-        else ("none" if phase_key != "groups" else "none")
+        else "none"
     )
     has_proof = False
     qr_data_url: str | None = None
-    if not is_member and phase_key == "groups":
+    if not is_member and phase_key == first_phase:
         has_proof = await _user_has_proof(db, group.id, current_user.id)
         if group.payment_qr_path:
             qr_data_url = payment_qr_data_url(group.payment_qr_path)
@@ -165,7 +167,8 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         has_uploaded_proof=has_proof,
         challenges_enabled=getattr(group, "challenges_enabled", True),
         current_phase_key=phase_key,
-        current_phase_label=PHASE_LABELS.get(phase_key, phase_key),  # type: ignore[arg-type]
+        current_phase_label=phase_label(phase_key, group),
+        prize_structure_mode=group.prize_structure_mode,
         current_phase_entry_fee=str(phase_entry),
         current_phase_extra_per_match=str(phase_extra) if phase_extra else None,
         phase_enrollment_status=enroll_status if is_member else "none",
@@ -266,20 +269,21 @@ async def upload_phase_entry_proof(
 ):
     """Upload payment proof for the active tournament phase (re-enrollment)."""
     from app.services.phase_enrollment_service import enrollment_status_for_user
-    from app.services.tournament_phase_service import PHASE_LABELS
+    from app.services.prize_structure_service import get_effective_phases, phase_label
 
     group = await _get_active_group(db)
     if not group:
         raise HTTPException(status_code=404, detail="No active polla")
 
-    phase_key = group.current_phase_key or "groups"
+    first_phase = get_effective_phases(group)[0]
+    phase_key = group.current_phase_key or first_phase
     member_res = await db.execute(
         select(GroupMember).where(
             and_(GroupMember.group_id == group.id, GroupMember.user_id == current_user.id)
         )
     )
     is_member = member_res.scalar_one_or_none() is not None
-    if phase_key != "groups" and not is_member:
+    if phase_key != first_phase and not is_member:
         raise HTTPException(
             status_code=403,
             detail="You must be a polla member before re-enrolling in a new phase",
@@ -324,7 +328,7 @@ async def upload_phase_entry_proof(
         },
         ip=request.client.host if request.client else None,
     )
-    title = f"Inscripción pendiente — {PHASE_LABELS.get(phase_key, phase_key)}"
+    title = f"Inscripción pendiente — {phase_label(phase_key, group)}"
     body = f"{current_user.username} subió comprobante para la fase {phase_key}."
     await notify_admins(
         db,

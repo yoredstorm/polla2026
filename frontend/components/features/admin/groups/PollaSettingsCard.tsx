@@ -7,8 +7,10 @@ import {
   AdminPaymentSettingsView,
 } from "@/components/features/payment/AdminPaymentSettings";
 import type { AdminGroupDetail } from "@/types/api";
+import { prizeStructureModeLabel } from "@/lib/prizeStructure";
 
 export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail; onSaved: () => void }) {
+  const isFullMilestones = (polla.prize_structure_mode ?? "full_milestones") === "full_milestones";
   const patch = usePatchGroup();
   const [editing, setEditing] = useState(false);
   const [formEntry, setFormEntry] = useState(polla.entry_fee);
@@ -72,6 +74,11 @@ export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail;
           <p className="text-xs text-muted mt-1">
             Pozo acumulado: <span className="text-accent font-bold text-sm">{currency} {parseFloat(polla.prize_pool).toFixed(2)}</span>
           </p>
+          <p className="text-xs text-muted mt-2">
+            Estructura:{" "}
+            <span className="text-white">{prizeStructureModeLabel(polla.prize_structure_mode)}</span>
+            <span className="block text-[10px] mt-0.5">Definida al crear la polla (no editable).</span>
+          </p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => setEditing((v) => !v)}
@@ -89,23 +96,25 @@ export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail;
       {!editing ? (
         <div className="grid grid-cols-2 gap-4 pt-2 border-t border-white/10">
           <div>
-            <p className="text-xs text-muted uppercase tracking-wide mb-1">Entrada al torneo</p>
+            <p className="text-xs text-muted uppercase tracking-wide mb-1">Entrada del primer hito</p>
             <p className="text-lg font-bold text-white">{currency} {parseFloat(polla.entry_fee).toFixed(2)}</p>
             <p className="text-xs text-muted">
-              Valor por defecto de la fase Grupos; montos por hito en el panel inferior.
+              Referencia inicial; montos reales por hito en la tabla inferior.
             </p>
           </div>
-          <div>
-            <p className="text-xs text-muted uppercase tracking-wide mb-1">Extra opcional / partido</p>
-            {polla.fixed_bet_amount && parseFloat(polla.fixed_bet_amount) > 0 ? (
-              <>
-                <p className="text-lg font-bold text-white">{currency} {parseFloat(polla.fixed_bet_amount).toFixed(2)}</p>
-                <p className="text-xs text-muted">Admin confirma cada pago</p>
-              </>
-            ) : (
-              <p className="text-sm text-muted">No configurado</p>
-            )}
-          </div>
+          {isFullMilestones && (
+            <div>
+              <p className="text-xs text-muted uppercase tracking-wide mb-1">Extra opcional / partido</p>
+              {polla.fixed_bet_amount && parseFloat(polla.fixed_bet_amount) > 0 ? (
+                <>
+                  <p className="text-lg font-bold text-white">{currency} {parseFloat(polla.fixed_bet_amount).toFixed(2)}</p>
+                  <p className="text-xs text-muted">Admin confirma cada pago</p>
+                </>
+              ) : (
+                <p className="text-sm text-muted">No configurado</p>
+              )}
+            </div>
+          )}
           <div className="col-span-2">
             <p className="text-xs text-muted uppercase tracking-wide mb-1">Máximo pts por duelo</p>
             <p className="text-lg font-bold text-white">{polla.challenge_max_stake ?? 10} pts</p>

@@ -8,6 +8,7 @@ export function useFixtures(filters: FixtureFilter = {}) {
     queryKey: ["fixtures", filters],
     queryFn: () => api.get<PaginatedResponse<Fixture>>("/fixtures", {
       group_name: filters.group_name,
+      tournament_phase: filters.tournament_phase,
       date_from: filters.date_from,
       date_to: filters.date_to,
       status: filters.status,
@@ -25,6 +26,14 @@ export function useFixture(fixtureId: string) {
     queryKey: ["fixture", fixtureId],
     queryFn: () => api.get<Fixture>(`/fixtures/${fixtureId}`),
     enabled: !!fixtureId,
+  });
+}
+
+export function useTournamentPhases() {
+  return useQuery({
+    queryKey: ["fixtures", "tournament-phases"],
+    queryFn: () => api.get<{ key: string; label: string }[]>("/fixtures/tournament-phases"),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

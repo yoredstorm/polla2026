@@ -91,7 +91,7 @@ async def test_close_phase_resets_points_and_pool(db_session):
     db_session.add_all([f1, f2])
     await db_session.flush()
 
-    assert await is_phase_complete(db_session, "groups")
+    assert await is_phase_complete(db_session, "groups", group)
     from app.models.group_phase import GroupPhaseEnrollment
 
     db_session.add(

@@ -734,6 +734,7 @@ class CreatePollaIn(BaseModel):
     entry_fee: Decimal = Decimal("0")
     currency: str = "PEN"
     per_match_amount: Decimal | None = None
+    prize_structure_mode: str = "full_milestones"
     challenge_max_stake: int = 10
     challenge_daily_limit: int = 0
     challenge_tournament_limit: int = 0
@@ -759,6 +760,16 @@ async def create_polla(
 ):
     """Create the global polla. Admin becomes the owner."""
     from app.models.group import Group
+    from app.services.prize_structure_service import (
+        PRIZE_STRUCTURE_MODES,
+        initial_phase_key_for_mode,
+        normalize_prize_structure_mode,
+    )
+
+    mode = normalize_prize_structure_mode(body.prize_structure_mode)
+    if mode not in PRIZE_STRUCTURE_MODES:
+        raise HTTPException(status_code=400, detail="Invalid prize_structure_mode")
+
     if body.entry_fee > 0:
         if not body.payment_contact_name or not body.payment_phone:
             raise HTTPException(
@@ -780,6 +791,8 @@ async def create_polla(
         challenges_enabled=body.challenges_enabled,
         payment_contact_name=body.payment_contact_name,
         payment_phone=body.payment_phone,
+        prize_structure_mode=mode,
+        current_phase_key=initial_phase_key_for_mode(mode),
     )
     db.add(group)
     await db.flush()
@@ -794,6 +807,7 @@ async def create_polla(
         "name": group.name,
         "entry_fee": str(group.entry_fee),
         "currency": group.currency,
+        "prize_structure_mode": group.prize_structure_mode,
         "fixed_bet_amount": str(group.fixed_bet_amount) if group.fixed_bet_amount else None,
         "is_active": group.is_active,
         "challenge_max_stake": group.challenge_max_stake,
@@ -871,6 +885,7 @@ async def list_groups(
                 "challenges_enabled": g.challenges_enabled,
                 "member_count": member_counts.get(g.id, 0),
                 "current_phase_key": g.current_phase_key,
+                "prize_structure_mode": g.prize_structure_mode,
                 "created_at": g.created_at.isoformat(),
                 **_group_payment_dict(g),
             }
@@ -1045,14 +1060,17 @@ async def add_group_member(
         get_phase_fee,
     )
 
+    from app.services.prize_structure_service import get_effective_phases
+
     await ensure_phase_fees_for_group(db, group)
-    fee_row = await get_phase_fee(db, group_id, "groups")
+    first_phase = get_effective_phases(group)[0]
+    fee_row = await get_phase_fee(db, group_id, first_phase)
     entry_fee = fee_row.entry_fee if fee_row else group.entry_fee
 
     prev_pool = group.prize_pool
     member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=entry_fee)
     db.add(member)
-    await confirm_phase_enrollment(db, group, body.user_id, "groups", admin.id)
+    await confirm_phase_enrollment(db, group, body.user_id, first_phase, admin.id)
     await log_action(db, user_id=admin.id, action="admin_confirm_entry", detail={
         "group_id": str(group_id),
         "member_user_id": str(body.user_id),
@@ -1291,13 +1309,13 @@ async def list_phase_pending_entries(
     db: DBSession,
     phase_key: str | None = Query(None),
 ):
-    from app.services.tournament_phase_service import PHASE_LABELS
+    from app.services.prize_structure_service import get_effective_phases, phase_label
     from app.services.payment_upload_service import phase_entry_proof_data_url
 
     group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
-    pk = phase_key or group.current_phase_key or "groups"
+    pk = phase_key or group.current_phase_key or get_effective_phases(group)[0]
 
     members_q = (
         select(User, GroupMember, GroupPhaseEntryProof)
@@ -1336,7 +1354,7 @@ async def list_phase_pending_entries(
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "phase_key": pk,
-                "phase_label": PHASE_LABELS.get(pk, pk),  # type: ignore[arg-type]
+                "phase_label": phase_label(pk, group),
                 "has_proof": True,
                 "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
             }
@@ -1384,7 +1402,7 @@ async def confirm_phase_enrollment_route(
     redis: RedisClient,
 ):
     from app.services.phase_enrollment_service import confirm_phase_enrollment, ensure_phase_fees_for_group
-    from app.services.tournament_phase_service import PHASE_LABELS
+    from app.services.prize_structure_service import get_effective_phases, phase_label
 
     group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
     if not group:
@@ -1403,7 +1421,7 @@ async def confirm_phase_enrollment_route(
         raise HTTPException(status_code=400, detail="User is not a polla member")
 
     await ensure_phase_fees_for_group(db, group)
-    phase_key = body.phase_key or group.current_phase_key or "groups"
+    phase_key = body.phase_key or group.current_phase_key or get_effective_phases(group)[0]
     prev_pool = group.prize_pool
     enr = await confirm_phase_enrollment(db, group, body.user_id, phase_key, admin.id)
     await log_action(
@@ -1440,7 +1458,7 @@ async def confirm_phase_enrollment_route(
     return {
         "ok": True,
         "phase_key": phase_key,
-        "phase_label": PHASE_LABELS.get(phase_key, phase_key),
+        "phase_label": phase_label(phase_key, group),
         "prize_pool": str(group.prize_pool),
     }
 

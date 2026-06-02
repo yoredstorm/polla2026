@@ -8,7 +8,7 @@ import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { QueryState } from "@/components/ui/QueryState";
 import { useFixturesListPage } from "@/hooks/fixtures/useFixturesListPage";
 import type { FixtureStatus } from "@/types/api";
-import { TOURNAMENT_PHASES } from "@/lib/tournamentPhases";
+import { useTournamentPhases } from "@/hooks/useFixtures";
 
 const GROUPS = [
   { id: undefined, label: "Todos" },
@@ -48,6 +48,8 @@ export default function FixturesPage() {
     selectStatus,
   } = useFixturesListPage();
 
+  const { data: phaseOptions = [] } = useTournamentPhases();
+
   const { data, isLoading, isError, refetch } = fixturesQuery;
   const {
     data: finishedData,
@@ -80,7 +82,7 @@ export default function FixturesPage() {
             >
               Todas
             </Chip>
-            {TOURNAMENT_PHASES.map((p) => (
+            {phaseOptions.map((p) => (
               <Chip
                 key={p.key}
                 className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"

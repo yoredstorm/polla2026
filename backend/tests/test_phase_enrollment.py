@@ -14,6 +14,11 @@ from app.services.phase_enrollment_service import (
     confirm_phase_enrollment,
     seed_phase_fees_for_group,
 )
+from app.services.prize_structure_service import (
+    effective_phase_fixture_filter,
+    fixture_effective_phase_key,
+    get_effective_phases,
+)
 from app.services.tournament_phase_service import (
     PHASE_ORDER,
     fixture_phase_key,
@@ -44,12 +49,24 @@ def _fixture(external_id: int, *, group_name=None, round_name=None, status="fini
 
 @pytest.mark.asyncio
 async def test_phase_fixture_filter_third_place(db_session):
+    owner = User(username="filt_owner", hashed_password="x")
+    db_session.add(owner)
+    await db_session.flush()
+    group = Group(
+        name="Filter",
+        owner_id=owner.id,
+        invite_code="filtpolla01",
+        prize_structure_mode="full_milestones",
+    )
+    db_session.add(group)
+    await db_session.flush()
+
     third = _fixture(701, round_name="Match for third place")
     final = _fixture(702, round_name="Final")
     db_session.add_all([third, final])
     await db_session.flush()
 
-    cond = phase_fixture_filter("third_place")
+    cond = effective_phase_fixture_filter("third_place", group)
     result = await db_session.execute(select(Fixture).where(cond))
     rounds = {fx.round for fx in result.scalars().all()}
     assert "Match for third place" in rounds

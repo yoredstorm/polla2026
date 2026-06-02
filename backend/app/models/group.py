@@ -31,6 +31,9 @@ class Group(Base):
     payment_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     payment_qr_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
     current_phase_key: Mapped[str] = mapped_column(String(32), default="groups", nullable=False)
+    prize_structure_mode: Mapped[str] = mapped_column(
+        String(32), default="full_milestones", nullable=False
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     owner: Mapped["User"] = relationship("User", back_populates="owned_groups")

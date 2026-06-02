@@ -1,5 +1,5 @@
 """
-Tournament phase winners: grupos → 16vos → 8vos → cuartos → semifinal → final.
+Tournament phase winners: configurable 1, 2, or 7 hitos per polla.
 Auto-close when all fixtures in a phase are finished; reset points and prize pool.
 """
 from __future__ import annotations
@@ -7,99 +7,45 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from typing import Literal
 
-from sqlalchemy import select, func, and_, or_
+from sqlalchemy import select, func, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember
 from app.models.group_phase import GroupPhaseEnrollment
 from app.models.phase_winner import PhaseWinnerHistory
-PhaseKey = Literal[
-    "groups",
-    "round_of_32",
-    "round_of_16",
-    "quarterfinal",
-    "semifinal",
-    "third_place",
-    "final",
-]
+from app.services.prize_structure_service import (
+    effective_phase_fixture_filter,
+    get_effective_phases,
+    next_effective_phase_key,
+    phase_label,
+    is_effective_phase,
+)
+from app.services.tournament_phases import (
+    PHASE_ORDER,
+    PHASE_LABELS,
+    PhaseKey,
+    fixture_phase_key,
+    milestone_phase_fixture_filter,
+    next_milestone_phase_key,
+)
 
-PHASE_ORDER: list[PhaseKey] = [
-    "groups",
-    "round_of_32",
-    "round_of_16",
-    "quarterfinal",
-    "semifinal",
-    "third_place",
-    "final",
-]
-
-def next_phase_key_after(current: PhaseKey) -> PhaseKey | None:
-    try:
-        idx = PHASE_ORDER.index(current)
-    except ValueError:
-        return None
-    if idx + 1 >= len(PHASE_ORDER):
-        return None
-    return PHASE_ORDER[idx + 1]
+# Re-export for backward compatibility
+phase_fixture_filter = milestone_phase_fixture_filter
+next_phase_key_after = next_milestone_phase_key
 
 
-PHASE_LABELS: dict[PhaseKey, str] = {
-    "groups": "Grupos",
-    "round_of_32": "16vos",
-    "round_of_16": "8vos",
-    "quarterfinal": "Cuartos",
-    "semifinal": "Semifinal",
-    "third_place": "3er puesto",
-    "final": "Final",
-}
+async def _get_group(db: AsyncSession, group_id: uuid.UUID) -> Group | None:
+    result = await db.execute(select(Group).where(Group.id == group_id))
+    return result.scalar_one_or_none()
 
 
-def fixture_phase_key(fixture: Fixture) -> PhaseKey | None:
-    """Map a fixture to one of the seven tournament phases."""
-    if fixture.group_name:
-        return "groups"
-    r = (fixture.round or "").strip()
-    if r == "Round of 32":
-        return "round_of_32"
-    if r == "Round of 16":
-        return "round_of_16"
-    if r == "Quarter-final":
-        return "quarterfinal"
-    if r == "Semi-final":
-        return "semifinal"
-    if r == "Match for third place":
-        return "third_place"
-    if r == "Final":
-        return "final"
-    return None
-
-
-def phase_fixture_filter(phase_key: PhaseKey):
-    if phase_key == "groups":
-        return Fixture.group_name.isnot(None)
-    if phase_key == "round_of_32":
-        return Fixture.round == "Round of 32"
-    if phase_key == "round_of_16":
-        return Fixture.round == "Round of 16"
-    if phase_key == "quarterfinal":
-        return Fixture.round == "Quarter-final"
-    if phase_key == "semifinal":
-        return Fixture.round == "Semi-final"
-    if phase_key == "third_place":
-        return Fixture.round == "Match for third place"
-    return Fixture.round == "Final"
-
-
-def _phase_fixture_filter(phase_key: PhaseKey):
-    return phase_fixture_filter(phase_key)
-
-
-async def count_phase_fixtures(db: AsyncSession, phase_key: PhaseKey) -> tuple[int, int]:
-    """Return (total, finished) fixture counts for a phase."""
-    phase_cond = _phase_fixture_filter(phase_key)
+async def count_phase_fixtures(
+    db: AsyncSession, phase_key: str, group: Group
+) -> tuple[int, int]:
+    """Return (total, finished) fixture counts for an effective phase."""
+    phase_cond = effective_phase_fixture_filter(phase_key, group)
     total_q = await db.execute(select(func.count()).select_from(Fixture).where(phase_cond))
     finished_q = await db.execute(
         select(func.count()).select_from(Fixture).where(and_(phase_cond, Fixture.status == "finished"))
@@ -107,13 +53,13 @@ async def count_phase_fixtures(db: AsyncSession, phase_key: PhaseKey) -> tuple[i
     return int(total_q.scalar() or 0), int(finished_q.scalar() or 0)
 
 
-async def is_phase_complete(db: AsyncSession, phase_key: PhaseKey) -> bool:
-    total, finished = await count_phase_fixtures(db, phase_key)
+async def is_phase_complete(db: AsyncSession, phase_key: str, group: Group) -> bool:
+    total, finished = await count_phase_fixtures(db, phase_key, group)
     return total > 0 and finished >= total
 
 
 async def _phase_leaderboard(
-    db: AsyncSession, group_id: uuid.UUID, phase_key: PhaseKey
+    db: AsyncSession, group_id: uuid.UUID, phase_key: str
 ) -> list:
     """Members enrolled in this phase, ranked by total_points."""
     from app.models.user import User
@@ -162,15 +108,17 @@ async def get_closed_phase_keys(db: AsyncSession, group_id: uuid.UUID) -> set[st
     return {row[0] for row in result.all()}
 
 
-async def get_current_phase_key(db: AsyncSession, group_id: uuid.UUID) -> PhaseKey | None:
-    group_res = await db.execute(select(Group).where(Group.id == group_id))
-    group = group_res.scalar_one_or_none()
-    if group and group.current_phase_key in PHASE_ORDER:
+async def get_current_phase_key(db: AsyncSession, group_id: uuid.UUID) -> str | None:
+    group = await _get_group(db, group_id)
+    if not group:
+        return None
+    phases = get_effective_phases(group)
+    if group.current_phase_key in phases:
         closed = await get_closed_phase_keys(db, group_id)
         if group.current_phase_key not in closed:
-            return group.current_phase_key  # type: ignore[return-value]
+            return group.current_phase_key
     closed = await get_closed_phase_keys(db, group_id)
-    for key in PHASE_ORDER:
+    for key in phases:
         if key not in closed:
             return key
     return None
@@ -195,11 +143,14 @@ def _leaderboard_snapshot(entries: list) -> list[dict]:
 async def close_phase(
     db: AsyncSession,
     group: Group,
-    phase_key: PhaseKey,
+    phase_key: str,
     *,
     closed_by: str = "system",
 ) -> PhaseWinnerHistory | None:
     """Record phase winner, snapshot top 3, reset member points and prize pool."""
+    if not is_effective_phase(phase_key, group):
+        return None
+
     existing = await db.execute(
         select(PhaseWinnerHistory).where(
             and_(
@@ -231,30 +182,29 @@ async def close_phase(
     for member in members_result.scalars().all():
         member.total_points = 0
     group.prize_pool = Decimal("0.00")
-    nxt = next_phase_key_after(phase_key)
+    nxt = next_effective_phase_key(group, phase_key)
     if nxt:
         group.current_phase_key = nxt
     await db.flush()
     return record
 
 
-async def try_close_completed_phases(db: AsyncSession, group_id: uuid.UUID) -> list[PhaseKey]:
+async def try_close_completed_phases(db: AsyncSession, group_id: uuid.UUID) -> list[str]:
     """
     Close every consecutive completed phase starting from the first unclosed.
     Returns list of phase keys that were closed in this run.
     """
-    group_result = await db.execute(select(Group).where(Group.id == group_id))
-    group = group_result.scalar_one_or_none()
+    group = await _get_group(db, group_id)
     if not group:
         return []
 
-    closed_keys: list[PhaseKey] = []
+    closed_keys: list[str] = []
     closed = await get_closed_phase_keys(db, group_id)
 
-    for phase_key in PHASE_ORDER:
+    for phase_key in get_effective_phases(group):
         if phase_key in closed:
             continue
-        if not await is_phase_complete(db, phase_key):
+        if not await is_phase_complete(db, phase_key, group):
             break
         await close_phase(db, group, phase_key)
         await db.refresh(group)
@@ -275,6 +225,17 @@ async def build_tournament_progress(db: AsyncSession, group_id: uuid.UUID) -> di
     """Progress payload for dashboard timeline."""
     from sqlalchemy.orm import selectinload
 
+    group = await _get_group(db, group_id)
+    if not group:
+        return {
+            "total_fixtures": 0,
+            "finished_fixtures": 0,
+            "current_phase_key": None,
+            "phases": [],
+            "phase_winners": [],
+            "prize_structure_mode": "full_milestones",
+        }
+
     history_result = await db.execute(
         select(PhaseWinnerHistory)
         .where(PhaseWinnerHistory.group_id == group_id)
@@ -291,8 +252,8 @@ async def build_tournament_progress(db: AsyncSession, group_id: uuid.UUID) -> di
     grand_total = 0
     grand_finished = 0
 
-    for phase_key in PHASE_ORDER:
-        total, finished = await count_phase_fixtures(db, phase_key)
+    for phase_key in get_effective_phases(group):
+        total, finished = await count_phase_fixtures(db, phase_key, group)
         grand_total += total
         grand_finished += finished
         cumulative_end += total
@@ -306,7 +267,7 @@ async def build_tournament_progress(db: AsyncSession, group_id: uuid.UUID) -> di
         phases_out.append(
             {
                 "phase_key": phase_key,
-                "label": PHASE_LABELS[phase_key],
+                "label": phase_label(phase_key, group),
                 "total_fixtures": total,
                 "finished_fixtures": finished,
                 "status": status,
@@ -320,7 +281,8 @@ async def build_tournament_progress(db: AsyncSession, group_id: uuid.UUID) -> di
         "finished_fixtures": grand_finished,
         "current_phase_key": current,
         "phases": phases_out,
-        "phase_winners": [_history_out(h) for h in history_rows],
+        "phase_winners": [_history_out(h, group) for h in history_rows],
+        "prize_structure_mode": group.prize_structure_mode,
     }
 
 
@@ -335,7 +297,7 @@ def _history_winner_dict(h: PhaseWinnerHistory | None) -> dict | None:
     }
 
 
-def _history_out(h: PhaseWinnerHistory) -> dict:
+def _history_out(h: PhaseWinnerHistory, group: Group) -> dict:
     winner = None
     if h.winner and h.winner_user_id:
         winner = {
@@ -354,7 +316,7 @@ def _history_out(h: PhaseWinnerHistory) -> dict:
         }
     return {
         "phase_key": h.phase_key,
-        "label": PHASE_LABELS.get(h.phase_key, h.phase_key),  # type: ignore[arg-type]
+        "label": phase_label(h.phase_key, group),
         "closed_at": h.phase_closed_at.isoformat(),
         "closed_by": h.closed_by,
         "winner": winner,
@@ -363,8 +325,12 @@ def _history_out(h: PhaseWinnerHistory) -> dict:
 
 
 async def list_phase_winners_admin(db: AsyncSession, group_id: uuid.UUID) -> list[dict]:
-    """All phases with closed history or pending status."""
+    """All effective phases with closed history or pending status."""
     from sqlalchemy.orm import selectinload
+
+    group = await _get_group(db, group_id)
+    if not group:
+        return []
 
     history_result = await db.execute(
         select(PhaseWinnerHistory)
@@ -375,8 +341,8 @@ async def list_phase_winners_admin(db: AsyncSession, group_id: uuid.UUID) -> lis
     history_by_key = {h.phase_key: h for h in history_result.scalars().all()}
     current = await get_current_phase_key(db, group_id)
     out: list[dict] = []
-    for phase_key in PHASE_ORDER:
-        total, finished = await count_phase_fixtures(db, phase_key)
+    for phase_key in get_effective_phases(group):
+        total, finished = await count_phase_fixtures(db, phase_key, group)
         hist = history_by_key.get(phase_key)
         if hist:
             status = "closed"
@@ -386,7 +352,7 @@ async def list_phase_winners_admin(db: AsyncSession, group_id: uuid.UUID) -> lis
             status = "pending"
         entry = {
             "phase_key": phase_key,
-            "label": PHASE_LABELS[phase_key],
+            "label": phase_label(phase_key, group),
             "status": status,
             "total_fixtures": total,
             "finished_fixtures": finished,

@@ -44,10 +44,14 @@ async def _upsert_fixture(db: AsyncSession, data: dict) -> Fixture:
 
 @router.get("/tournament-phases")
 @limiter.limit(GLOBAL_RATE_LIMIT)
-async def list_tournament_phases(request: Request, current_user: CurrentUser):
-    from app.services.tournament_phase_service import PHASE_ORDER, PHASE_LABELS
+async def list_tournament_phases(request: Request, current_user: CurrentUser, db: DBSession):
+    from app.services.tournament_phase_service import get_active_polla
+    from app.services.prize_structure_service import list_tournament_phases_for_group
 
-    return [{"key": k, "label": PHASE_LABELS[k]} for k in PHASE_ORDER]
+    polla = await get_active_polla(db)
+    if not polla:
+        return []
+    return list_tournament_phases_for_group(polla)
 
 
 @router.get("/groups", response_model=list[str])
@@ -84,11 +88,16 @@ async def list_fixtures(
     query = select(Fixture)
     filters = []
     if tournament_phase:
-        from app.services.tournament_phase_service import PHASE_ORDER, phase_fixture_filter
+        from app.services.tournament_phase_service import get_active_polla
+        from app.services.prize_structure_service import (
+            effective_phase_fixture_filter,
+            is_effective_phase,
+        )
 
-        if tournament_phase not in PHASE_ORDER:
+        polla = await get_active_polla(db)
+        if not polla or not is_effective_phase(tournament_phase, polla):
             raise HTTPException(status_code=400, detail="Invalid tournament_phase")
-        filters.append(phase_fixture_filter(tournament_phase))  # type: ignore[arg-type]
+        filters.append(effective_phase_fixture_filter(tournament_phase, polla))
     if group_name:
         filters.append(Fixture.group_name == group_name)
     if round_name:

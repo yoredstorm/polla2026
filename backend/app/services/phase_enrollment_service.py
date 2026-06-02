@@ -10,7 +10,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.group import Group
 from app.models.group_phase import GroupPhaseFee, GroupPhaseEnrollment, GroupPhaseEntryProof
-from app.services.tournament_phase_service import PHASE_ORDER, PHASE_LABELS, PhaseKey, next_phase_key_after
+from app.services.prize_structure_service import (
+    get_effective_phases,
+    phase_label,
+    is_effective_phase,
+)
 
 
 async def ensure_phase_fees_for_group(db: AsyncSession, group: Group) -> None:
@@ -30,7 +34,7 @@ async def seed_phase_fees_for_group(
 ) -> None:
     entry = default_entry if default_entry is not None else group.entry_fee
     extra = default_extra if default_extra is not None else group.fixed_bet_amount
-    for phase_key in PHASE_ORDER:
+    for phase_key in get_effective_phases(group):
         existing = await db.execute(
             select(GroupPhaseFee).where(
                 and_(GroupPhaseFee.group_id == group.id, GroupPhaseFee.phase_key == phase_key)
@@ -59,6 +63,12 @@ async def get_phase_fee(db: AsyncSession, group_id: uuid.UUID, phase_key: str) -
 
 
 async def list_phase_fees(db: AsyncSession, group_id: uuid.UUID) -> list[dict]:
+    from app.services.tournament_phase_service import _get_group
+
+    group = await _get_group(db, group_id)
+    if not group:
+        return []
+
     result = await db.execute(
         select(GroupPhaseFee)
         .where(GroupPhaseFee.group_id == group_id)
@@ -66,12 +76,12 @@ async def list_phase_fees(db: AsyncSession, group_id: uuid.UUID) -> list[dict]:
     )
     fees = {f.phase_key: f for f in result.scalars().all()}
     out: list[dict] = []
-    for key in PHASE_ORDER:
+    for key in get_effective_phases(group):
         f = fees.get(key)
         out.append(
             {
                 "phase_key": key,
-                "label": PHASE_LABELS[key],
+                "label": phase_label(key, group),
                 "entry_fee": str(f.entry_fee) if f else "0.00",
                 "extra_per_match": str(f.extra_per_match) if f and f.extra_per_match is not None else None,
             }
@@ -84,9 +94,15 @@ async def update_phase_fees(
     group_id: uuid.UUID,
     items: list[dict],
 ) -> list[dict]:
+    from app.services.tournament_phase_service import _get_group
+
+    group = await _get_group(db, group_id)
+    if not group:
+        return []
+
     for item in items:
         phase_key = item.get("phase_key")
-        if phase_key not in PHASE_ORDER:
+        if not phase_key or not is_effective_phase(phase_key, group):
             continue
         fee = await get_phase_fee(db, group_id, phase_key)
         if not fee:
@@ -162,4 +178,3 @@ async def confirm_phase_enrollment(
     group.prize_pool += entry_fee
     await db.flush()
     return enr
-

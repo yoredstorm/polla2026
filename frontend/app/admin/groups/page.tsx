@@ -13,7 +13,11 @@ import { MembersPanel } from "@/components/features/admin/groups/MembersPanel";
 import { PhaseWinnersPanel } from "@/components/features/admin/groups/PhaseWinnersPanel";
 import { PhaseFeesPanel } from "@/components/features/admin/groups/PhaseFeesPanel";
 import { PhasePendingEntriesPanel } from "@/components/features/admin/groups/PhasePendingEntriesPanel";
-import { TOURNAMENT_PHASES } from "@/lib/tournamentPhases";
+import {
+  phaseWinnersDescription,
+  showsReinscriptionPanel,
+} from "@/lib/prizeStructure";
+import { useAdminPhaseFees } from "@/hooks/useAdmin";
 
 export default function AdminPollaPage() {
   const { data, isLoading, refetch } = useAdminGroups(1, 1);
@@ -25,6 +29,14 @@ export default function AdminPollaPage() {
   const currency = polla?.currency ?? "PEN";
   const pendingEntryCount = nonMembers?.length ?? 0;
   const pendingExtraCount = pendingExtras?.length ?? 0;
+  const { data: phaseFeesData } = useAdminPhaseFees(polla?.id ?? null);
+  const currentPhaseFee = phaseFeesData?.fees?.find(
+    (f) => f.phase_key === polla?.current_phase_key,
+  );
+  const showReinscription = showsReinscriptionPanel(
+    polla?.prize_structure_mode,
+    polla?.current_phase_key,
+  );
 
   return (
     <div className="space-y-8">
@@ -51,8 +63,11 @@ export default function AdminPollaPage() {
                   <span className="font-bold text-white">{polla.member_count}</span>
                 </div>
                 <div className="flex items-center justify-between py-2 border-b border-white/10">
-                  <span className="text-muted text-sm">Entrada por persona</span>
-                  <span className="font-bold text-white">{currency} {parseFloat(polla.entry_fee).toFixed(2)}</span>
+                  <span className="text-muted text-sm">Entrada hito activo</span>
+                  <span className="font-bold text-white">
+                    {currency}{" "}
+                    {parseFloat(currentPhaseFee?.entry_fee ?? polla.entry_fee).toFixed(2)}
+                  </span>
                 </div>
                 {polla.fixed_bet_amount && parseFloat(polla.fixed_bet_amount) > 0 && (
                   <div className="flex items-center justify-between py-2 border-b border-white/10">
@@ -71,9 +86,7 @@ export default function AdminPollaPage() {
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
             <h2 className="font-display text-lg text-white mb-1">Ganadores por fase</h2>
             <p className="text-xs text-muted mb-4">
-              Siete fases: grupos, 16vos, 8vos, cuartos, semifinal, 3er puesto y final. Al cerrar cada una se
-              registra el líder en puntos, el pozo acumulado y se reinician puntos y pozo para la
-              siguiente fase.
+              {phaseWinnersDescription(polla.prize_structure_mode)}
             </p>
             <PhaseWinnersPanel pollaId={polla.id} currency={currency} />
           </div>
@@ -86,12 +99,11 @@ export default function AdminPollaPage() {
             <PhaseFeesPanel pollaId={polla.id} currency={currency} />
           </div>
 
-          {polla.current_phase_key && polla.current_phase_key !== "groups" && (
+          {showReinscription && polla.current_phase_key && (
             <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
               <h2 className="font-display text-lg text-white mb-1">
                 Reinscripciones —{" "}
-                {TOURNAMENT_PHASES.find((p) => p.key === polla.current_phase_key)?.label ??
-                  polla.current_phase_key}
+                {currentPhaseFee?.label ?? polla.current_phase_key}
               </h2>
               <p className="text-xs text-muted mb-4">
                 Miembros que subieron comprobante para la fase activa. Confirma el pago para sumar al pozo.
@@ -100,9 +112,7 @@ export default function AdminPollaPage() {
                 pollaId={polla.id}
                 currency={currency}
                 phaseKey={polla.current_phase_key}
-                phaseLabel={
-                  TOURNAMENT_PHASES.find((p) => p.key === polla.current_phase_key)?.label ?? ""
-                }
+                phaseLabel={currentPhaseFee?.label ?? polla.current_phase_key}
               />
             </div>
           )}

@@ -266,6 +266,7 @@ export function useCreatePolla() {
       entry_fee: number;
       currency: string;
       per_match_amount?: number;
+      prize_structure_mode?: string;
       challenge_max_stake?: number;
       challenge_daily_limit?: number;
       challenge_tournament_limit?: number;

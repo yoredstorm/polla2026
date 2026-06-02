@@ -315,10 +315,10 @@ async def create_bet(
     if not member_res.scalar_one_or_none():
         raise ValueError("NOT_POLLA_MEMBER")
 
-    from app.services.tournament_phase_service import fixture_phase_key
+    from app.services.prize_structure_service import fixture_effective_phase_key
     from app.services.phase_enrollment_service import get_enrollment, get_phase_fee
 
-    fixture_phase = fixture_phase_key(fixture)
+    fixture_phase = fixture_effective_phase_key(fixture, active_polla)
     active_phase = active_polla.current_phase_key or "groups"
     if not fixture_phase or fixture_phase != active_phase:
         raise ValueError("PHASE_MISMATCH")
