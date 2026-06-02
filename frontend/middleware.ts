@@ -49,9 +49,11 @@ export async function middleware(request: NextRequest) {
         const loginUrl = new URL("/login", request.url);
         loginUrl.searchParams.set("callbackUrl", pathname);
         return NextResponse.redirect(loginUrl);
+      } else {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
       }
     } catch {
-      // Allow through; admin layout will re-check
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
   }
 

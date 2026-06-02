@@ -64,6 +64,29 @@ async def test_admin_can_access_stats(client: AsyncClient, db_session):
 
 
 @pytest.mark.asyncio
+async def test_register_ignores_is_admin_in_body(client: AsyncClient, db_session):
+    """Mass-assignment: is_admin in JSON must not elevate privileges."""
+    from tests.conftest import register_payload
+
+    payload = register_payload("sec_mass_assign")
+    payload["is_admin"] = True
+    reg = await client.post("/api/v1/auth/register", json=payload)
+    assert reg.status_code == 201
+    body = reg.json()
+    assert body.get("is_admin") is False
+
+    result = await db_session.execute(select(User).where(User.username == "sec_mass_assign"))
+    user = result.scalar_one()
+    assert user.is_admin is False
+
+
+@pytest.mark.asyncio
+async def test_unauthenticated_admin_stats_returns_401(client: AsyncClient):
+    stats = await client.get("/api/v1/admin/stats")
+    assert stats.status_code == 401
+
+
+@pytest.mark.asyncio
 async def test_refresh_rotates_refresh_cookie(client: AsyncClient):
     await _register(client, "sec_user3")
     login = await _login(client, "sec_user3")

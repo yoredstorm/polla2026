@@ -1,0 +1,38 @@
+name: Security checks
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend-security:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Static SQL injection guard
+        run: pytest tests/test_sql_safety_static.py -q --no-cov
+
+      - name: RBAC and IDOR tests
+        run: pytest tests/test_security.py tests/test_idor.py -q --no-cov
+
+      - name: Validate production env script (smoke)
+        env:
+          APP_ENV: production
+          JWT_SECRET_KEY: test_access_secret_key_minimum_43_chars_long_xx
+          JWT_REFRESH_SECRET: test_refresh_secret_key_minimum_43_chars_long_xx
+          CORS_ORIGINS: https://redcardtech.uk
+          DEBUG: "false"
+        run: python scripts/verify_production_env.py
