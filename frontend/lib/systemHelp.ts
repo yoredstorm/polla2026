@@ -48,7 +48,7 @@ export const HELP_CONTENT = {
     short: "2 pts marcador exacto, 1 pt solo ganador correcto, 0 si fallas. Se calcula al finalizar el partido.",
   },
   "page.dashboard.prizePool": {
-    short: "Dinero acumulado del torneo (cuotas y extras confirmados). Premios: 60 % / 30 % / 10 % al top 3.",
+    short: "Dinero acumulado del torneo, un solo ganador!!",
   },
   "page.dashboard.topBettors": {
     short: "Vista rápida del ranking; el listado completo está en la sección Ranking.",
@@ -135,7 +135,7 @@ export const HELP_CONTENT = {
 
   // Ganadores
   "page.winners": {
-    short: "Podio de la polla activa y reparto del pozo: 1.º 60 %, 2.º 30 %, 3.º 10 %.",
+    short: "Podio de la polla activa",
   },
 
   // Conceptos
