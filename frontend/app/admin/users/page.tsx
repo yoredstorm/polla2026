@@ -9,6 +9,8 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const { data, isLoading, isError, refetch } = useAdminUsers(page, 20);
   const patchUser = usePatchUser();
+  const users = data?.data ?? [];
+  const totalPages = data?.pagination?.total_pages ?? 1;
 
   function toggle(userId: string, field: "is_active" | "is_admin", current: boolean) {
     patchUser.mutate({ userId, [field]: !current });
@@ -21,7 +23,7 @@ export default function AdminUsersPage() {
       <QueryState
         isLoading={isLoading}
         isError={isError}
-        isEmpty={!data?.data.length}
+        isEmpty={users.length === 0}
         onRetry={() => refetch()}
         errorMessage="No se pudieron cargar los usuarios."
         loadingSlot={<p className="text-muted">Cargando usuarios...</p>}
@@ -41,7 +43,7 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {data!.data.map((u: AdminUserEntry) => (
+                {users.map((u: AdminUserEntry) => (
                   <tr key={u.id} className="border-b border-white/5 hover:bg-white/5">
                     <td className="px-4 py-3 text-white font-medium">{u.username}</td>
                     <td className="px-4 py-3 text-center">
@@ -95,9 +97,9 @@ export default function AdminUsersPage() {
             </table>
           </div>
 
-          {data!.pagination.total_pages > 1 && (
+          {totalPages > 1 && (
             <div className="flex justify-center gap-2">
-              {Array.from({ length: data!.pagination.total_pages }, (_, i) => i + 1).map((p) => (
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
                 <button
                   key={p}
                   onClick={() => setPage(p)}

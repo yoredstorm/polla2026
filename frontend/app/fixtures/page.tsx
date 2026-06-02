@@ -53,6 +53,9 @@ export default function FixturesPage() {
     refetch: refetchFinished,
   } = finishedQuery;
 
+  const fixtures = data?.data ?? [];
+  const finishedFixtures = finishedData?.data ?? [];
+
   return (
     <PageShell maxWidth="xl">
         <HelpSectionTitle as="h1" helpKey="page.fixtures" className="mb-2">
@@ -98,7 +101,7 @@ export default function FixturesPage() {
         <QueryState
           isLoading={isLoading}
           isError={isError}
-          isEmpty={!data?.data.length}
+          isEmpty={fixtures.length === 0}
           onRetry={() => refetch()}
           errorMessage="No se pudieron cargar los partidos."
           loadingSlot={
@@ -114,7 +117,7 @@ export default function FixturesPage() {
         >
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {data?.data.map((fixture, i) => (
+              {fixtures.map((fixture, i) => (
                 <MatchCard key={fixture.id} fixture={fixture} index={i} />
               ))}
             </div>
@@ -158,7 +161,7 @@ export default function FixturesPage() {
           <QueryState
             isLoading={finishedLoading}
             isError={finishedError}
-            isEmpty={!finishedData?.data.length}
+            isEmpty={finishedFixtures.length === 0}
             onRetry={() => refetchFinished()}
             errorMessage="No se pudieron cargar los partidos culminados."
             loadingSlot={
@@ -175,7 +178,7 @@ export default function FixturesPage() {
             }
           >
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {finishedData?.data.map((fixture, i) => (
+              {finishedFixtures.map((fixture, i) => (
                 <MatchCard key={fixture.id} fixture={fixture} index={i} highlightFinished />
               ))}
             </div>
