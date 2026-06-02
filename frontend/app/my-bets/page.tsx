@@ -2,15 +2,15 @@
 import { Suspense, useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PageShell } from "@/components/ui/PageShell";
-import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
-import { HelpTooltip } from "@/components/help/HelpTooltip";
+import { PageShell } from "@/components/layout/PageShell";
+import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/features/help/HelpTooltip";
 import { Button } from "@/components/ui/Button";
-import { BettingSlip } from "@/components/betting/BettingSlip";
+import { BettingSlip } from "@/components/features/betting/BettingSlip";
 import { useMyBets, useMyChangeRequests, type ChangeRequest } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
-import { PaymentEntryBlock } from "@/components/payment/PaymentEntryBlock";
-import { MyChallengesSection } from "@/components/betting/MyChallengesSection";
+import { PaymentEntryBlock } from "@/components/features/payment/PaymentEntryBlock";
+import { MyChallengesSection } from "@/components/features/betting/MyChallengesSection";
 import { cn } from "@/lib/utils";
 
 type TabId = "pronosticos" | "retos";
@@ -65,7 +65,7 @@ function MyBetsPageContent() {
 
   return (
     <PageShell maxWidth="md">
-        <div className="flex items-start justify-between gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <HelpSectionTitle as="h1" helpKey="page.myBets">
               Mis Apuestas

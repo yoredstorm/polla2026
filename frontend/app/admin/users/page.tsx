@@ -2,10 +2,12 @@
 import { useState } from "react";
 import { useAdminUsers, usePatchUser } from "@/hooks/useAdmin";
 import { cn } from "@/lib/utils";
+import { QueryState } from "@/components/ui/QueryState";
+import type { AdminUserEntry } from "@/types/api";
 
 export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useAdminUsers(page, 20);
+  const { data, isLoading, isError, refetch } = useAdminUsers(page, 20);
   const patchUser = usePatchUser();
 
   function toggle(userId: string, field: "is_active" | "is_admin", current: boolean) {
@@ -16,11 +18,17 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       <h1 className="font-display text-2xl text-white">Gestionar Usuarios</h1>
 
-      {isLoading ? (
-        <p className="text-muted">Cargando usuarios...</p>
-      ) : data?.data.length ? (
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={!data?.data.length}
+        onRetry={() => refetch()}
+        errorMessage="No se pudieron cargar los usuarios."
+        loadingSlot={<p className="text-muted">Cargando usuarios...</p>}
+        emptySlot={<p className="text-muted">No hay usuarios registrados.</p>}
+      >
         <>
-          <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm overflow-x-auto">
+          <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm overflow-x-auto hidden md:block">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-muted text-xs uppercase">
@@ -33,15 +41,19 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {data.data.map((u: any) => (
+                {data!.data.map((u: AdminUserEntry) => (
                   <tr key={u.id} className="border-b border-white/5 hover:bg-white/5">
                     <td className="px-4 py-3 text-white font-medium">{u.username}</td>
                     <td className="px-4 py-3 text-center">
                       <button
+                        type="button"
+                        role="switch"
+                        aria-checked={u.is_active}
+                        aria-label={`Usuario ${u.username} activo`}
                         onClick={() => toggle(u.id, "is_active", u.is_active)}
                         disabled={patchUser.isPending}
                         className={cn(
-                          "w-10 h-5 rounded-full relative transition-colors",
+                          "min-h-11 min-w-11 w-11 h-6 rounded-full relative transition-colors inline-flex items-center",
                           u.is_active ? "bg-emerald-500" : "bg-white/20",
                         )}
                       >
@@ -55,10 +67,14 @@ export default function AdminUsersPage() {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
+                        type="button"
+                        role="switch"
+                        aria-checked={u.is_admin}
+                        aria-label={`Usuario ${u.username} administrador`}
                         onClick={() => toggle(u.id, "is_admin", u.is_admin)}
                         disabled={patchUser.isPending}
                         className={cn(
-                          "w-10 h-5 rounded-full relative transition-colors",
+                          "min-h-11 min-w-11 w-11 h-6 rounded-full relative transition-colors inline-flex items-center",
                           u.is_admin ? "bg-accent" : "bg-white/20",
                         )}
                       >
@@ -79,9 +95,9 @@ export default function AdminUsersPage() {
             </table>
           </div>
 
-          {data.pagination.total_pages > 1 && (
+          {data!.pagination.total_pages > 1 && (
             <div className="flex justify-center gap-2">
-              {Array.from({ length: data.pagination.total_pages }, (_, i) => i + 1).map((p) => (
+              {Array.from({ length: data!.pagination.total_pages }, (_, i) => i + 1).map((p) => (
                 <button
                   key={p}
                   onClick={() => setPage(p)}
@@ -96,9 +112,7 @@ export default function AdminUsersPage() {
             </div>
           )}
         </>
-      ) : (
-        <p className="text-muted">No hay usuarios.</p>
-      )}
+      </QueryState>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { format, formatDistanceToNow, isPast, differenceInHours } from "date-fns";
+import { EXACT_POINTS } from "@/lib/scoring";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -41,7 +42,7 @@ export function getStatusLabel(status: string): string {
 
 export function getPointsColor(points: number | null): string {
   if (points === null) return "text-muted";
-  if (points === 3) return "text-accent";
+  if (points === EXACT_POINTS) return "text-accent";
   if (points > 0) return "text-warning";
   return "text-danger";
 }

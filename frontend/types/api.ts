@@ -259,6 +259,18 @@ export interface AdminGroupEntry extends Group {
   member_count_actual: number;
 }
 
+/** Admin polla detail (settings + payment + challenges). */
+export interface AdminGroupDetail extends Group {
+  member_count: number;
+  challenges_enabled?: boolean;
+  challenge_max_stake?: number;
+  challenge_daily_limit?: number;
+  challenge_tournament_limit?: number;
+  payment_contact_name?: string | null;
+  payment_phone?: string | null;
+  payment_qr_url?: string | null;
+}
+
 export interface FixtureFilter {
   group_name?: string;
   date_from?: string;

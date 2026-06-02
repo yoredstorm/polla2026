@@ -1,8 +1,8 @@
 "use client";
 import Link from "next/link";
 import { Trophy, Medal } from "lucide-react";
-import { PageShell } from "@/components/ui/PageShell";
-import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { PageShell } from "@/components/layout/PageShell";
+import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
 

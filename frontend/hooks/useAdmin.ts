@@ -1,8 +1,15 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { getApiBase } from "@/lib/api";
-import type { AdminNonMember } from "@/types/api";
-import type { AdminStats, SettleResult } from "@/types/api";
+import type {
+  AdminNonMember,
+  AdminStats,
+  SettleResult,
+  AdminFixture,
+  AdminUserEntry,
+  AdminGroupDetail,
+  PaginatedResponse,
+} from "@/types/api";
 
 export interface AdminActionQueue {
   pending: {
@@ -68,10 +75,11 @@ export function useAdminFixtures(status?: string, page = 1, limit = 20) {
   return useQuery({
     queryKey: ["admin", "fixtures", status, page, limit],
     queryFn: () =>
-      api.get<{
-        data: any[];
-        pagination: { total: number; page: number; limit: number; total_pages: number };
-      }>("/admin/fixtures", { status: status || undefined, page, limit }),
+      api.get<PaginatedResponse<AdminFixture>>("/admin/fixtures", {
+        status: status || undefined,
+        page,
+        limit,
+      }),
     staleTime: 15_000,
   });
 }
@@ -142,10 +150,7 @@ export function useAdminUsers(page = 1, limit = 20) {
   return useQuery({
     queryKey: ["admin", "users", page, limit],
     queryFn: () =>
-      api.get<{
-        data: any[];
-        pagination: { total: number; page: number; limit: number; total_pages: number };
-      }>("/admin/users", { page, limit }),
+      api.get<PaginatedResponse<AdminUserEntry>>("/admin/users", { page, limit }),
     staleTime: 15_000,
   });
 }
@@ -154,7 +159,7 @@ export function usePatchUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ userId, ...body }: { userId: string; is_active?: boolean; is_admin?: boolean }) =>
-      api.patch<any>(`/admin/users/${userId}`, body),
+      api.patch<AdminUserEntry>(`/admin/users/${userId}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "users"] });
     },
@@ -165,10 +170,7 @@ export function useAdminGroups(page = 1, limit = 20) {
   return useQuery({
     queryKey: ["admin", "groups", page, limit],
     queryFn: () =>
-      api.get<{
-        data: any[];
-        pagination: { total: number; page: number; limit: number; total_pages: number };
-      }>("/admin/groups", { page, limit }),
+      api.get<PaginatedResponse<AdminGroupDetail>>("/admin/groups", { page, limit }),
     staleTime: 15_000,
   });
 }
@@ -187,7 +189,7 @@ export function useCreatePolla() {
       challenges_enabled?: boolean;
       payment_contact_name?: string;
       payment_phone?: string;
-    }) => api.post<any>("/admin/groups", body),
+    }) => api.post<AdminGroupDetail>("/admin/groups", body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin", "groups"] });
       qc.invalidateQueries({ queryKey: ["pool"] });

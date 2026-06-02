@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { changePassword } from "@/lib/auth";
 import { forcedChangePasswordSchema } from "@/lib/passwordSchema";
 import { z } from "zod";
-import { PageShell } from "@/components/ui/PageShell";
+import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/Button";
 import { AuthErrorAlert } from "@/components/ui/AuthErrorAlert";
 import { useAuthStore } from "@/store/authStore";

@@ -1,8 +1,8 @@
 "use client";
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { PageShell } from "@/components/ui/PageShell";
-import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { PageShell } from "@/components/layout/PageShell";
+import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
 import { Modal } from "@/components/ui/Modal";
 import {
   useNotifications,
@@ -13,10 +13,11 @@ import {
 } from "@/hooks/useNotifications";
 import { useAuth } from "@/hooks/useAuth";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
-import { NotificationItem } from "@/components/notifications/NotificationItem";
-import { PushNotificationSettings } from "@/components/notifications/PushNotificationSettings";
+import { NotificationItem } from "@/components/features/notifications/NotificationItem";
+import { PushNotificationSettings } from "@/components/features/notifications/PushNotificationSettings";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/api";
+import { QueryState } from "@/components/ui/QueryState";
 
 const TABS: { id: NotificationFilter; label: string }[] = [
   { id: "unread", label: "Nuevas" },
@@ -42,7 +43,7 @@ function NotificationsPageContent() {
   const [category, setCategory] = useState<NotificationCategory>("all");
   const [page, setPage] = useState(1);
   const limit = 20;
-  const { data, isLoading } = useNotifications(page, limit, tab, category);
+  const { data, isLoading, isError, refetch } = useNotifications(page, limit, tab, category);
   const markAll = useMarkAllNotificationsRead();
   const markRead = useMarkNotificationRead();
   const { handleReject, rejectCr, rejectPasswordReset } = useNotificationAdminActions();
@@ -131,7 +132,14 @@ function NotificationsPageContent() {
         ))}
       </div>
 
-      {isLoading && <p className="text-muted">Cargando...</p>}
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={false}
+        onRetry={() => refetch()}
+        errorMessage="No se pudieron cargar las notificaciones."
+        loadingSlot={<p className="text-muted">Cargando...</p>}
+      >
       <ul className="space-y-3">
         {items.map((n) => (
           <li
@@ -158,13 +166,14 @@ function NotificationsPageContent() {
         ))}
       </ul>
 
-      {!isLoading && items.length === 0 && (
+      {!items.length && (
         <p className="text-muted text-center py-12">
           {tab === "unread"
             ? "No tienes avisos nuevos."
             : "No hay notificaciones leídas."}
         </p>
       )}
+      </QueryState>
 
       {pagination && pagination.total_pages > 1 && (
         <div className="flex justify-center gap-3 mt-6">

@@ -3,8 +3,8 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
-import { PageShell } from "@/components/ui/PageShell";
-import { AdminMobileNav } from "@/components/admin/AdminMobileNav";
+import { PageShell } from "@/components/layout/PageShell";
+import { AdminMobileNav } from "@/components/features/admin/AdminMobileNav";
 import { useAdminActionQueue } from "@/hooks/useAdmin";
 import { cn } from "@/lib/utils";
 

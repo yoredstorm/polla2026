@@ -1,22 +1,23 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { PageShell } from "@/components/ui/PageShell";
-import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
-import { HelpTooltip } from "@/components/help/HelpTooltip";
+import { PageShell } from "@/components/layout/PageShell";
+import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/features/help/HelpTooltip";
 import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { LeaderboardListSkeleton } from "@/components/ui/Skeleton";
 import { useGlobalLeaderboard, useWeeklyLeaderboard, type LeaderboardSort } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/hooks/useAuth";
-import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
+import { LeaderboardEntryCard } from "@/components/features/leaderboard/LeaderboardEntryCard";
 import { useMyRival } from "@/hooks/useRival";
 import { Card } from "@/components/ui/Card";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { cn } from "@/lib/utils";
 import type { LeaderboardEntry } from "@/types/api";
-import { LeaderboardPodium } from "@/components/leaderboard/LeaderboardPodium";
+import { LeaderboardPodium } from "@/components/features/leaderboard/LeaderboardPodium";
+import { QueryState } from "@/components/ui/QueryState";
 
 const PAGE_SIZE = 20;
 const MIN_WAGERS = 1;
@@ -135,11 +136,23 @@ export default function LeaderboardPage() {
   const { user } = useAuth();
   const { data: rivalData } = useMyRival(!!user);
 
-  const { data: global, isLoading: globalLoading } = useGlobalLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
-  const { data: weekly, isLoading: weeklyLoading } = useWeeklyLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
+  const {
+    data: global,
+    isLoading: globalLoading,
+    isError: globalError,
+    refetch: refetchGlobal,
+  } = useGlobalLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
+  const {
+    data: weekly,
+    isLoading: weeklyLoading,
+    isError: weeklyError,
+    refetch: refetchWeekly,
+  } = useWeeklyLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
 
   const data = view === "global" ? global : weekly;
   const isLoading = view === "global" ? globalLoading : weeklyLoading;
+  const isError = view === "global" ? globalError : weeklyError;
+  const refetchLeaderboard = view === "global" ? refetchGlobal : refetchWeekly;
 
   return (
     <PageShell maxWidth="md">
@@ -224,18 +237,23 @@ export default function LeaderboardPage() {
       </div>
 
       {/* ── Contenido ── */}
-      {isLoading ? (
-        <LeaderboardListSkeleton count={6} />
-      ) : !data || data.length === 0 ? (
-        <p className="text-muted text-center py-20">Sin datos de ranking aún</p>
-      ) : displayMode === "top3" ? (
+      <QueryState
+        isLoading={isLoading}
+        isError={isError}
+        isEmpty={!data?.length}
+        onRetry={() => refetchLeaderboard()}
+        errorMessage="No se pudo cargar el ranking."
+        loadingSlot={<LeaderboardListSkeleton count={6} />}
+        emptySlot={<p className="text-muted text-center py-20">Sin datos de ranking aún</p>}
+      >
+      {displayMode === "top3" ? (
          <>
-          <LeaderboardPodium entries={data} currentUserId={user?.id} />
+          <LeaderboardPodium entries={data ?? []} currentUserId={user?.id} />
         </>
       ) : (
         <>
           <LeaderboardTable
-            entries={data}
+            entries={data ?? []}
             currentUserId={user?.id}
             page={page}
             pageSize={PAGE_SIZE}
@@ -261,6 +279,7 @@ export default function LeaderboardPage() {
           </div>
         </>
       )}
+      </QueryState>
 
     </PageShell>
   );

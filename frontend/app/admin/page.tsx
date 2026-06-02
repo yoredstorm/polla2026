@@ -1,6 +1,6 @@
 "use client";
 import { useAdminStats, useAdminTopWinners } from "@/hooks/useAdmin";
-import { AdminCommandCenter } from "@/components/admin/AdminCommandCenter";
+import { AdminCommandCenter } from "@/components/features/admin/AdminCommandCenter";
 
 export default function AdminDashboardPage() {
   const { data: stats, isLoading: loadingStats } = useAdminStats();

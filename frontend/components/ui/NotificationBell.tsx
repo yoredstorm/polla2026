@@ -9,11 +9,11 @@ import {
   useMarkNotificationRead,
 } from "@/hooks/useNotifications";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
-import { useRealtimeSync } from "@/components/RealtimeSyncProvider";
+import { useRealtimeSync } from "@/components/providers/RealtimeSyncProvider";
 import type { Notification } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
-import { NotificationItem } from "@/components/notifications/NotificationItem";
+import { NotificationItem } from "@/components/features/notifications/NotificationItem";
 
 export function NotificationBell() {
   const { user } = useAuth();

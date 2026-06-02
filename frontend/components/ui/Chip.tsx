@@ -15,6 +15,7 @@ export function Chip({ active, onClick, children, className, type = "button" }: 
     <button
       type={type}
       onClick={onClick}
+      aria-pressed={active ?? false}
       className={cn(
         "px-4 py-2 rounded-full text-sm transition-colors duration-200 cursor-pointer focus-ring",
         active

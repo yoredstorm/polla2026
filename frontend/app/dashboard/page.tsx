@@ -1,15 +1,15 @@
 "use client";
 import Link from "next/link";
 import { ChevronRight, Users } from "lucide-react";
-import { PageShell } from "@/components/ui/PageShell";
+import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
-import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
-import { HelpTooltip } from "@/components/help/HelpTooltip";
-import { HelpTourBanner } from "@/components/help/HelpTourBanner";
-import { useHelpTourRunner } from "@/components/help/HelpTour";
+import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/features/help/HelpTooltip";
+import { HelpTourBanner } from "@/components/features/help/HelpTourBanner";
+import { useHelpTourRunner } from "@/components/features/help/HelpTour";
 import { useHelpTour } from "@/hooks/useHelpTour";
-import { MatchCard } from "@/components/betting/MatchCard";
+import { MatchCard } from "@/components/features/betting/MatchCard";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { useFixtures } from "@/hooks/useFixtures";
 import { useGlobalLeaderboard } from "@/hooks/useLeaderboard";
@@ -19,21 +19,26 @@ import {
   useAnimatedPrizePool,
   parsePrizePool,
 } from "@/hooks/useAnimatedPrizePool";
-import { LeaderboardEntryCard } from "@/components/leaderboard/LeaderboardEntryCard";
-import { BadgeCatalogSection } from "@/components/gamification/BadgeCatalogSection";
-import { ActivityFeed } from "@/components/activity/ActivityFeed";
-import { FollowingFeed } from "@/components/social/FollowingFeed";
+import { LeaderboardEntryCard } from "@/components/features/leaderboard/LeaderboardEntryCard";
+import { BadgeCatalogSection } from "@/components/features/gamification/BadgeCatalogSection";
+import { ActivityFeed } from "@/components/features/activity/ActivityFeed";
+import { FollowingFeed } from "@/components/features/social/FollowingFeed";
 import { useMyRival } from "@/hooks/useRival";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { cn, formatCountdown } from "@/lib/utils";
 import { useChallengeAvailablePoints } from "@/hooks/useChallenges";
-import { ChallengeQuotaBars } from "@/components/betting/ChallengeQuotaBars";
-import { NeonPiggyBank } from "@/components/dashboard/NeonPiggyBank";
-import { LiveStatusStrip } from "@/components/dashboard/LiveStatusStrip";
+import { ChallengeQuotaBars } from "@/components/features/betting/ChallengeQuotaBars";
+import { NeonPiggyBank } from "@/components/features/dashboard/NeonPiggyBank";
+import { LiveStatusStrip } from "@/components/features/dashboard/LiveStatusStrip";
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { data: fixturesData, isLoading: fixturesLoading } = useFixtures({
+  const {
+    data: fixturesData,
+    isLoading: fixturesLoading,
+    isError: fixturesError,
+    refetch: refetchFixtures,
+  } = useFixtures({
     status: "scheduled",
     limit: 6,
   });
@@ -234,7 +239,18 @@ export default function DashboardPage() {
             >
               Próximos partidos
             </HelpSectionTitle>
-            {fixturesLoading ? (
+            {fixturesError ? (
+              <div className="text-center py-8 space-y-2">
+                <p className="text-danger text-sm">No se pudieron cargar los partidos.</p>
+                <button
+                  type="button"
+                  onClick={() => refetchFixtures()}
+                  className="text-xs px-3 py-2 rounded-lg bg-white/10 text-white"
+                >
+                  Reintentar
+                </button>
+              </div>
+            ) : fixturesLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[0, 1, 2, 3].map((i) => (
                   <MatchCardSkeleton key={i} />

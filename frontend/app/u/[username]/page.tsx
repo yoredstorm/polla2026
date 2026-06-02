@@ -2,9 +2,9 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { PageShell } from "@/components/ui/PageShell";
-import { HelpTooltip } from "@/components/help/HelpTooltip";
-import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
+import { PageShell } from "@/components/layout/PageShell";
+import { HelpTooltip } from "@/components/features/help/HelpTooltip";
+import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useUserPublicBets,
@@ -14,14 +14,14 @@ import {
 } from "@/hooks/useUserProfile";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api";
-import { BadgeGrid } from "@/components/gamification/BadgeGrid";
+import { BadgeGrid } from "@/components/features/gamification/BadgeGrid";
 import { formatAmount } from "@/lib/utils";
 import type { BadgeOut } from "@/types/api";
-import { CopyProfileModal } from "@/components/betting/CopyProfileModal";
-import { FollowButton } from "@/components/social/FollowButton";
+import { CopyProfileModal } from "@/components/features/betting/CopyProfileModal";
+import { FollowButton } from "@/components/features/social/FollowButton";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
-import { CopyBetDetailModal } from "@/components/betting/CopyBetDetailModal";
+import { CopyBetDetailModal } from "@/components/features/betting/CopyBetDetailModal";
 import type { Bet } from "@/types/api";
 
 export default function UserPublicProfilePage() {

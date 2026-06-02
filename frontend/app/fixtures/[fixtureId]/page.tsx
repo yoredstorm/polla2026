@@ -3,15 +3,15 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { Trophy, Medal } from "lucide-react";
 import { MotionSafe } from "@/components/ui/MotionSafe";
-import { PageShell } from "@/components/ui/PageShell";
-import { HelpSectionTitle } from "@/components/help/HelpSectionTitle";
-import { HelpTooltip } from "@/components/help/HelpTooltip";
+import { PageShell } from "@/components/layout/PageShell";
+import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
+import { HelpTooltip } from "@/components/features/help/HelpTooltip";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
-import { TeamAvatar } from "@/components/betting/TeamAvatar";
-import { BetForm } from "@/components/betting/BetForm";
-import { BettingSlip } from "@/components/betting/BettingSlip";
-import { ChallengeModal } from "@/components/betting/ChallengeModal";
-import { ChallengeCard } from "@/components/betting/ChallengeCard";
+import { TeamAvatar } from "@/components/features/betting/TeamAvatar";
+import { BetForm } from "@/components/features/betting/BetForm";
+import { BettingSlip } from "@/components/features/betting/BettingSlip";
+import { ChallengeModal } from "@/components/features/betting/ChallengeModal";
+import { ChallengeCard } from "@/components/features/betting/ChallengeCard";
 import { useToast } from "@/components/ui/Toast";
 import { getApiErrorMessage } from "@/lib/challengeUtils";
 import { useFixture } from "@/hooks/useFixtures";
@@ -26,10 +26,10 @@ import {
 } from "@/hooks/useChallenges";
 import { formatMatchDate, getStatusLabel, formatAmount, cn } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
-import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
-import { BettingTrendsBar } from "@/components/betting/BettingTrendsBar";
-import { ActivityFeed } from "@/components/activity/ActivityFeed";
-import { FixtureSocialSection } from "@/components/social/FixtureSocialSection";
+import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
+import { BettingTrendsBar } from "@/components/features/betting/BettingTrendsBar";
+import { ActivityFeed } from "@/components/features/activity/ActivityFeed";
+import { FixtureSocialSection } from "@/components/features/social/FixtureSocialSection";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 
 export default function FixtureDetailPage() {
@@ -43,7 +43,7 @@ export default function FixtureDetailPage() {
   const toast = useToast((s) => s.add);
   const [betPanelMinimized, setBetPanelMinimized] = useState(false);
 
-  const { data: fixture, isLoading } = useFixture(fixtureId);
+  const { data: fixture, isLoading, isError, refetch } = useFixture(fixtureId);
   const { data: myBets } = useMyBetsForFixture(fixtureId);
   const { data: polla } = useActivePolla();
 
@@ -60,6 +60,22 @@ export default function FixtureDetailPage() {
     return (
       <PageShell maxWidth="md">
         <MatchCardSkeleton />
+      </PageShell>
+    );
+  }
+  if (isError) {
+    return (
+      <PageShell maxWidth="md">
+        <div className="text-center py-20 space-y-3">
+          <p className="text-danger">No se pudo cargar el partido.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="text-sm px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20"
+          >
+            Reintentar
+          </button>
+        </div>
       </PageShell>
     );
   }

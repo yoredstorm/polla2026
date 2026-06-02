@@ -12,9 +12,9 @@ import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { getAdminResolveClosesAt, isAdminResolveWindowOpen } from "@/lib/matchTiming";
-import { FixtureDeadlineCountdown } from "@/components/betting/FixtureDeadlineCountdown";
+import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
-import { AdminPasswordResetTab } from "@/components/admin/AdminPasswordResetTab";
+import { AdminPasswordResetTab } from "@/components/features/admin/AdminPasswordResetTab";
 
 const STATUS_FILTERS: { value: string | undefined; label: string }[] = [
   { value: undefined, label: "Todos" },

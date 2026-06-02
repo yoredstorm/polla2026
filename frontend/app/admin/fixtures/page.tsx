@@ -1,11 +1,8 @@
 "use client";
 import { useState, useEffect } from "react";
-import {
-  useAdminFixtures,
-  useSettleFixture,
-  useEditFixture,
-  useKnownTeams,
-} from "@/hooks/useAdmin";
+import { useSettleFixture, useEditFixture, useKnownTeams } from "@/hooks/useAdmin";
+import { useAdminFixturesPage } from "@/hooks/admin/useAdminFixturesPage";
+import type { AdminFixture } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { formatMatchDate, getStatusLabel, getStatusColor } from "@/lib/utils";
@@ -100,7 +97,7 @@ function EditModal({
   fixture,
   onClose,
 }: {
-  fixture: any;
+  fixture: AdminFixture;
   onClose: () => void;
 }) {
   const editFixture = useEditFixture();
@@ -307,26 +304,23 @@ function EditModal({
 
 // ── Main Page ───────────────────────────────────────────────────────────────
 export default function AdminFixturesPage() {
-  const [statusFilter, setStatusFilter] = useState<string>("");
-  const [bettingFilter, setBettingFilter] = useState<"" | "open" | "closed">("");
-  const [page, setPage] = useState(1);
-  const { data, isLoading } = useAdminFixtures(statusFilter || undefined, page, 20);
-  const editFixture = useEditFixture();
-
-  const [settleModal, setSettleModal] = useState<any | null>(null);
-  const [editModal, setEditModal] = useState<any | null>(null);
-
-  const statuses = ["", "scheduled", "live", "finished", "cancelled"];
-
-  // Client-side filter for betting_open (avoids extra API params)
-  const rows: any[] = data?.data ?? [];
-  const filtered = bettingFilter === ""
-    ? rows
-    : rows.filter((f) => bettingFilter === "open" ? f.betting_open : !f.betting_open);
-
-  function quickToggle(f: any) {
-    editFixture.mutate({ fixtureId: f.id, data: { betting_open: !f.betting_open } });
-  }
+  const {
+    statusFilter,
+    bettingFilter,
+    page,
+    setPage,
+    settleModal,
+    setSettleModal,
+    editModal,
+    setEditModal,
+    query: { data, isLoading },
+    editFixture,
+    filtered,
+    quickToggle,
+    selectStatusFilter,
+    selectBettingFilter,
+    statuses,
+  } = useAdminFixturesPage();
 
   return (
     <div className="space-y-6">
@@ -342,7 +336,7 @@ export default function AdminFixturesPage() {
         {statuses.map((s) => (
           <button
             key={s}
-            onClick={() => { setStatusFilter(s); setPage(1); }}
+            onClick={() => selectStatusFilter(s)}
             className={cn(
               "px-3 py-1.5 rounded-lg text-sm transition-colors border",
               statusFilter === s
@@ -357,7 +351,7 @@ export default function AdminFixturesPage() {
         {(["", "open", "closed"] as const).map((v) => (
           <button
             key={v}
-            onClick={() => setBettingFilter(v)}
+            onClick={() => selectBettingFilter(v)}
             className={cn(
               "px-3 py-1.5 rounded-lg text-sm transition-colors border",
               bettingFilter === v
@@ -379,7 +373,7 @@ export default function AdminFixturesPage() {
       ) : filtered.length ? (
         <>
           <ul className="md:hidden space-y-3">
-            {filtered.map((f: any) => (
+            {filtered.map((f) => (
               <li
                 key={f.id}
                 className="rounded-xl border border-white/10 bg-glass p-4 space-y-3 cursor-default"
@@ -443,7 +437,7 @@ export default function AdminFixturesPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((f: any) => (
+                {filtered.map((f) => (
                   <tr key={f.id} className="border-b border-white/5 hover:bg-white/5">
                     {/* Teams with flags */}
                     <td className="px-4 py-3">
