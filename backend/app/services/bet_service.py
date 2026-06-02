@@ -315,6 +315,19 @@ async def create_bet(
     if not member_res.scalar_one_or_none():
         raise ValueError("NOT_POLLA_MEMBER")
 
+    from app.services.tournament_phase_service import fixture_phase_key
+    from app.services.phase_enrollment_service import get_enrollment, get_phase_fee
+
+    fixture_phase = fixture_phase_key(fixture)
+    active_phase = active_polla.current_phase_key or "groups"
+    if not fixture_phase or fixture_phase != active_phase:
+        raise ValueError("PHASE_MISMATCH")
+    enrollment = await get_enrollment(db, active_polla.id, user_id, active_phase)
+    if not enrollment or enrollment.status != "confirmed":
+        raise ValueError("PHASE_NOT_ENROLLED")
+
+    phase_fee_row = await get_phase_fee(db, active_polla.id, active_phase)
+
     # Resolve the effective amount for this bet
     effective_amount = data.amount or Decimal("0")
 
@@ -332,19 +345,18 @@ async def create_bet(
         group_result = await db.execute(select(Group).where(Group.id == data.group_id))
         group = group_result.scalar_one_or_none()
         if group:
+            phase_extra = (
+                phase_fee_row.extra_per_match
+                if phase_fee_row and phase_fee_row.extra_per_match
+                else group.fixed_bet_amount
+            )
             if group.bet_amount_mode == "single_entry":
-                # Entry fee covers all bets. Per-match extras are optional:
-                # if the user sent amount > 0 AND the group has fixed_bet_amount, record it
-                # pending admin confirmation. Otherwise 0.
-                if (
-                    data.amount and data.amount > 0
-                    and group.fixed_bet_amount and group.fixed_bet_amount > 0
-                ):
-                    effective_amount = group.fixed_bet_amount
+                if data.amount and data.amount > 0 and phase_extra and phase_extra > 0:
+                    effective_amount = phase_extra
                 else:
                     effective_amount = Decimal("0")
-            elif group.bet_amount_mode == "per_bet" and group.fixed_bet_amount is not None:
-                effective_amount = group.fixed_bet_amount
+            elif group.bet_amount_mode == "per_bet" and phase_extra is not None:
+                effective_amount = phase_extra
 
     # Extra amounts require admin confirmation before they count toward the prize pool.
     # Bets without a group or with amount=0 are auto-confirmed (nothing to collect).

@@ -42,7 +42,10 @@ export function PaymentGlobalNotice() {
     );
   }
 
-  if (polla.is_member) return null;
+  const enrolled =
+    polla.is_member &&
+    (!polla.phase_enrollment_status || polla.phase_enrollment_status === "confirmed");
+  if (enrolled) return null;
 
   return <PaymentPendingBanner />;
 }

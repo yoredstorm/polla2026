@@ -105,6 +105,30 @@ export function useJoinGroup() {
   });
 }
 
+export function useUploadPhaseEntryProof() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch(`${getApiBase()}/api/v1/groups/pool/active/phase-entry-proof`, {
+        method: "POST",
+        body: fd,
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw err;
+      }
+      return res.json() as Promise<{ ok: boolean; phase_key: string; has_uploaded_proof: boolean }>;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["pool", "active"] });
+      qc.invalidateQueries({ queryKey: ["admin", "phase-pending"] });
+    },
+  });
+}
+
 export function useUploadEntryProof() {
   const qc = useQueryClient();
   return useMutation({

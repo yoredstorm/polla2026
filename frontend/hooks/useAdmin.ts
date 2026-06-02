@@ -9,6 +9,8 @@ import type {
   AdminUserEntry,
   AdminGroupDetail,
   AdminPhaseWinnersResponse,
+  GroupPhaseFeeRow,
+  PhasePendingEntry,
   PaginatedResponse,
 } from "@/types/api";
 
@@ -173,6 +175,75 @@ export function useAdminGroups(page = 1, limit = 20) {
     queryFn: () =>
       api.get<PaginatedResponse<AdminGroupDetail>>("/admin/groups", { page, limit }),
     staleTime: 15_000,
+  });
+}
+
+export function useAdminPhaseFees(groupId: string | null) {
+  return useQuery({
+    queryKey: ["admin", "phase-fees", groupId],
+    queryFn: () =>
+      api.get<{ group_id: string; fees: GroupPhaseFeeRow[] }>(
+        `/admin/groups/${groupId}/phase-fees`,
+      ),
+    enabled: !!groupId,
+  });
+}
+
+export function usePatchPhaseFees() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      groupId,
+      fees,
+    }: {
+      groupId: string;
+      fees: { phase_key: string; entry_fee: number; extra_per_match: number | null }[];
+    }) =>
+      api.patch<{ group_id: string; fees: GroupPhaseFeeRow[] }>(
+        `/admin/groups/${groupId}/phase-fees`,
+        { fees },
+      ),
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ["admin", "phase-fees", v.groupId] });
+      qc.invalidateQueries({ queryKey: ["pool", "active"] });
+    },
+  });
+}
+
+export function useAdminPhasePendingEntries(groupId: string | null, phaseKey?: string) {
+  return useQuery({
+    queryKey: ["admin", "phase-pending", groupId, phaseKey],
+    queryFn: () =>
+      api.get<{ group_id: string; phase_key: string; pending: PhasePendingEntry[] }>(
+        `/admin/groups/${groupId}/phase-pending-entries`,
+        { phase_key: phaseKey },
+      ),
+    enabled: !!groupId,
+    refetchInterval: 20_000,
+  });
+}
+
+export function useConfirmPhaseEnrollment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      groupId,
+      userId,
+      phaseKey,
+    }: {
+      groupId: string;
+      userId: string;
+      phaseKey?: string;
+    }) =>
+      api.post(`/admin/groups/${groupId}/phase-enrollments`, {
+        user_id: userId,
+        phase_key: phaseKey,
+      }),
+    onSuccess: (_, v) => {
+      qc.invalidateQueries({ queryKey: ["admin", "phase-pending", v.groupId] });
+      qc.invalidateQueries({ queryKey: ["pool", "active"] });
+      qc.invalidateQueries({ queryKey: ["admin", "groups"] });
+    },
   });
 }
 

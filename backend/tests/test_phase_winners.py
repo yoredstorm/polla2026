@@ -47,10 +47,16 @@ def _fixture(
 async def test_fixture_phase_key_mapping():
     g = _fixture(1, group_name="Group A")
     assert fixture_phase_key(g) == "groups"
-    r16 = _fixture(2, round_name="Round of 16")
+    r32 = _fixture(2, round_name="Round of 32")
+    assert fixture_phase_key(r32) == "round_of_32"
+    r16 = _fixture(3, round_name="Round of 16")
     assert fixture_phase_key(r16) == "round_of_16"
-    qf = _fixture(3, round_name="Quarter-final")
+    qf = _fixture(4, round_name="Quarter-final")
     assert fixture_phase_key(qf) == "quarterfinal"
+    third = _fixture(5, round_name="Match for third place")
+    assert fixture_phase_key(third) == "third_place"
+    fin = _fixture(6, round_name="Final")
+    assert fixture_phase_key(fin) == "final"
 
 
 @pytest.mark.asyncio
@@ -86,6 +92,19 @@ async def test_close_phase_resets_points_and_pool(db_session):
     await db_session.flush()
 
     assert await is_phase_complete(db_session, "groups")
+    from app.models.group_phase import GroupPhaseEnrollment
+
+    db_session.add(
+        GroupPhaseEnrollment(
+            group_id=group.id,
+            user_id=owner.id,
+            phase_key="groups",
+            status="confirmed",
+            entry_fee_paid=Decimal("0"),
+        )
+    )
+    await db_session.flush()
+
     record = await close_phase(db_session, group, "groups")
     assert record is not None
     assert record.winner_user_id == owner.id
@@ -117,6 +136,17 @@ async def test_try_close_does_not_duplicate(db_session):
     db_session.add(group)
     await db_session.flush()
     db_session.add(GroupMember(group_id=group.id, user_id=owner.id, total_points=5))
+    from app.models.group_phase import GroupPhaseEnrollment
+
+    db_session.add(
+        GroupPhaseEnrollment(
+            group_id=group.id,
+            user_id=owner.id,
+            phase_key="groups",
+            status="confirmed",
+            entry_fee_paid=Decimal("0"),
+        )
+    )
     db_session.add(_fixture(200, group_name="Group A", status="finished"))
     await db_session.flush()
 
@@ -174,6 +204,8 @@ async def test_list_phase_winners_admin_shape(db_session):
     await db_session.flush()
 
     phases = await list_phase_winners_admin(db_session, group.id)
-    assert len(phases) == 5
+    assert len(phases) == 7
     assert phases[0]["phase_key"] == "groups"
+    assert phases[5]["phase_key"] == "third_place"
+    assert phases[6]["phase_key"] == "final"
     assert phases[0]["status"] == "active"

@@ -20,6 +20,7 @@ from app.models.bet_change_request import BetChangeRequest
 from app.models.password_reset_request import PasswordResetRequest
 from app.models.fixture import Fixture
 from app.models.group import Group, GroupMember, GroupEntryProof
+from app.models.group_phase import GroupPhaseEnrollment, GroupPhaseEntryProof
 from app.models.user import User, RefreshToken
 from app.services.bet_service import (
     settle_fixture_bets,
@@ -781,6 +782,10 @@ async def create_polla(
         payment_phone=body.payment_phone,
     )
     db.add(group)
+    await db.flush()
+    from app.services.phase_enrollment_service import seed_phase_fees_for_group
+
+    await seed_phase_fees_for_group(db, group)
     await db.commit()
     await db.refresh(group)
     logger.info("polla_created", group_id=str(group.id), admin=str(admin.id))
@@ -865,6 +870,7 @@ async def list_groups(
                 "challenge_tournament_limit": g.challenge_tournament_limit,
                 "challenges_enabled": g.challenges_enabled,
                 "member_count": member_counts.get(g.id, 0),
+                "current_phase_key": g.current_phase_key,
                 "created_at": g.created_at.isoformat(),
                 **_group_payment_dict(g),
             }
@@ -1033,15 +1039,25 @@ async def add_group_member(
     proof_row = proof_res.scalar_one_or_none()
     had_proof = proof_row is not None
 
+    from app.services.phase_enrollment_service import (
+        confirm_phase_enrollment,
+        ensure_phase_fees_for_group,
+        get_phase_fee,
+    )
+
+    await ensure_phase_fees_for_group(db, group)
+    fee_row = await get_phase_fee(db, group_id, "groups")
+    entry_fee = fee_row.entry_fee if fee_row else group.entry_fee
+
     prev_pool = group.prize_pool
-    member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=group.entry_fee)
+    member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=entry_fee)
     db.add(member)
-    group.prize_pool += group.entry_fee
+    await confirm_phase_enrollment(db, group, body.user_id, "groups", admin.id)
     await log_action(db, user_id=admin.id, action="admin_confirm_entry", detail={
         "group_id": str(group_id),
         "member_user_id": str(body.user_id),
         "username": user.username,
-        "entry_fee": str(group.entry_fee),
+        "entry_fee": str(entry_fee),
         "had_proof": had_proof,
         "confirmed_with_proof": had_proof,
         "proof_uploaded_at": proof_row.uploaded_at.isoformat() if proof_row else None,
@@ -1201,6 +1217,232 @@ async def get_entry_proof(
     path = resolve_readable_path(proof.file_path)
     response = FileResponse(path, media_type="image/jpeg")
     return apply_cors_headers(request, response)
+
+
+class PhaseFeeItemIn(BaseModel):
+    phase_key: str
+    entry_fee: float | None = None
+    extra_per_match: float | None = None
+
+
+class PhaseFeesPatchIn(BaseModel):
+    fees: list[PhaseFeeItemIn]
+
+
+class PhaseEnrollmentIn(BaseModel):
+    user_id: uuid.UUID
+    phase_key: str | None = None
+
+
+@router.get("/groups/{group_id}/phase-fees")
+@limiter.limit(ADMIN_RATE)
+async def get_group_phase_fees(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    from app.services.phase_enrollment_service import ensure_phase_fees_for_group, list_phase_fees
+
+    group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    await ensure_phase_fees_for_group(db, group)
+    return {"group_id": str(group_id), "fees": await list_phase_fees(db, group_id)}
+
+
+@router.patch("/groups/{group_id}/phase-fees")
+@limiter.limit(ADMIN_RATE)
+async def patch_group_phase_fees(
+    request: Request,
+    group_id: uuid.UUID,
+    body: PhaseFeesPatchIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    from app.services.phase_enrollment_service import ensure_phase_fees_for_group, update_phase_fees
+
+    group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    await ensure_phase_fees_for_group(db, group)
+    fees = await update_phase_fees(
+        db,
+        group_id,
+        [f.model_dump() for f in body.fees],
+    )
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_update_phase_fees",
+        detail={"group_id": str(group_id), "fees": fees},
+        ip=request.client.host if request.client else None,
+    )
+    await db.commit()
+    return {"group_id": str(group_id), "fees": fees}
+
+
+@router.get("/groups/{group_id}/phase-pending-entries")
+@limiter.limit(ADMIN_RATE)
+async def list_phase_pending_entries(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+    phase_key: str | None = Query(None),
+):
+    from app.services.tournament_phase_service import PHASE_LABELS
+    from app.services.payment_upload_service import phase_entry_proof_data_url
+
+    group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    pk = phase_key or group.current_phase_key or "groups"
+
+    members_q = (
+        select(User, GroupMember, GroupPhaseEntryProof)
+        .join(GroupMember, GroupMember.user_id == User.id)
+        .outerjoin(
+            GroupPhaseEntryProof,
+            and_(
+                GroupPhaseEntryProof.group_id == group_id,
+                GroupPhaseEntryProof.user_id == User.id,
+                GroupPhaseEntryProof.phase_key == pk,
+            ),
+        )
+        .where(GroupMember.group_id == group_id)
+    )
+    rows = (await db.execute(members_q)).all()
+    out = []
+    for user, _member, proof in rows:
+        enr_res = await db.execute(
+            select(GroupPhaseEnrollment).where(
+                and_(
+                    GroupPhaseEnrollment.group_id == group_id,
+                    GroupPhaseEnrollment.user_id == user.id,
+                    GroupPhaseEnrollment.phase_key == pk,
+                )
+            )
+        )
+        enr = enr_res.scalar_one_or_none()
+        if enr and enr.status == "confirmed":
+            continue
+        if not proof:
+            continue
+        out.append(
+            {
+                "user_id": str(user.id),
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phase_key": pk,
+                "phase_label": PHASE_LABELS.get(pk, pk),  # type: ignore[arg-type]
+                "has_proof": True,
+                "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
+            }
+        )
+    return {"group_id": str(group_id), "phase_key": pk, "pending": out}
+
+
+@router.get("/groups/{group_id}/phase-entry-proofs/{user_id}")
+@limiter.limit(ADMIN_RATE)
+async def get_phase_entry_proof(
+    request: Request,
+    group_id: uuid.UUID,
+    user_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+    phase_key: str = Query(...),
+):
+    from app.models.group_phase import GroupPhaseEntryProof
+
+    result = await db.execute(
+        select(GroupPhaseEntryProof).where(
+            and_(
+                GroupPhaseEntryProof.group_id == group_id,
+                GroupPhaseEntryProof.user_id == user_id,
+                GroupPhaseEntryProof.phase_key == phase_key,
+            )
+        )
+    )
+    proof = result.scalar_one_or_none()
+    if not proof:
+        raise HTTPException(status_code=404, detail="Phase entry proof not found")
+    path = resolve_readable_path(proof.file_path)
+    response = FileResponse(path, media_type="image/jpeg")
+    return apply_cors_headers(request, response)
+
+
+@router.post("/groups/{group_id}/phase-enrollments", status_code=201)
+@limiter.limit(ADMIN_RATE)
+async def confirm_phase_enrollment_route(
+    request: Request,
+    group_id: uuid.UUID,
+    body: PhaseEnrollmentIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+    redis: RedisClient,
+):
+    from app.services.phase_enrollment_service import confirm_phase_enrollment, ensure_phase_fees_for_group
+    from app.services.tournament_phase_service import PHASE_LABELS
+
+    group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    user = (await db.execute(select(User).where(User.id == body.user_id))).scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    member = (
+        await db.execute(
+            select(GroupMember).where(
+                and_(GroupMember.group_id == group_id, GroupMember.user_id == body.user_id)
+            )
+        )
+    ).scalar_one_or_none()
+    if not member:
+        raise HTTPException(status_code=400, detail="User is not a polla member")
+
+    await ensure_phase_fees_for_group(db, group)
+    phase_key = body.phase_key or group.current_phase_key or "groups"
+    prev_pool = group.prize_pool
+    enr = await confirm_phase_enrollment(db, group, body.user_id, phase_key, admin.id)
+    await log_action(
+        db,
+        user_id=admin.id,
+        action="admin_confirm_phase_enrollment",
+        detail={
+            "group_id": str(group_id),
+            "user_id": str(body.user_id),
+            "phase_key": phase_key,
+            "entry_fee_paid": str(enr.entry_fee_paid),
+        },
+        ip=request.client.host if request.client else None,
+    )
+    await resolve_actionable_notifications(
+        db,
+        redis,
+        notification_type="phase_entry_pending",
+        payload_match={
+            "group_id": str(group_id),
+            "user_id": str(body.user_id),
+            "phase_key": phase_key,
+        },
+    )
+    await db.commit()
+    await broadcast_polla_updated(
+        db,
+        redis,
+        group_id=group.id,
+        prize_pool=group.prize_pool,
+        previous_prize_pool=prev_pool,
+        reason="phase_enrollment_confirmed",
+    )
+    return {
+        "ok": True,
+        "phase_key": phase_key,
+        "phase_label": PHASE_LABELS.get(phase_key, phase_key),
+        "prize_pool": str(group.prize_pool),
+    }
 
 
 @router.get("/groups/{group_id}/phase-winners")

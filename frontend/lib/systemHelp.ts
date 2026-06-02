@@ -54,9 +54,9 @@ export const HELP_CONTENT = {
     short: "Vista rápida del ranking; el listado completo está en la sección Ranking.",
   },
   "page.dashboard.progress": {
-    short: "Avance por partidos y hitos entre fases (grupos, octavos, cuartos, semifinal, final).",
+    short: "Avance por partidos y hitos: grupos, 16vos, 8vos, cuartos, semifinal, 3er puesto y final.",
     detail:
-      "Cada línea vertical marca el cierre de una fase y su ganador. Los puntos y el pozo se reinician al terminar cada etapa.",
+      "Cada línea vertical marca el cierre de una fase y su ganador (7 en total). Los puntos y el pozo se reinician; hay que pagar de nuevo para el siguiente hito.",
   },
 
   // Páginas — fixtures

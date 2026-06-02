@@ -28,6 +28,9 @@ const CODE_MESSAGES_ES: Record<string, string> = {
   UNKNOWN_ERROR: "Ocurrió un error inesperado.",
   HTTP_ERROR: "El servidor devolvió un error.",
   SESSION_EXPIRED: "Tu sesión expiró. Vuelve a iniciar sesión.",
+  PHASE_MISMATCH: "Este partido no corresponde a la fase activa de la polla.",
+  PHASE_NOT_ENROLLED:
+    "Debes pagar e inscribirte en la fase actual para pronosticar estos partidos.",
 };
 
 function messageForHttpStatus(status: number): string {

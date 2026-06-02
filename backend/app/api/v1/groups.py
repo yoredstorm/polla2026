@@ -14,6 +14,7 @@ from sqlalchemy import select, and_, func, desc, nulls_last
 from app.api.deps import CurrentUser, DBSession, RedisClient
 from app.core.rate_limiter import limiter, GLOBAL_RATE_LIMIT
 from app.models.group import Group, GroupMember, GroupEntryProof
+from app.models.group_phase import GroupPhaseEntryProof
 from app.models.bet import Bet
 from app.models.user import User
 from app.models.fixture import Fixture
@@ -35,6 +36,7 @@ from app.services.payment_upload_service import (
     payment_qr_public_url,
     resolve_readable_path,
     save_entry_proof,
+    save_phase_entry_proof,
 )
 
 from decimal import Decimal
@@ -58,6 +60,11 @@ class ActivePollaOut(BaseModel):
     payment_qr_data_url: str | None = None
     has_uploaded_proof: bool = False
     challenges_enabled: bool = True
+    current_phase_key: str = "groups"
+    current_phase_label: str = "Grupos"
+    current_phase_entry_fee: str = "0.00"
+    current_phase_extra_per_match: str | None = None
+    phase_enrollment_status: str = "none"
 
 
 async def _get_active_group(db: DBSession) -> Group | None:
@@ -85,9 +92,18 @@ def _active_polla_payment_fields(group: Group) -> tuple[str | None, str | None, 
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSession):
     """Returns the first active group (the 'polla') and whether current user is a member."""
+    from app.services.phase_enrollment_service import (
+        ensure_phase_fees_for_group,
+        enrollment_status_for_user,
+        get_phase_fee,
+    )
+    from app.services.tournament_phase_service import PHASE_LABELS
+
     group = await _get_active_group(db)
     if not group:
         return None
+
+    await ensure_phase_fees_for_group(db, group)
 
     member_res = await db.execute(
         select(GroupMember).where(
@@ -104,10 +120,32 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         per_match = group.fixed_bet_amount
 
     contact_name, phone, qr_url = _active_polla_payment_fields(group)
+    phase_key = group.current_phase_key or "groups"
+    phase_fee = await get_phase_fee(db, group.id, phase_key)
+    phase_entry = phase_fee.entry_fee if phase_fee else group.entry_fee
+    phase_extra = phase_fee.extra_per_match if phase_fee else group.fixed_bet_amount
+    enroll_status = (
+        await enrollment_status_for_user(db, group, current_user.id)
+        if is_member
+        else ("none" if phase_key != "groups" else "none")
+    )
     has_proof = False
     qr_data_url: str | None = None
-    if not is_member:
+    if not is_member and phase_key == "groups":
         has_proof = await _user_has_proof(db, group.id, current_user.id)
+        if group.payment_qr_path:
+            qr_data_url = payment_qr_data_url(group.payment_qr_path)
+    elif is_member and enroll_status != "confirmed":
+        proof_res = await db.execute(
+            select(GroupPhaseEntryProof).where(
+                and_(
+                    GroupPhaseEntryProof.group_id == group.id,
+                    GroupPhaseEntryProof.user_id == current_user.id,
+                    GroupPhaseEntryProof.phase_key == phase_key,
+                )
+            )
+        )
+        has_proof = proof_res.scalar_one_or_none() is not None
         if group.payment_qr_path:
             qr_data_url = payment_qr_data_url(group.payment_qr_path)
 
@@ -126,6 +164,11 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         payment_qr_data_url=qr_data_url,
         has_uploaded_proof=has_proof,
         challenges_enabled=getattr(group, "challenges_enabled", True),
+        current_phase_key=phase_key,
+        current_phase_label=PHASE_LABELS.get(phase_key, phase_key),  # type: ignore[arg-type]
+        current_phase_entry_fee=str(phase_entry),
+        current_phase_extra_per_match=str(phase_extra) if phase_extra else None,
+        phase_enrollment_status=enroll_status if is_member else "none",
     )
 
 
@@ -210,6 +253,94 @@ async def upload_entry_proof(
     )
     await db.commit()
     return {"ok": True, "has_uploaded_proof": True}
+
+
+@router.post("/pool/active/phase-entry-proof", status_code=201)
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def upload_phase_entry_proof(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    redis: RedisClient,
+    file: UploadFile = File(...),
+):
+    """Upload payment proof for the active tournament phase (re-enrollment)."""
+    from app.services.phase_enrollment_service import enrollment_status_for_user
+    from app.services.tournament_phase_service import PHASE_LABELS
+
+    group = await _get_active_group(db)
+    if not group:
+        raise HTTPException(status_code=404, detail="No active polla")
+
+    phase_key = group.current_phase_key or "groups"
+    member_res = await db.execute(
+        select(GroupMember).where(
+            and_(GroupMember.group_id == group.id, GroupMember.user_id == current_user.id)
+        )
+    )
+    is_member = member_res.scalar_one_or_none() is not None
+    if phase_key != "groups" and not is_member:
+        raise HTTPException(
+            status_code=403,
+            detail="You must be a polla member before re-enrolling in a new phase",
+        )
+    if is_member:
+        status = await enrollment_status_for_user(db, group, current_user.id)
+        if status == "confirmed":
+            raise HTTPException(status_code=403, detail="Already enrolled in this phase")
+
+    file_path = await save_phase_entry_proof(group.id, current_user.id, phase_key, file)
+    existing = await db.execute(
+        select(GroupPhaseEntryProof).where(
+            and_(
+                GroupPhaseEntryProof.group_id == group.id,
+                GroupPhaseEntryProof.user_id == current_user.id,
+                GroupPhaseEntryProof.phase_key == phase_key,
+            )
+        )
+    )
+    proof = existing.scalar_one_or_none()
+    if proof:
+        proof.file_path = file_path
+        proof.uploaded_at = datetime.now(timezone.utc)
+    else:
+        db.add(
+            GroupPhaseEntryProof(
+                group_id=group.id,
+                user_id=current_user.id,
+                phase_key=phase_key,
+                file_path=file_path,
+            )
+        )
+    await db.flush()
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="phase_entry_proof_uploaded",
+        detail={
+            "group_id": str(group.id),
+            "phase_key": phase_key,
+            "username": current_user.username,
+        },
+        ip=request.client.host if request.client else None,
+    )
+    title = f"Inscripción pendiente — {PHASE_LABELS.get(phase_key, phase_key)}"
+    body = f"{current_user.username} subió comprobante para la fase {phase_key}."
+    await notify_admins(
+        db,
+        redis,
+        type="phase_entry_pending",
+        title=title,
+        body=body,
+        payload={
+            "group_id": str(group.id),
+            "user_id": str(current_user.id),
+            "phase_key": phase_key,
+            "has_proof": True,
+        },
+    )
+    await db.commit()
+    return {"ok": True, "phase_key": phase_key, "has_uploaded_proof": True}
 
 
 class WinnerEntry(BaseModel):

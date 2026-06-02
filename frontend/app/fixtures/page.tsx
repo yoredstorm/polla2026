@@ -8,6 +8,7 @@ import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { QueryState } from "@/components/ui/QueryState";
 import { useFixturesListPage } from "@/hooks/fixtures/useFixturesListPage";
 import type { FixtureStatus } from "@/types/api";
+import { TOURNAMENT_PHASES } from "@/lib/tournamentPhases";
 
 const GROUPS = [
   { id: undefined, label: "Todos" },
@@ -35,6 +36,7 @@ const STATUSES: { value: FixtureStatus | undefined; label: string }[] = [
 export default function FixturesPage() {
   const {
     groupName,
+    tournamentPhase,
     status,
     page,
     setPage,
@@ -42,6 +44,7 @@ export default function FixturesPage() {
     fixturesQuery,
     finishedQuery,
     selectGroup,
+    selectTournamentPhase,
     selectStatus,
   } = useFixturesListPage();
 
@@ -69,18 +72,40 @@ export default function FixturesPage() {
             <HelpTooltip helpKey="page.fixtures.filters" label="Filtros de partidos" />
           </div>
           <div className="flex gap-2 flex-wrap items-center overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:overflow-visible md:snap-none">
-            <span className="text-muted text-xs uppercase tracking-wider mr-1 shrink-0">Grupo:</span>
-            {GROUPS.map((g) => (
+            <span className="text-muted text-xs uppercase tracking-wider mr-1 shrink-0">Fase:</span>
+            <Chip
+              className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
+              active={!tournamentPhase}
+              onClick={() => selectTournamentPhase(undefined)}
+            >
+              Todas
+            </Chip>
+            {TOURNAMENT_PHASES.map((p) => (
               <Chip
-                key={g.id ?? "all"}
+                key={p.key}
                 className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
-                active={groupName === g.id}
-                onClick={() => selectGroup(g.id)}
+                active={tournamentPhase === p.key}
+                onClick={() => selectTournamentPhase(p.key)}
               >
-                {g.label}
+                {p.label}
               </Chip>
             ))}
           </div>
+          {!tournamentPhase && (
+            <div className="flex gap-2 flex-wrap items-center overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:overflow-visible md:snap-none">
+              <span className="text-muted text-xs uppercase tracking-wider mr-1 shrink-0">Grupo:</span>
+              {GROUPS.map((g) => (
+                <Chip
+                  key={g.id ?? "all"}
+                  className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
+                  active={groupName === g.id}
+                  onClick={() => selectGroup(g.id)}
+                >
+                  {g.label}
+                </Chip>
+              ))}
+            </div>
+          )}
           <div className="flex gap-2 flex-wrap items-center">
             <span className="text-muted text-xs uppercase tracking-wider mr-1">Estado:</span>
             {STATUSES.map((s) => (

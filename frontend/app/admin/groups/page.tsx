@@ -11,6 +11,9 @@ import { PendingEntriesPanel } from "@/components/features/admin/groups/PendingE
 import { PendingExtrasPanel } from "@/components/features/admin/groups/PendingExtrasPanel";
 import { MembersPanel } from "@/components/features/admin/groups/MembersPanel";
 import { PhaseWinnersPanel } from "@/components/features/admin/groups/PhaseWinnersPanel";
+import { PhaseFeesPanel } from "@/components/features/admin/groups/PhaseFeesPanel";
+import { PhasePendingEntriesPanel } from "@/components/features/admin/groups/PhasePendingEntriesPanel";
+import { TOURNAMENT_PHASES } from "@/lib/tournamentPhases";
 
 export default function AdminPollaPage() {
   const { data, isLoading, refetch } = useAdminGroups(1, 1);
@@ -68,12 +71,41 @@ export default function AdminPollaPage() {
           <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6">
             <h2 className="font-display text-lg text-white mb-1">Ganadores por fase</h2>
             <p className="text-xs text-muted mb-4">
-              Cinco fases: grupos, octavos, cuartos, semifinal y final. Al cerrar cada una se
+              Siete fases: grupos, 16vos, 8vos, cuartos, semifinal, 3er puesto y final. Al cerrar cada una se
               registra el líder en puntos, el pozo acumulado y se reinician puntos y pozo para la
               siguiente fase.
             </p>
             <PhaseWinnersPanel pollaId={polla.id} currency={currency} />
           </div>
+
+          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/5 p-6 space-y-4">
+            <h2 className="font-display text-lg text-white">Montos por hito</h2>
+            <p className="text-xs text-muted">
+              Define cuánto cuesta inscribirse en cada fase (ej. la final puede valer más).
+            </p>
+            <PhaseFeesPanel pollaId={polla.id} currency={currency} />
+          </div>
+
+          {polla.current_phase_key && polla.current_phase_key !== "groups" && (
+            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">
+              <h2 className="font-display text-lg text-white mb-1">
+                Reinscripciones —{" "}
+                {TOURNAMENT_PHASES.find((p) => p.key === polla.current_phase_key)?.label ??
+                  polla.current_phase_key}
+              </h2>
+              <p className="text-xs text-muted mb-4">
+                Miembros que subieron comprobante para la fase activa. Confirma el pago para sumar al pozo.
+              </p>
+              <PhasePendingEntriesPanel
+                pollaId={polla.id}
+                currency={currency}
+                phaseKey={polla.current_phase_key}
+                phaseLabel={
+                  TOURNAMENT_PHASES.find((p) => p.key === polla.current_phase_key)?.label ?? ""
+                }
+              />
+            </div>
+          )}
 
           <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
             <div className="flex items-center gap-2 mb-1">

@@ -48,6 +48,29 @@ export interface ActivePolla {
   payment_qr_data_url?: string | null;
   has_uploaded_proof?: boolean;
   challenges_enabled?: boolean;
+  current_phase_key?: string;
+  current_phase_label?: string;
+  current_phase_entry_fee?: string;
+  current_phase_extra_per_match?: string | null;
+  phase_enrollment_status?: "confirmed" | "pending" | "none";
+}
+
+export interface GroupPhaseFeeRow {
+  phase_key: string;
+  label: string;
+  entry_fee: string;
+  extra_per_match: string | null;
+}
+
+export interface PhasePendingEntry {
+  user_id: string;
+  username: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  phase_key: string;
+  phase_label: string;
+  has_proof: boolean;
+  proof_url: string;
 }
 
 export interface AdminNonMember {
@@ -326,6 +349,7 @@ export interface TournamentProgress {
 
 export interface AdminGroupDetail extends Group {
   member_count: number;
+  current_phase_key?: string;
   challenges_enabled?: boolean;
   challenge_max_stake?: number;
   challenge_daily_limit?: number;
@@ -337,6 +361,7 @@ export interface AdminGroupDetail extends Group {
 
 export interface FixtureFilter {
   group_name?: string;
+  tournament_phase?: string;
   date_from?: string;
   date_to?: string;
   status?: FixtureStatus;
@@ -350,6 +375,7 @@ export type NotificationType =
   | "change_request_pending"
   | "extra_bet_pending"
   | "entry_pending"
+  | "phase_entry_pending"
   | "fixture_finished"
   | "fixture_betting_closed"
   | "fixture_betting_closed_admin"

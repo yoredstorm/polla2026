@@ -20,17 +20,25 @@ export function PaymentEntryBlock({
   currency: string;
 }) {
   const { openPaymentModal } = usePaymentFlow();
-  const fee = parseFloat(polla.entry_fee) || 0;
-  const stepIndex = polla.is_member ? 2 : polla.has_uploaded_proof ? 1 : 0;
+  const fee = parseFloat(polla.current_phase_entry_fee ?? polla.entry_fee) || 0;
+  const enrolled =
+    polla.is_member &&
+    (!polla.phase_enrollment_status || polla.phase_enrollment_status === "confirmed");
+  const stepIndex = enrolled ? 2 : polla.has_uploaded_proof ? 1 : 0;
+  const phaseLabel = polla.current_phase_label ?? "esta fase";
 
   return (
     <div className="rounded-xl border border-danger/40 bg-danger/10 p-5 space-y-4">
       <div className="flex items-start gap-3">
         <AlertCircle className="w-6 h-6 text-danger shrink-0 mt-0.5" aria-hidden />
         <div>
-          <p className="text-danger font-semibold">Pago de entrada pendiente</p>
+          <p className="text-danger font-semibold">
+            {polla.is_member ? `Inscripción — ${phaseLabel}` : "Pago de entrada pendiente"}
+          </p>
           <p className="text-white/80 text-sm mt-0.5">
-            Confirma tu pago para poder apostar en la polla.
+            {polla.is_member
+              ? `Paga el hito ${phaseLabel} para participar en los partidos de esta etapa.`
+              : "Confirma tu pago para poder apostar en la polla."}
           </p>
         </div>
       </div>

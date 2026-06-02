@@ -6,19 +6,22 @@ import type { FixtureStatus } from "@/types/api";
 
 export function useFixturesListPage() {
   const [groupName, setGroupName] = useState<string | undefined>(undefined);
+  const [tournamentPhase, setTournamentPhase] = useState<string | undefined>(undefined);
   const [status, setStatus] = useState<FixtureStatus | undefined>(undefined);
   const [page, setPage] = useState(1);
   const culminadosRef = useRef<HTMLElement>(null);
 
   const fixturesQuery = useFixtures({
-    group_name: groupName,
+    group_name: tournamentPhase ? undefined : groupName,
+    tournament_phase: tournamentPhase,
     status,
     page,
     exclude_finished: status === undefined ? true : undefined,
   });
 
   const finishedQuery = useFixtures({
-    group_name: groupName,
+    group_name: tournamentPhase ? undefined : groupName,
+    tournament_phase: tournamentPhase,
     status: "finished",
     page: 1,
     limit: 12,
@@ -38,6 +41,12 @@ export function useFixturesListPage() {
     setPage(1);
   }
 
+  function selectTournamentPhase(key: string | undefined) {
+    setTournamentPhase(key);
+    if (key) setGroupName(undefined);
+    setPage(1);
+  }
+
   function selectStatus(value: FixtureStatus | undefined) {
     setStatus(value);
     setPage(1);
@@ -45,6 +54,7 @@ export function useFixturesListPage() {
 
   return {
     groupName,
+    tournamentPhase,
     status,
     page,
     setPage,
@@ -52,6 +62,7 @@ export function useFixturesListPage() {
     fixturesQuery,
     finishedQuery,
     selectGroup,
+    selectTournamentPhase,
     selectStatus,
   };
 }

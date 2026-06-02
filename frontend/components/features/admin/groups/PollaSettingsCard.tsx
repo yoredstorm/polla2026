@@ -91,7 +91,9 @@ export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail;
           <div>
             <p className="text-xs text-muted uppercase tracking-wide mb-1">Entrada al torneo</p>
             <p className="text-lg font-bold text-white">{currency} {parseFloat(polla.entry_fee).toFixed(2)}</p>
-            <p className="text-xs text-muted">Pago unico por todo el torneo</p>
+            <p className="text-xs text-muted">
+              Valor por defecto de la fase Grupos; montos por hito en el panel inferior.
+            </p>
           </div>
           <div>
             <p className="text-xs text-muted uppercase tracking-wide mb-1">Extra opcional / partido</p>

@@ -42,6 +42,14 @@ async def _upsert_fixture(db: AsyncSession, data: dict) -> Fixture:
     return fixture
 
 
+@router.get("/tournament-phases")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def list_tournament_phases(request: Request, current_user: CurrentUser):
+    from app.services.tournament_phase_service import PHASE_ORDER, PHASE_LABELS
+
+    return [{"key": k, "label": PHASE_LABELS[k]} for k in PHASE_ORDER]
+
+
 @router.get("/groups", response_model=list[str])
 @limiter.limit(GLOBAL_RATE_LIMIT)
 async def list_groups(request: Request, current_user: CurrentUser, db: DBSession):
@@ -67,11 +75,20 @@ async def list_fixtures(
     date_to: Optional[datetime] = Query(None),
     fixture_status: Optional[str] = Query(None, alias="status"),
     exclude_finished: Optional[bool] = Query(None, description="If true, omit fixtures with status finished"),
+    tournament_phase: Optional[str] = Query(
+        None, description="Canonical phase: groups, round_of_32, round_of_16, quarterfinal, semifinal, third_place, final"
+    ),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=200),
 ):
     query = select(Fixture)
     filters = []
+    if tournament_phase:
+        from app.services.tournament_phase_service import PHASE_ORDER, phase_fixture_filter
+
+        if tournament_phase not in PHASE_ORDER:
+            raise HTTPException(status_code=400, detail="Invalid tournament_phase")
+        filters.append(phase_fixture_filter(tournament_phase))  # type: ignore[arg-type]
     if group_name:
         filters.append(Fixture.group_name == group_name)
     if round_name:

@@ -30,6 +30,7 @@ class Group(Base):
     payment_contact_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     payment_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
     payment_qr_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    current_phase_key: Mapped[str] = mapped_column(String(32), default="groups", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     owner: Mapped["User"] = relationship("User", back_populates="owned_groups")
@@ -40,6 +41,15 @@ class Group(Base):
     bets: Mapped[list["Bet"]] = relationship("Bet", back_populates="group", lazy="select")
     phase_winners: Mapped[list["PhaseWinnerHistory"]] = relationship(
         "PhaseWinnerHistory", back_populates="group", lazy="select"
+    )
+    phase_fees: Mapped[list["GroupPhaseFee"]] = relationship(
+        "GroupPhaseFee", back_populates="group", lazy="select"
+    )
+    phase_enrollments: Mapped[list["GroupPhaseEnrollment"]] = relationship(
+        "GroupPhaseEnrollment", back_populates="group", lazy="select"
+    )
+    phase_entry_proofs: Mapped[list["GroupPhaseEntryProof"]] = relationship(
+        "GroupPhaseEntryProof", back_populates="group", lazy="select"
     )
 
 

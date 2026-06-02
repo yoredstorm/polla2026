@@ -54,6 +54,22 @@ async def save_entry_proof(group_id: uuid.UUID, user_id: uuid.UUID, file: Upload
     return str(path)
 
 
+async def save_phase_entry_proof(
+    group_id: uuid.UUID, user_id: uuid.UUID, phase_key: str, file: UploadFile
+) -> str:
+    raw = await file.read()
+    data = _process_image(raw, settings.PAYMENT_MAX_BYTES, 1600)
+    dest_dir = Path(settings.ENTRY_PROOF_UPLOAD_DIR)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    path = dest_dir / f"{group_id}_{user_id}_{phase_key}.jpg"
+    path.write_bytes(data)
+    return str(path)
+
+
+def phase_entry_proof_data_url(group_id: uuid.UUID, user_id: uuid.UUID, phase_key: str) -> str:
+    return f"/api/v1/admin/groups/{group_id}/phase-entry-proofs/{user_id}?phase_key={phase_key}"
+
+
 def resolve_readable_path(stored_path: str) -> Path:
     p = Path(stored_path)
     if not p.is_file():

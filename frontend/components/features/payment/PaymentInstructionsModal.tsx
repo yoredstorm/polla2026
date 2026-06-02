@@ -6,7 +6,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { PaymentProofUploadZone } from "@/components/features/payment/PaymentProofUploadZone";
 import { useToast } from "@/components/ui/Toast";
-import { useUploadEntryProof } from "@/hooks/useGroups";
+import { useUploadEntryProof, useUploadPhaseEntryProof } from "@/hooks/useGroups";
 import type { ActivePolla } from "@/types/api";
 import {
   paymentContactName,
@@ -27,7 +27,10 @@ interface PaymentInstructionsModalProps {
 
 export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstructionsModalProps) {
   const toast = useToast((s) => s.add);
-  const upload = useUploadEntryProof();
+  const uploadEntry = useUploadEntryProof();
+  const uploadPhase = useUploadPhaseEntryProof();
+  const usePhaseUpload = polla.is_member && polla.phase_enrollment_status !== "confirmed";
+  const upload = usePhaseUpload ? uploadPhase : uploadEntry;
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrError, setQrError] = useState(false);
   const [qrBlobUrl, setQrBlobUrl] = useState<string | null>(null);
@@ -87,7 +90,8 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
   const phone = paymentPhone(polla);
   const wa = whatsAppUrl(phone);
   const currency = polla.currency ?? "PEN";
-  const fee = parseFloat(polla.entry_fee) || 0;
+  const fee = parseFloat(polla.current_phase_entry_fee ?? polla.entry_fee) || 0;
+  const phaseLabel = polla.current_phase_label ?? "entrada";
 
   async function copyPhone() {
     try {
@@ -102,7 +106,7 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
     <Modal
       open={open}
       onClose={onClose}
-      title="Cómo pagar tu entrada"
+      title={usePhaseUpload ? `Inscripción — ${phaseLabel}` : "Cómo pagar tu entrada"}
       description={`${polla.name} · ${currency} ${fee.toFixed(2)}`}
       size="md"
     >

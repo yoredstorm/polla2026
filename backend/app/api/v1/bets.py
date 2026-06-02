@@ -115,6 +115,10 @@ async def create_bet(
                 "Ya tienes una prediccion con ese marcador en este partido. "
                 "Cada apuesta (gratis o extra) debe usar un marcador distinto."
             ),
+            "PHASE_MISMATCH": "Este partido no corresponde a la fase activa de la polla.",
+            "PHASE_NOT_ENROLLED": (
+                "Debes pagar e inscribirte en la fase actual para pronosticar estos partidos."
+            ),
         }
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
