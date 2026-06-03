@@ -91,6 +91,18 @@ class AdminStatsOut(BaseModel):
     total_prize_pools: str
 
 
+class MarqueeUpdateIn(BaseModel):
+    message: str = ""
+    enabled: bool = False
+
+
+class MarqueeAdminOut(BaseModel):
+    enabled: bool
+    message: str
+    updated_at: str | None = None
+    updated_by_username: str | None = None
+
+
 class AdminUserPatch(BaseModel):
     is_active: Optional[bool] = None
     is_admin: Optional[bool] = None
@@ -433,6 +445,53 @@ async def admin_stats(request: Request, admin: CurrentAdmin, db: DBSession):
     )
 
 
+@router.get("/marquee", response_model=MarqueeAdminOut)
+@limiter.limit(ADMIN_RATE)
+async def get_admin_marquee(request: Request, admin: CurrentAdmin, db: DBSession):
+    from app.services.marquee_service import admin_marquee_payload, get_marquee
+
+    marquee = await get_marquee(db)
+    return MarqueeAdminOut(**admin_marquee_payload(marquee))
+
+
+@router.put("/marquee", response_model=MarqueeAdminOut)
+@limiter.limit(ADMIN_RATE)
+async def update_admin_marquee(
+    request: Request,
+    body: MarqueeUpdateIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    from app.services.marquee_service import (
+        MarqueeValidationError,
+        admin_marquee_payload,
+        update_marquee,
+    )
+
+    try:
+        marquee = await update_marquee(
+            db,
+            admin=admin,
+            message=body.message,
+            is_enabled=body.enabled,
+            ip=request.client.host if request.client else None,
+        )
+    except MarqueeValidationError as exc:
+        code = str(exc)
+        if code == "MARQUEE_MESSAGE_TOO_LONG":
+            detail = "El mensaje no puede superar 280 caracteres"
+        else:
+            detail = "El mensaje contiene caracteres no permitidos"
+        raise HTTPException(status_code=400, detail=detail) from exc
+
+    await db.commit()
+    from app.services.marquee_service import get_marquee
+
+    marquee = await get_marquee(db)
+    logger.info("admin_marquee_updated", admin=str(admin.id), enabled=body.enabled)
+    return MarqueeAdminOut(**admin_marquee_payload(marquee))
+
+
 CRITICAL_AUDIT_ACTIONS = (
     "entry_proof_uploaded",
     "admin_confirm_entry",
@@ -443,6 +502,7 @@ CRITICAL_AUDIT_ACTIONS = (
     "change_request_auto_expired",
     "admin_edit_fixture",
     "admin_settle",
+    "admin_marquee_update",
     "fixture_betting_closed_snapshot",
     "password_reset_request",
     "admin_password_reset",

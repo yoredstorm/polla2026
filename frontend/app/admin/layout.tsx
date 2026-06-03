@@ -13,6 +13,7 @@ const adminTabs = [
   { href: "/admin/fixtures", label: "Partidos", badgeKey: null },
   { href: "/admin/users", label: "Usuarios", badgeKey: null },
   { href: "/admin/groups", label: "Polla Global", badgeKey: "entries" as const },
+  { href: "/admin/marquee", label: "Marquesina", badgeKey: null },
   { href: "/admin/requests", label: "Solicitudes", badgeKey: "requests" as const },
   { href: "/admin/activity", label: "Actividad", badgeKey: null },
 ];

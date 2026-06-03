@@ -19,6 +19,18 @@ export interface User {
   avatar_display?: string | null;
 }
 
+export interface SiteMarqueePublic {
+  enabled: boolean;
+  message: string;
+}
+
+export interface SiteMarqueeAdmin {
+  enabled: boolean;
+  message: string;
+  updated_at: string | null;
+  updated_by_username: string | null;
+}
+
 export interface PublicUserSummary {
   user_id: string;
   username: string;

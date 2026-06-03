@@ -11,6 +11,7 @@ from app.models.notification import Notification
 from app.models.jwt_signing_key import JwtSigningKey
 from app.models.challenge import Challenge
 from app.models.push_subscription import PushSubscription
+from app.models.site_marquee import SiteMarquee
 
 __all__ = [
     "User", "RefreshToken", "Fixture", "Bet", "Group", "GroupMember", "GroupEntryProof",
@@ -18,4 +19,5 @@ __all__ = [
     "PushSubscription",
     "PhaseWinnerHistory",
     "GroupPhaseFee", "GroupPhaseEnrollment", "GroupPhaseEntryProof",
+    "SiteMarquee",
 ]

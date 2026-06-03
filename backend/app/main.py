@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.cors_utils import cors_headers_for_request
 from app.core.middlewares import SecurityHeadersMiddleware, RequestLoggingMiddleware
 from app.core.rate_limiter import limiter
-from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges, social
+from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges, social, site
 from app.db.session import get_redis
 from app.services.ws_manager import ws_manager
 
@@ -260,6 +260,7 @@ app.include_router(challenges.router, prefix=PREFIX)
 app.include_router(activity.router, prefix=PREFIX)
 app.include_router(badges.router, prefix=PREFIX)
 app.include_router(social.router, prefix=PREFIX)
+app.include_router(site.router, prefix=PREFIX)
 
 
 @app.get("/health")

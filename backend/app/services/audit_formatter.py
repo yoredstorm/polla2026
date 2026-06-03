@@ -34,6 +34,7 @@ ACTION_LABELS_ES: dict[str, str] = {
     "admin_reject_change_request": "Rechazar solicitud",
     "change_request_auto_expired": "Solicitudes caducadas",
     "admin_edit_fixture": "Editar partido",
+    "admin_marquee_update": "Marquesina promocional",
     "admin_settle": "Liquidar partido",
     "challenge_created": "Reto creado",
     "challenge_limit_denied": "Límite de retos",
@@ -309,6 +310,17 @@ def format_detail_summary(action: str, detail: str | None, ctx: _LookupCtx) -> s
                 bits.append("sede")
             return f"{partido} · Cambios: {', '.join(bits) or 'varios'}"
         return f"{partido} · Metadatos actualizados"
+
+    if action == "admin_marquee_update":
+        state = "activada" if d.get("enabled") else "desactivada"
+        msg = (d.get("message") or "").strip()
+        if len(msg) > 80:
+            msg = msg[:77] + "..."
+        preview = f" «{msg}»" if msg else " (sin texto)"
+        prev = d.get("previous_enabled")
+        if prev is not None and prev != d.get("enabled"):
+            return f"Marquesina {state}{preview}"
+        return f"Marquesina actualizada · {state}{preview}"
 
     if action == "admin_settle":
         partido = ctx.fixture_label(d.get("fixture_id")) or "Partido"

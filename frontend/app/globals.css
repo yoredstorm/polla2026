@@ -144,3 +144,18 @@
 .polla-driver-popover .driver-popover-close-btn:hover {
   color: #fff;
 }
+
+@keyframes promo-marquee-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .promo-marquee-track {
+    animation: promo-marquee-scroll 35s linear infinite;
+  }
+}

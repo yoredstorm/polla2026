@@ -12,6 +12,7 @@ import type {
   GroupPhaseFeeRow,
   PhasePendingEntry,
   PaginatedResponse,
+  SiteMarqueeAdmin,
 } from "@/types/api";
 
 export interface AdminActionQueue {
@@ -644,6 +645,28 @@ export function useRejectPasswordResetRequest() {
       qc.invalidateQueries({ queryKey: ["admin", "password-reset-requests"] });
       qc.invalidateQueries({ queryKey: ["admin", "password-reset-count"] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+export function useAdminMarquee() {
+  return useQuery({
+    queryKey: ["admin", "marquee"],
+    queryFn: () => api.get<SiteMarqueeAdmin>("/admin/marquee"),
+    staleTime: 10_000,
+  });
+}
+
+export function useUpdateMarquee() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { message: string; enabled: boolean }) =>
+      api.put<SiteMarqueeAdmin>("/admin/marquee", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "marquee"] });
+      qc.invalidateQueries({ queryKey: ["site", "marquee"] });
+      qc.invalidateQueries({ queryKey: ["admin", "audit-log"] });
+      qc.invalidateQueries({ queryKey: ["admin", "action-queue"] });
     },
   });
 }

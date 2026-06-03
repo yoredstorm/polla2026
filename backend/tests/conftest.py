@@ -18,6 +18,7 @@ from app.models.group_phase import (  # noqa: F401
     GroupPhaseEnrollment,
     GroupPhaseEntryProof,
 )
+from app.models.site_marquee import SiteMarquee  # noqa: F401 — register metadata
 from app.core.rate_limiter import limiter
 
 # Use SQLite in-memory for tests (no PostgreSQL required)
