@@ -172,7 +172,7 @@ async function apiRequest<T>(
   try {
     response = await fetch(url, {
       ...fetchOptions,
-      cache: cache ?? fetchOptions.cache,
+      ...(cache !== undefined ? { cache } : {}),
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
