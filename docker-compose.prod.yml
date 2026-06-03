@@ -33,6 +33,10 @@ services:
 
   backend:
     build: ./backend
+    # Dokploy Environment (only these are required for interpolation):
+    # POSTGRES_PASSWORD, REDIS_PASSWORD, JWT_SECRET_KEY, JWT_REFRESH_SECRET
+    # Optional: SENTRY_DSN, VAPID_*, NEXT_PUBLIC_API_URL (frontend build)
+    # Do NOT set DATABASE_URL/REDIS_URL here — compose uses hostnames postgres/redis.
     environment:
       DATABASE_URL: postgresql+asyncpg://polla_user:${POSTGRES_PASSWORD}@postgres:5432/polla_db
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0

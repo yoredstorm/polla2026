@@ -9,6 +9,11 @@ depends_on = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    columns = {col["name"] for col in inspector.get_columns("groups")}
+    if "prize_structure_mode" in columns:
+        return
     op.add_column(
         "groups",
         sa.Column(

@@ -33,8 +33,8 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 def _asyncpg_connect_args(url: str) -> dict:
-    """Local Postgres (and asyncpg on Windows) often needs SSL disabled."""
-    if "localhost" in url or "127.0.0.1" in url:
+    """Docker/internal Postgres typically has no TLS; disable SSL unless explicitly required."""
+    if "localhost" in url or "127.0.0.1" in url or "@postgres:" in url:
         return {"ssl": False}
     return {}
 
