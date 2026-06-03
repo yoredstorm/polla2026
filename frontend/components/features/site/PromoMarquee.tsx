@@ -1,6 +1,5 @@
 "use client";
 
-import { Megaphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSiteMarquee } from "@/hooks/useSiteMarquee";
 
@@ -12,10 +11,12 @@ export interface PromoMarqueePreview {
 interface PromoMarqueeProps {
   preview?: PromoMarqueePreview;
   className?: string;
+  /** When true, skips outer spacing (e.g. admin preview box). */
+  embedded?: boolean;
 }
 
 function MarqueeContent({ message }: { message: string }) {
-  const segment = `${message}   •   `;
+  const segment = `${message}   ◆   `;
   const repeated = segment.repeat(4);
 
   return (
@@ -24,20 +25,18 @@ function MarqueeContent({ message }: { message: string }) {
         {message}
       </p>
       <div
-        className="hidden motion-reduce:block px-4 py-2.5 text-center text-sm text-white/90 overflow-x-auto"
+        className="relative z-[4] hidden motion-reduce:flex items-center justify-center px-4 py-3 min-h-[2.75rem]"
         aria-hidden="true"
       >
-        {message}
+        <p className="font-display led-marquee-text text-center leading-tight">{message}</p>
       </div>
       <div
-        className="motion-reduce:hidden overflow-hidden py-2.5"
+        className="relative z-[4] motion-reduce:hidden overflow-hidden py-3 min-h-[2.75rem] flex items-center"
         aria-hidden="true"
       >
-        <div className="promo-marquee-track flex w-max whitespace-nowrap">
-          <span className="px-4 text-sm font-medium text-white/95 tracking-wide">
-            {repeated}
-          </span>
-          <span className="px-4 text-sm font-medium text-white/95 tracking-wide" aria-hidden="true">
+        <div className="promo-marquee-track flex w-max whitespace-nowrap items-center">
+          <span className="font-display led-marquee-text px-6">{repeated}</span>
+          <span className="font-display led-marquee-text px-6" aria-hidden="true">
             {repeated}
           </span>
         </div>
@@ -46,7 +45,7 @@ function MarqueeContent({ message }: { message: string }) {
   );
 }
 
-export function PromoMarquee({ preview, className }: PromoMarqueeProps) {
+export function PromoMarquee({ preview, className, embedded = false }: PromoMarqueeProps) {
   const query = useSiteMarquee();
 
   const enabled = preview ? preview.enabled : query.data?.enabled;
@@ -62,23 +61,41 @@ export function PromoMarquee({ preview, className }: PromoMarqueeProps) {
   return (
     <div
       className={cn(
-        "relative z-30 w-full border-b border-accent/30",
-        "bg-gradient-to-r from-accent/15 via-accent/10 to-accent/15",
-        "shadow-[inset_0_1px_0_rgba(0,255,136,0.12)]",
+        "relative z-30 w-full",
+        !embedded && "px-3 md:px-4 mt-3 md:mt-4 mb-1",
         className,
       )}
       role="region"
       aria-label="Anuncio promocional"
     >
-      <div className="max-w-7xl mx-auto flex items-stretch min-h-[2.5rem]">
+      <div
+        className={cn(
+          "max-w-7xl mx-auto rounded-xl p-[3px] led-marquee-bezel",
+          !embedded && "led-marquee-screen-pulse",
+        )}
+      >
         <div
-          className="flex shrink-0 items-center justify-center px-3 md:px-4 bg-accent/10 border-r border-accent/20"
-          aria-hidden="true"
+          className={cn(
+            "led-marquee-screen rounded-[10px] flex items-stretch min-h-[3rem]",
+          )}
         >
-          <Megaphone className="h-4 w-4 text-accent" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <MarqueeContent message={message} />
+          <div className="led-marquee-scanlines led-marquee-scanlines-animated" aria-hidden="true" />
+          <div className="led-marquee-vignette" aria-hidden="true" />
+
+          <div
+            className="relative z-[5] flex shrink-0 flex-col items-center justify-center gap-0.5 px-3 md:px-4 border-r border-accent/25 bg-black/35 min-w-[4.5rem]"
+            aria-hidden="true"
+          >
+          <span className="font-display led-marquee-badge text-[10px] md:text-xs">PROMO</span>
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-40 motion-reduce:hidden" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_#00ff88]" />
+            </span>
+          </div>
+
+          <div className="relative z-[4] flex-1 min-w-0">
+            <MarqueeContent message={message} />
+          </div>
         </div>
       </div>
     </div>

@@ -156,8 +156,8 @@ export default function AdminMarqueePage() {
         <p className="text-xs text-muted">
           Asi se vera en la web cuando este activa y tenga texto.
         </p>
-        <div className="rounded-xl overflow-hidden border border-white/10">
-          <PromoMarquee preview={{ enabled, message: trimmed }} />
+        <div className="rounded-xl overflow-hidden border border-white/10 bg-[#0a0c10]">
+          <PromoMarquee preview={{ enabled, message: trimmed }} embedded />
           {(!enabled || !trimmed) && (
             <div className="px-4 py-8 text-center text-sm text-muted bg-white/[0.02]">
               La marquesina no se muestra (desactivada o sin mensaje).
