@@ -2,6 +2,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { ActivePolla } from "@/types/api";
 import { ensureFreshSession } from "@/lib/api";
+import { siteMarqueeQueryKey } from "@/hooks/useSiteMarquee";
 
 export type PollaUpdatedData = {
   group_id: string;
@@ -20,7 +21,8 @@ export type WsEvent =
   | { type: "polla_updated"; data: PollaUpdatedData }
   | { type: "fixture_updated"; data: Record<string, unknown> }
   | { type: "pong" }
-  | { type: "data_refresh"; data: { reason?: string } };
+  | { type: "data_refresh"; data: { reason?: string } }
+  | { type: "site_marquee_updated"; data: Record<string, never> };
 
 type PollaUpdatedHandler = (data: PollaUpdatedData) => void;
 
@@ -215,6 +217,10 @@ export async function handleRealtimeMessage(
     }
     return;
   }
+  if (msg.type === "site_marquee_updated") {
+    invalidateKeys(queryClient, [siteMarqueeQueryKey()], { refetch: true });
+    return;
+  }
   if (msg.type === "data_refresh") {
     const ok = await ensureFreshSession();
     if (!ok) return;
@@ -241,6 +247,7 @@ export function softInvalidateOnReconnect(queryClient: QueryClient) {
       ["my-bets"],
       ["leaderboard"],
       ["admin"],
+      siteMarqueeQueryKey(),
     ],
     { refetch: true },
   );

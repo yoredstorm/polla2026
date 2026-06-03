@@ -32,7 +32,7 @@ async def test_public_marquee_disabled_by_default(client: AsyncClient):
     body = resp.json()
     assert body["enabled"] is False
     assert body["message"] == ""
-    assert resp.headers.get("cache-control") == "public, max-age=30"
+    assert "no-store" in (resp.headers.get("cache-control") or "")
 
 
 @pytest.mark.asyncio

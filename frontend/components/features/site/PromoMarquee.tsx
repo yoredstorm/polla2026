@@ -93,7 +93,7 @@ export function PromoMarquee({ preview, className, embedded = false }: PromoMarq
           </div>
 
           <div className="relative z-[4] flex-1 min-w-0">
-            <MarqueeContent message={message} />
+            <MarqueeContent key={message} message={message} />
           </div>
         </div>
       </div>

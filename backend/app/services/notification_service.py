@@ -85,6 +85,18 @@ async def broadcast_polla_updated(
     )
 
 
+async def broadcast_site_marquee_updated(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+) -> None:
+    """Notify connected clients to refetch the public promo marquee."""
+    await broadcast_event(
+        db,
+        redis,
+        {"type": "site_marquee_updated", "data": {}},
+    )
+
+
 async def broadcast_fixture_updated(
     db: AsyncSession,
     redis: aioredis.Redis | None,

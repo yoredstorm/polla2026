@@ -48,6 +48,7 @@ from app.services.notification_service import (
     notify_all_active_users,
     broadcast_polla_updated,
     broadcast_fixture_updated,
+    broadcast_site_marquee_updated,
     resolve_actionable_notifications,
     build_entry_confirmed,
     build_extra_confirmed,
@@ -461,6 +462,7 @@ async def update_admin_marquee(
     body: MarqueeUpdateIn,
     admin: CurrentAdmin,
     db: DBSession,
+    redis: RedisClient,
 ):
     from app.services.marquee_service import (
         MarqueeValidationError,
@@ -488,6 +490,7 @@ async def update_admin_marquee(
     from app.services.marquee_service import get_marquee
 
     marquee = await get_marquee(db)
+    await broadcast_site_marquee_updated(db, redis)
     logger.info("admin_marquee_updated", admin=str(admin.id), enabled=body.enabled)
     return MarqueeAdminOut(**admin_marquee_payload(marquee))
 
