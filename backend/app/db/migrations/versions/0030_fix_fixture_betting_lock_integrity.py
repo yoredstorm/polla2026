@@ -1,7 +1,7 @@
 """Unlock scheduled fixtures where betting_open was re-enabled while is_locked stayed true."""
 from alembic import op
 
-revision = "0030_fix_fixture_betting_lock_integrity"
+revision = "0030"
 down_revision = "0029_prize_structure_mode"
 branch_labels = None
 depends_on = None

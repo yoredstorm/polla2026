@@ -43,8 +43,10 @@ PY
 echo "[entrypoint] Running alembic upgrade head..."
 if ! alembic upgrade head; then
   echo "[entrypoint] FATAL: alembic upgrade head failed (see traceback above)" >&2
+  echo "[entrypoint] Tip: revision IDs must be <= 32 chars (alembic_version.version_num)" >&2
   exit 1
 fi
+alembic current || true
 
 echo "[entrypoint] Starting application..."
 exec "$@"
