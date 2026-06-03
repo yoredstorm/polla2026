@@ -14,6 +14,7 @@ import type {
   PaginatedResponse,
   SiteMarqueeAdmin,
 } from "@/types/api";
+import { siteMarqueeQueryKey, toPublicMarqueeView } from "@/hooks/useSiteMarquee";
 
 export interface AdminActionQueue {
   pending: {
@@ -662,9 +663,9 @@ export function useUpdateMarquee() {
   return useMutation({
     mutationFn: (data: { message: string; enabled: boolean }) =>
       api.put<SiteMarqueeAdmin>("/admin/marquee", data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["admin", "marquee"] });
-      qc.invalidateQueries({ queryKey: ["site", "marquee"] });
+    onSuccess: (data) => {
+      qc.setQueryData(["admin", "marquee"], data);
+      qc.setQueryData(siteMarqueeQueryKey(), toPublicMarqueeView(data));
       qc.invalidateQueries({ queryKey: ["admin", "audit-log"] });
       qc.invalidateQueries({ queryKey: ["admin", "action-queue"] });
     },

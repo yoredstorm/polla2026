@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAdminMarquee, useUpdateMarquee } from "@/hooks/useAdmin";
 import { PromoMarquee } from "@/components/features/site/PromoMarquee";
+import { toPublicMarqueeView } from "@/hooks/useSiteMarquee";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
@@ -30,14 +31,31 @@ export default function AdminMarqueePage() {
   const overLimit = message.length > MAX_LENGTH;
   const showEmptyWarning = enabled && !trimmed;
 
-  async function handleSave() {
+  const dirty = useMemo(() => {
+    if (!data) return false;
+    return (data.message ?? "") !== message || (data.enabled ?? false) !== enabled;
+  }, [data, message, enabled]);
+
+  const savedLive = data ? toPublicMarqueeView(data) : null;
+
+  async function handleSave(nextEnabled = enabled) {
     if (overLimit) {
       toast("El mensaje no puede superar 280 caracteres", "error");
       return;
     }
     try {
-      await updateMarquee.mutateAsync({ message, enabled });
-      toast("Marquesina guardada correctamente", "success");
+      const result = await updateMarquee.mutateAsync({
+        message,
+        enabled: nextEnabled,
+      });
+      setEnabled(result.enabled);
+      setMessage(result.message ?? "");
+      toast(
+        result.enabled && result.message.trim()
+          ? "Marquesina activada en la web"
+          : "Marquesina desactivada en la web",
+        "success",
+      );
     } catch (err) {
       toast(parseApiError(err)?.message ?? "No se pudo guardar la marquesina", "error");
     }
@@ -68,20 +86,45 @@ export default function AdminMarqueePage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="font-display text-3xl text-white">Marquesina promocional</h1>
-        <p className="text-muted text-sm mt-2 max-w-2xl">
-          Texto en scroll bajo el menu principal. Cada guardado queda registrado en Actividad
-          (usuario, hora y mensaje).
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div>
+          <h1 className="font-display text-3xl text-white">Marquesina promocional</h1>
+          <p className="text-muted text-sm mt-2 max-w-2xl">
+            El interruptor solo prepara el cambio. Debes pulsar{" "}
+            <strong className="text-white font-medium">Guardar cambios</strong> para que se aplique
+            en la web.
+          </p>
+        </div>
+        {savedLive && (
+          <span
+            className={cn(
+              "shrink-0 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border",
+              savedLive.enabled
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300"
+                : "bg-white/5 border-white/15 text-muted",
+            )}
+          >
+            En la web: {savedLive.enabled ? "Visible" : "Oculta"}
+          </span>
+        )}
       </div>
+
+      {dirty && (
+        <div
+          className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200/90"
+          role="status"
+        >
+          Tienes cambios sin guardar. Pulsa Guardar para que los usuarios los vean (o no vean) la
+          marquesina.
+        </div>
+      )}
 
       <Card className="p-6 space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <p className="text-white font-medium">Activar marquesina</p>
             <p className="text-xs text-muted mt-1">
-              Visible en paginas con menu (no en login ni registro).
+              Apagado = no se muestra a nadie, aunque el texto siga guardado.
             </p>
           </div>
           <button
@@ -135,32 +178,48 @@ export default function AdminMarqueePage() {
 
         {data?.updated_at && (
           <p className="text-xs text-muted">
-            Ultima actualizacion:{" "}
+            Ultima actualizacion guardada:{" "}
             {new Date(data.updated_at).toLocaleString("es-ES")}
             {data.updated_by_username ? ` · @${data.updated_by_username}` : ""}
           </p>
         )}
 
-        <Button
-          type="button"
-          onClick={handleSave}
-          loading={updateMarquee.isPending}
-          disabled={overLimit}
-        >
-          Guardar cambios
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            type="button"
+            onClick={() => handleSave()}
+            loading={updateMarquee.isPending}
+            disabled={overLimit}
+          >
+            Guardar cambios
+          </Button>
+          {(enabled || savedLive?.enabled) && (
+            <Button
+              type="button"
+              variant="secondary"
+              loading={updateMarquee.isPending}
+              disabled={overLimit}
+              onClick={() => {
+                setEnabled(false);
+                void handleSave(false);
+              }}
+            >
+              Desactivar en la web
+            </Button>
+          )}
+        </div>
       </Card>
 
       <section className="space-y-3">
         <h2 className="font-display text-lg text-white">Vista previa</h2>
         <p className="text-xs text-muted">
-          Asi se vera en la web cuando este activa y tenga texto.
+          Muestra como quedaria al guardar (interruptor + texto).
         </p>
         <div className="rounded-xl overflow-hidden border border-white/10 bg-[#0a0c10]">
           <PromoMarquee preview={{ enabled, message: trimmed }} embedded />
           {(!enabled || !trimmed) && (
             <div className="px-4 py-8 text-center text-sm text-muted bg-white/[0.02]">
-              La marquesina no se muestra (desactivada o sin mensaje).
+              La marquesina no se mostraria en la web con esta configuracion.
             </div>
           )}
         </div>

@@ -48,8 +48,8 @@ function MarqueeContent({ message }: { message: string }) {
 export function PromoMarquee({ preview, className, embedded = false }: PromoMarqueeProps) {
   const query = useSiteMarquee();
 
-  const enabled = preview ? preview.enabled : query.data?.enabled;
-  const message = (preview ? preview.message : query.data?.message)?.trim() ?? "";
+  const enabled = preview ? preview.enabled : (query.data?.enabled ?? false);
+  const message = (preview ? preview.message : query.data?.message ?? "").trim();
 
   if (!preview) {
     if (query.isLoading) return null;
@@ -88,8 +88,7 @@ export function PromoMarquee({ preview, className, embedded = false }: PromoMarq
           >
           <span className="font-display led-marquee-badge text-[10px] md:text-xs">PROMO</span>
             <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-40 motion-reduce:hidden" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent shadow-[0_0_8px_#00ff88]" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-accent/90 shadow-[0_0_4px_rgba(0,255,136,0.4)]" />
             </span>
           </div>
 

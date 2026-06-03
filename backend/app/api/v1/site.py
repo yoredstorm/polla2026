@@ -16,5 +16,5 @@ async def get_public_marquee(request: Request, db: DBSession):
     payload = public_marquee_payload(marquee)
     return JSONResponse(
         content=payload,
-        headers={"Cache-Control": "public, max-age=30"},
+        headers={"Cache-Control": "no-store, must-revalidate"},
     )

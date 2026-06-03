@@ -80,6 +80,8 @@ function redirectToLogin() {
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>;
+  /** Use "no-store" for config that must reflect admin changes immediately. */
+  cache?: RequestCache;
 }
 
 type ApiErrorMeta = { status: number; url: string };
@@ -154,7 +156,7 @@ async function apiRequest<T>(
   // If we already decided to redirect, bail out immediately.
   if (_redirecting) throw new Error("Session expired");
 
-  const { params, ...fetchOptions } = options;
+  const { params, cache, ...fetchOptions } = options;
 
   let url = buildApiUrl(getApiBase(), endpoint);
   if (params) {
@@ -170,6 +172,7 @@ async function apiRequest<T>(
   try {
     response = await fetch(url, {
       ...fetchOptions,
+      cache: cache ?? fetchOptions.cache,
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
@@ -224,8 +227,11 @@ async function apiRequest<T>(
 }
 
 export const api = {
-  get: <T>(endpoint: string, params?: Record<string, string | number | boolean | undefined>) =>
-    apiRequest<T>(endpoint, { method: "GET", params }),
+  get: <T>(
+    endpoint: string,
+    params?: Record<string, string | number | boolean | undefined>,
+    options?: Pick<RequestOptions, "cache">,
+  ) => apiRequest<T>(endpoint, { method: "GET", params, ...options }),
 
   post: <T>(endpoint: string, data?: unknown) =>
     apiRequest<T>(endpoint, { method: "POST", body: data ? JSON.stringify(data) : undefined }),

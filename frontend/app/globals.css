@@ -167,17 +167,15 @@
   0%,
   100% {
     box-shadow:
-      0 0 0 1px rgba(0, 255, 136, 0.35),
-      0 0 20px rgba(0, 255, 136, 0.15),
-      0 0 40px rgba(0, 255, 136, 0.08),
-      inset 0 0 30px rgba(0, 255, 136, 0.06);
+      0 0 0 1px rgba(0, 255, 136, 0.2),
+      0 0 12px rgba(0, 255, 136, 0.06),
+      inset 0 0 16px rgba(0, 255, 136, 0.03);
   }
   50% {
     box-shadow:
-      0 0 0 1px rgba(0, 255, 136, 0.55),
-      0 0 28px rgba(0, 255, 136, 0.28),
-      0 0 56px rgba(0, 255, 136, 0.12),
-      inset 0 0 36px rgba(0, 255, 136, 0.1);
+      0 0 0 1px rgba(0, 255, 136, 0.28),
+      0 0 16px rgba(0, 255, 136, 0.1),
+      inset 0 0 20px rgba(0, 255, 136, 0.05);
   }
 }
 
@@ -193,12 +191,12 @@
   position: relative;
   overflow: hidden;
   background:
-    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(0, 255, 136, 0.12) 0%, transparent 55%),
+    radial-gradient(ellipse 120% 80% at 50% 0%, rgba(0, 255, 136, 0.06) 0%, transparent 55%),
     linear-gradient(180deg, #031208 0%, #020806 50%, #010503 100%);
   box-shadow:
-    inset 0 0 0 1px rgba(0, 255, 136, 0.25),
+    inset 0 0 0 1px rgba(0, 255, 136, 0.16),
     inset 0 2px 24px rgba(0, 0, 0, 0.85),
-    inset 0 -1px 0 rgba(0, 255, 136, 0.15);
+    inset 0 -1px 0 rgba(0, 255, 136, 0.08);
 }
 
 .led-marquee-screen::before {
@@ -206,7 +204,7 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
-  opacity: 0.35;
+  opacity: 0.22;
   background-image:
     linear-gradient(rgba(0, 255, 136, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 255, 136, 0.04) 1px, transparent 1px);
@@ -219,7 +217,7 @@
   inset: 0;
   pointer-events: none;
   z-index: 2;
-  opacity: 0.18;
+  opacity: 0.1;
   background: repeating-linear-gradient(
     0deg,
     transparent,
@@ -248,21 +246,17 @@
   font-size: clamp(1.125rem, 2.5vw, 1.5rem);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: #00ff88;
+  color: #5ee6a8;
   text-shadow:
-    0 0 4px rgba(0, 255, 136, 0.95),
-    0 0 12px rgba(0, 255, 136, 0.75),
-    0 0 24px rgba(0, 255, 136, 0.45),
-    0 0 48px rgba(0, 255, 136, 0.2);
+    0 0 2px rgba(0, 255, 136, 0.5),
+    0 0 6px rgba(0, 255, 136, 0.25);
 }
 
 .led-marquee-badge {
   font-family: var(--font-display, "Bebas Neue", sans-serif);
   letter-spacing: 0.2em;
-  color: #00ff88;
-  text-shadow:
-    0 0 8px rgba(0, 255, 136, 0.9),
-    0 0 16px rgba(0, 255, 136, 0.5);
+  color: #5ee6a8;
+  text-shadow: 0 0 4px rgba(0, 255, 136, 0.35);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -271,7 +265,7 @@
   }
 
   .led-marquee-screen-pulse {
-    animation: led-border-pulse 3s ease-in-out infinite;
+    animation: led-border-pulse 5s ease-in-out infinite;
   }
 
   .led-marquee-scanlines-animated {
