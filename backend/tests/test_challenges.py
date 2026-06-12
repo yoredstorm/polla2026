@@ -374,6 +374,91 @@ async def test_pending_does_not_reduce_challenged_available(
 
 
 @pytest.mark.asyncio
+async def test_challenge_uses_paid_extra_not_global_free_when_both_exist(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    """
+    Duel must compare the paid extra (0 pts), not a separate global free bet that hit exact score.
+    """
+    cookies_a, user_a = await _register(client, "duel_extra_a")
+    cookies_b, user_b = await _register(client, "duel_extra_b")
+
+    group, fixture = await _seed_polla(db_session, [(user_a, 8), (user_b, 8)])
+    db_session.add(
+        Bet(
+            id=uuid.uuid4(),
+            user_id=user_a,
+            fixture_id=fixture.id,
+            group_id=None,
+            predicted_home_score=2,
+            predicted_away_score=1,
+            amount=Decimal("0"),
+            amount_confirmed=True,
+        )
+    )
+    db_session.add(
+        Bet(
+            id=uuid.uuid4(),
+            user_id=user_a,
+            fixture_id=fixture.id,
+            group_id=group.id,
+            predicted_home_score=0,
+            predicted_away_score=1,
+            amount=Decimal("5"),
+            amount_confirmed=True,
+        )
+    )
+    db_session.add(_bet(user_b, fixture.id, group.id, 0, 1))
+    await db_session.commit()
+
+    user_b_row = (await db_session.execute(select(User).where(User.id == user_b))).scalar_one()
+
+    ch = await create_challenge(
+        db_session,
+        None,
+        challenger_id=user_a,
+        challenged_username=user_b_row.username,
+        fixture_id=fixture.id,
+        stake_points=1,
+        ip=None,
+    )
+    await accept_challenge(db_session, None, challenge_id=ch.id, user_id=user_b, ip=None)
+    await db_session.commit()
+
+    fixture.status = "finished"
+    fixture.home_score = 2
+    fixture.away_score = 1
+    await db_session.flush()
+
+    await settle_fixture_bets(db_session, fixture)
+    await settle_challenges_for_fixture(db_session, None, fixture)
+    await db_session.commit()
+
+    await db_session.refresh(ch)
+    assert ch.winner_id is None
+    assert ch.challenger_fixture_points == 0
+    assert ch.challenged_fixture_points == 0
+
+    ma = (
+        await db_session.execute(
+            select(GroupMember).where(
+                GroupMember.group_id == group.id, GroupMember.user_id == user_a
+            )
+        )
+    ).scalar_one()
+    mb = (
+        await db_session.execute(
+            select(GroupMember).where(
+                GroupMember.group_id == group.id, GroupMember.user_id == user_b
+            )
+        )
+    ).scalar_one()
+    assert ma.total_points == 8
+    assert mb.total_points == 8
+
+
+@pytest.mark.asyncio
 async def test_loser_does_not_keep_fixture_bet_points_on_ranking(
     client: AsyncClient,
     db_session: AsyncSession,

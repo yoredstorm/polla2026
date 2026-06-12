@@ -44,6 +44,8 @@ __all__ = [
     "cancel_unpaid_extras_for_fixture",
     "repair_unpaid_extra_cancellations",
     "get_scoring_bet_for_fixture",
+    "get_challenge_scoring_bet",
+    "apply_deferred_non_duel_bet_points",
     "repair_unconfirmed_extra_settlement",
     "SettleResult",
     "allocate_first_place_prizes",
@@ -443,22 +445,100 @@ async def settle_single_bet(db: AsyncSession, bet: Bet, fixture: Fixture) -> boo
     return True
 
 
+def _pick_best_eligible_bet(bets: list[Bet]) -> Bet | None:
+    if not bets:
+        return None
+    with_points = [b for b in bets if b.points_earned is not None]
+    if with_points:
+        return max(with_points, key=lambda b: (b.points_earned or 0, b.created_at))
+    return min(bets, key=lambda b: b.created_at)
+
+
 async def get_scoring_bet_for_fixture(
     db: AsyncSession,
     user_id: uuid.UUID,
     fixture_id: uuid.UUID,
 ) -> Bet | None:
-    """Best eligible bet for challenge/display: prefer settled points, then any eligible bet."""
+    """Best eligible bet by points (all bets). Used for generic display only."""
+    result = await db.execute(
+        select(Bet).where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
+    )
+    bets = [b for b in result.scalars().all() if bet_eligible_for_scoring(b)]
+    return _pick_best_eligible_bet(bets)
+
+
+async def get_challenge_scoring_bet(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    fixture_id: uuid.UUID,
+    group_id: uuid.UUID,
+) -> Bet | None:
+    """
+    Bet that counts for a 1v1 duel on this fixture.
+
+    Priority avoids counting a global free bet when the user also has a paid extra
+    on the same match (the usual case when challenging on an extra prediction).
+    1) Paid extra in the challenge group
+    2) Zero-amount group bet in the challenge group
+    3) Global free bet (group_id NULL)
+    """
     result = await db.execute(
         select(Bet).where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
     )
     bets = [b for b in result.scalars().all() if bet_eligible_for_scoring(b)]
     if not bets:
         return None
-    with_points = [b for b in bets if b.points_earned is not None]
-    if with_points:
-        return max(with_points, key=lambda b: (b.points_earned or 0, b.created_at))
-    return bets[0]
+
+    paid_group = [
+        b for b in bets if b.group_id == group_id and b.amount is not None and b.amount > 0
+    ]
+    picked = _pick_best_eligible_bet(paid_group)
+    if picked:
+        return picked
+
+    free_group = [
+        b
+        for b in bets
+        if b.group_id == group_id and (b.amount is None or b.amount <= 0)
+    ]
+    picked = _pick_best_eligible_bet(free_group)
+    if picked:
+        return picked
+
+    global_free = [b for b in bets if b.group_id is None]
+    return _pick_best_eligible_bet(global_free)
+
+
+async def apply_deferred_non_duel_bet_points(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    fixture_id: uuid.UUID,
+    group_id: uuid.UUID,
+    duel_bet_id: uuid.UUID | None,
+) -> None:
+    """
+    Add ranking points from other bets on the same fixture that were deferred
+    while a challenge was active (only the duel bet is settled via challenge).
+    """
+    result = await db.execute(
+        select(Bet).where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
+    )
+    member_result = await db.execute(
+        select(GroupMember).where(
+            and_(GroupMember.group_id == group_id, GroupMember.user_id == user_id)
+        )
+    )
+    member = member_result.scalar_one_or_none()
+    if not member:
+        return
+    for bet in result.scalars().all():
+        if not bet_eligible_for_scoring(bet):
+            continue
+        if duel_bet_id is not None and bet.id == duel_bet_id:
+            continue
+        pts = bet.points_earned or 0
+        if pts > 0:
+            member.total_points += pts
 
 
 async def settle_fixture_bets(db: AsyncSession, fixture: Fixture) -> SettleResult:
