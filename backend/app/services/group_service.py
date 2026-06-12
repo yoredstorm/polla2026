@@ -121,11 +121,43 @@ async def join_group(db: AsyncSession, user_id: uuid.UUID, invite_code: str) -> 
 
 
 def _leaderboard_subquery(*, week_start: datetime | None = None):
-    cond = []
+    cond = [Bet.cancelled_at.is_(None)]
     if week_start is not None:
         cond.append(Bet.created_at >= week_start)
-    where_clause = and_(*cond) if cond else True
+    where_clause = and_(*cond)
     scoring_bet = or_(Bet.amount <= 0, Bet.amount_confirmed == True)  # noqa: E712
+    settled_bet = and_(
+        scoring_bet,
+        Bet.points_earned.isnot(None),
+        Bet.cancelled_at.is_(None),
+    )
+    fixture_best = (
+        select(
+            Bet.user_id.label("fb_user_id"),
+            Bet.fixture_id.label("fixture_id"),
+            func.max(Bet.points_earned).label("best_pts"),
+        )
+        .where(settled_bet)
+        .group_by(Bet.user_id, Bet.fixture_id)
+    ).subquery()
+    user_fixture_stats = (
+        select(
+            fixture_best.c.fb_user_id.label("stats_user_id"),
+            func.count().label("settled_bets"),
+            func.count().filter(fixture_best.c.best_pts > 0).label("correct_results"),
+            func.count().filter(fixture_best.c.best_pts == 0).label("wrong_results"),
+            func.coalesce(func.sum(fixture_best.c.best_pts), 0).label("total_points"),
+        )
+        .group_by(fixture_best.c.fb_user_id)
+    ).subquery()
+    wager_counts = (
+        select(
+            Bet.user_id.label("wager_user_id"),
+            func.count().label("wager_count"),
+        )
+        .where(where_clause)
+        .group_by(Bet.user_id)
+    ).subquery()
     return (
         select(
             User.id.label("user_id"),
@@ -136,19 +168,16 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
             User.avatar_url.label("avatar_url"),
             User.bets_profile_visibility.label("bets_profile_visibility"),
             User.show_bet_amounts.label("show_bet_amounts"),
-            func.coalesce(func.sum(Bet.points_earned).filter(scoring_bet), 0).label("total_points"),
-            func.count(Bet.id).filter(and_(Bet.points_earned.isnot(None), scoring_bet)).label("settled_bets"),
-            func.count(Bet.id).label("wager_count"),
-            func.count(Bet.id).filter(and_(Bet.points_earned > 0, scoring_bet)).label("correct_results"),
-            func.count(Bet.id)
-            .filter(and_(Bet.points_earned.isnot(None), Bet.points_earned == 0, scoring_bet))
-            .label("wrong_results"),
-            # Total amount this user has contributed (entry fee + confirmed extras)
+            func.coalesce(user_fixture_stats.c.total_points, 0).label("total_points"),
+            func.coalesce(user_fixture_stats.c.settled_bets, 0).label("settled_bets"),
+            func.coalesce(wager_counts.c.wager_count, 0).label("wager_count"),
+            func.coalesce(user_fixture_stats.c.correct_results, 0).label("correct_results"),
+            func.coalesce(user_fixture_stats.c.wrong_results, 0).label("wrong_results"),
             func.coalesce(func.max(GroupMember.total_amount_bet), Decimal("0")).label("total_wagered"),
         )
-        .join(Bet, Bet.user_id == User.id)
+        .outerjoin(user_fixture_stats, user_fixture_stats.c.stats_user_id == User.id)
+        .outerjoin(wager_counts, wager_counts.c.wager_user_id == User.id)
         .outerjoin(GroupMember, GroupMember.user_id == User.id)
-        .where(where_clause)
         .group_by(
             User.id,
             User.username,
@@ -158,6 +187,11 @@ def _leaderboard_subquery(*, week_start: datetime | None = None):
             User.avatar_url,
             User.bets_profile_visibility,
             User.show_bet_amounts,
+            user_fixture_stats.c.total_points,
+            user_fixture_stats.c.settled_bets,
+            user_fixture_stats.c.correct_results,
+            user_fixture_stats.c.wrong_results,
+            wager_counts.c.wager_count,
         )
     ).subquery()
 
@@ -238,6 +272,56 @@ async def _fetch_leaderboard_page(
     return leaderboard
 
 
+def _scoring_bet_sql_clause():
+    """Bets that count toward accuracy (free/zero extras or confirmed paid extras)."""
+    return and_(
+        or_(Bet.amount <= 0, Bet.amount_confirmed == True),  # noqa: E712
+        Bet.cancelled_at.is_(None),
+    )
+
+
+async def _fixture_level_bet_stats(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    polla_bets,
+) -> tuple[int, int, int, int]:
+    """
+    Accuracy stats per fixture (best settled bet per match), not per bet row.
+
+    Avoids counting global free + paid extra on the same match as 2 liquidadas.
+    """
+    scoring = _scoring_bet_sql_clause()
+    wager = int(
+        (
+            await db.execute(
+                select(func.count()).where(and_(Bet.user_id == user_id, polla_bets, scoring))
+            )
+        ).scalar()
+        or 0
+    )
+    rows = (
+        await db.execute(
+            select(
+                Bet.fixture_id,
+                func.max(Bet.points_earned).label("best_pts"),
+            )
+            .where(
+                and_(
+                    Bet.user_id == user_id,
+                    polla_bets,
+                    scoring,
+                    Bet.points_earned.isnot(None),
+                )
+            )
+            .group_by(Bet.fixture_id)
+        )
+    ).all()
+    settled = len(rows)
+    correct = sum(1 for row in rows if int(row.best_pts or 0) > 0)
+    wrong = sum(1 for row in rows if int(row.best_pts or 0) == 0)
+    return wager, settled, correct, wrong
+
+
 async def _ranking_points_for_member(
     db: AsyncSession,
     group_id: uuid.UUID,
@@ -265,21 +349,7 @@ async def get_group_leaderboard(
     entries: list[LeaderboardEntry] = []
     for member, user in rows:
         polla_bets = or_(Bet.group_id == group_id, Bet.group_id.is_(None))
-        bets_result = await db.execute(
-            select(
-                func.count().label("wager_count"),
-                func.count().filter(Bet.points_earned.isnot(None)).label("settled"),
-                func.count().filter(Bet.points_earned > 0).label("correct"),
-                func.count()
-                .filter(and_(Bet.points_earned.isnot(None), Bet.points_earned == 0))
-                .label("wrong"),
-            ).where(and_(Bet.user_id == user.id, polla_bets))
-        )
-        br = bets_result.one()
-        wager = int(br.wager_count or 0)
-        settled = int(br.settled or 0)
-        correct = int(br.correct or 0)
-        wrong = int(br.wrong or 0)
+        wager, settled, correct, wrong = await _fixture_level_bet_stats(db, user.id, polla_bets)
         if wager < min_bets:
             continue
         accuracy = round((correct / settled * 100) if settled > 0 else 0.0, 1)

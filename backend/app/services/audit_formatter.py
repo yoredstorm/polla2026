@@ -41,6 +41,8 @@ ACTION_LABELS_ES: dict[str, str] = {
     "challenge_accepted": "Reto aceptado",
     "challenge_rejected": "Reto rechazado",
     "challenge_settled": "Reto liquidado",
+    "challenge_settlement_repaired": "Reparación liquidación reto",
+    "challenge_audit_trail_repaired": "Reparación log reto",
     "challenge_points_transferred": "Transferencia de puntos (reto)",
     "admin_member_removed": "Miembro eliminado",
     "admin_patch_group": "Config polla actualizada",
