@@ -5,6 +5,7 @@ import { getBadgeChipClass } from "@/lib/badges";
 import type { BadgeOut, LeaderboardEntry } from "@/types/api";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 
 function BadgeChip({ badge }: { badge: BadgeOut }) {
   const color = getBadgeChipClass(badge.id);
@@ -23,9 +24,11 @@ export interface LeaderboardEntryCardProps {
   isMe?: boolean;
   rankIndex: number;
   compact?: boolean;
+  /** Stagger entrance when used in lists */
+  animate?: boolean;
 }
 
-export function LeaderboardEntryCard({ entry, isMe, rankIndex, compact }: LeaderboardEntryCardProps) {
+export function LeaderboardEntryCard({ entry, isMe, rankIndex, compact, animate }: LeaderboardEntryCardProps) {
   const wrong = entry.wrong_results ?? Math.max(0, entry.total_bets - entry.correct_results);
   const wagers = entry.wager_count ?? entry.total_bets;
   const settled = entry.total_bets;
@@ -41,10 +44,11 @@ export function LeaderboardEntryCard({ entry, isMe, rankIndex, compact }: Leader
   const rankDisplay =
     rankIndex === 0 ? "🥇" : rankIndex === 1 ? "🥈" : rankIndex === 2 ? "🥉" : entry.position;
 
-  return (
+  const card = (
     <div
       className={cn(
-        "rounded-xl border bg-glass backdrop-blur-sm flex items-center gap-4 transition-shadow",
+        "rounded-xl border bg-glass backdrop-blur-sm flex items-center gap-4",
+        "transition-[transform,box-shadow] duration-fast ease-entrance hover:-translate-y-0.5",
         compact ? "p-3" : "p-4",
         isMe && "border-accent/60 shadow-lg shadow-accent/15 ring-1 ring-accent/20",
         !isMe && rankIndex === 0 && "border-yellow-500/40 shadow-lg shadow-yellow-500/10",
@@ -145,4 +149,10 @@ export function LeaderboardEntryCard({ entry, isMe, rankIndex, compact }: Leader
       </span>
     </div>
   );
+
+  if (animate) {
+    return <StaggerItem index={rankIndex}>{card}</StaggerItem>;
+  }
+
+  return card;
 }

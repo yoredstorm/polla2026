@@ -2,6 +2,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import { useInactivityTimeout } from "@/hooks/useInactivityTimeout";
 import { cn } from "@/lib/utils";
@@ -10,6 +11,8 @@ import { useUnreadCount } from "@/hooks/useNotifications";
 import { Bell } from "lucide-react";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { HelpTooltip } from "@/components/features/help/HelpTooltip";
+import { MotionSafe } from "@/components/ui/MotionSafe";
+import { exitTransition, MOTION } from "@/lib/motion";
 import type { HelpKey } from "@/lib/systemHelp";
 
 const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string }[] = [
@@ -18,6 +21,42 @@ const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string 
   { href: "/my-bets", label: "Mis Apuestas", helpKey: "nav.myBets", tourId: "nav-my-bets" },
   { href: "/leaderboard", label: "Ranking", helpKey: "nav.leaderboard", tourId: "nav-leaderboard" },
 ];
+
+function DesktopNavLink({
+  href,
+  label,
+  active,
+  tourId,
+  helpKey,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  tourId: string;
+  helpKey: HelpKey;
+}) {
+  return (
+    <span className="inline-flex items-center gap-0.5" data-help-tour={tourId}>
+      <Link
+        href={href}
+        className={cn(
+          "nav-link relative text-sm cursor-pointer focus-ring rounded-md px-2 py-1",
+          active ? "text-accent" : "text-muted hover:text-white",
+        )}
+      >
+        {active && (
+          <MotionSafe
+            layoutId="desktop-nav-pill"
+            className="absolute inset-0 rounded-md bg-accent/10 border border-accent/25 -z-10"
+            transition={MOTION.spring}
+          />
+        )}
+        <span className="relative z-[1]">{label}</span>
+      </Link>
+      <HelpTooltip helpKey={helpKey} label={label} side="bottom" />
+    </span>
+  );
+}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -52,40 +91,32 @@ export function Navbar() {
           <div className="px-4 h-14 flex items-center justify-between">
             <Link
               href="/dashboard"
-              className="font-display text-xl text-accent text-glow-accent focus-ring rounded-lg"
+              className="font-display text-xl text-accent text-glow-accent focus-ring rounded-lg nav-link"
             >
               POLLA DEPORTIVA
             </Link>
             <div className="hidden md:flex items-center gap-6">
               {navLinks.map((link) => (
-                <span
+                <DesktopNavLink
                   key={link.href}
-                  className="inline-flex items-center gap-0.5"
-                  data-help-tour={link.tourId}
-                >
-                  <Link
-                    href={link.href}
-                    className={cn(
-                      "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1",
-                      pathname.startsWith(link.href) ? "text-accent" : "text-muted hover:text-white",
-                    )}
-                  >
-                    {link.label}
-                  </Link>
-                  <HelpTooltip helpKey={link.helpKey} label={link.label} side="bottom" />
-                </span>
+                  href={link.href}
+                  label={link.label}
+                  helpKey={link.helpKey}
+                  tourId={link.tourId}
+                  active={pathname.startsWith(link.href)}
+                />
               ))}
               <Link
                 href="/notifications"
                 className={cn(
-                  "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1 inline-flex items-center gap-1",
+                  "nav-link text-sm cursor-pointer focus-ring rounded-md px-2 py-1 inline-flex items-center gap-1",
                   pathname.startsWith("/notifications") ? "text-accent" : "text-muted hover:text-white",
                 )}
               >
                 <Bell className="w-4 h-4" aria-hidden />
                 Avisos
                 {unreadCount > 0 && (
-                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-background text-[10px] font-bold flex items-center justify-center">
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-background text-[10px] font-bold flex items-center justify-center animate-pulse">
                     {unreadCount > 99 ? "99+" : unreadCount}
                   </span>
                 )}
@@ -94,7 +125,7 @@ export function Navbar() {
                 <Link
                   href="/admin"
                   className={cn(
-                    "text-sm transition-colors duration-200 cursor-pointer focus-ring rounded-md px-1",
+                    "nav-link text-sm cursor-pointer focus-ring rounded-md px-2 py-1",
                     pathname.startsWith("/admin") ? "text-accent" : "text-muted hover:text-white",
                   )}
                 >
@@ -109,11 +140,11 @@ export function Navbar() {
                 <button
                   type="button"
                   onClick={() => setDropdownOpen((v) => !v)}
-                  className="flex items-center gap-2 text-sm text-muted hover:text-white transition-colors duration-200 cursor-pointer focus-ring rounded-lg px-2 py-1"
+                  className="flex items-center gap-2 text-sm text-muted hover:text-white transition-[color,transform] duration-fast ease-entrance hover:-translate-y-px active:scale-[0.98] cursor-pointer focus-ring rounded-lg px-2 py-1 pressable"
                 >
                   <span className="hidden md:inline">{user?.username}</span>
                   <svg
-                    className={cn("w-4 h-4 transition-transform", dropdownOpen && "rotate-180")}
+                    className={cn("w-4 h-4 transition-transform duration-fast ease-entrance", dropdownOpen && "rotate-180")}
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -123,37 +154,44 @@ export function Navbar() {
                   </svg>
                 </button>
 
-                {dropdownOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-surface shadow-xl py-1 z-50">
-                    <Link
-                      href="/profile"
-                      onClick={() => setDropdownOpen(false)}
-                      className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                <AnimatePresence>
+                  {dropdownOpen && (
+                    <MotionSafe
+                      initial={false}
+                      exit={{ opacity: 0, scale: 0.96, y: -4 }}
+                      transition={exitTransition()}
+                      className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-surface shadow-xl py-1 z-50 origin-top-right"
                     >
-                      Mi perfil
-                    </Link>
-                    {user?.username && (
                       <Link
-                        href={`/u/${encodeURIComponent(user.username)}`}
+                        href="/profile"
                         onClick={() => setDropdownOpen(false)}
-                        className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors cursor-pointer"
+                        className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors duration-fast cursor-pointer"
                       >
-                        Mi pagina publica
+                        Mi perfil
                       </Link>
-                    )}
-                    <div className="my-1 border-t border-white/10" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDropdownOpen(false);
-                        logout.mutate();
-                      }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-white/5 transition-colors cursor-pointer focus-ring"
-                    >
-                      Cerrar sesión
-                    </button>
-                  </div>
-                )}
+                      {user?.username && (
+                        <Link
+                          href={`/u/${encodeURIComponent(user.username)}`}
+                          onClick={() => setDropdownOpen(false)}
+                          className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors duration-fast cursor-pointer"
+                        >
+                          Mi pagina publica
+                        </Link>
+                      )}
+                      <div className="my-1 border-t border-white/10" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDropdownOpen(false);
+                          logout.mutate();
+                        }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-danger hover:bg-white/5 transition-colors duration-fast cursor-pointer focus-ring"
+                      >
+                        Cerrar sesión
+                      </button>
+                    </MotionSafe>
+                  )}
+                </AnimatePresence>
               </div>
             </div>
           </div>

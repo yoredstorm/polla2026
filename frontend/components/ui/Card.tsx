@@ -29,6 +29,7 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
         glow && "border-accent/40 shadow-glow-accent",
         live && "border-danger/50 shadow-glow-danger",
         interactive && "card-interactive",
+        !interactive && "transition-[transform,box-shadow] duration-fast ease-entrance hover:-translate-y-0.5",
         className,
       )}
       {...props}

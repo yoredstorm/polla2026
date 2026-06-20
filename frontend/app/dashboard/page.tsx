@@ -30,6 +30,7 @@ import { useChallengeAvailablePoints } from "@/hooks/useChallenges";
 import { ChallengeQuotaBars } from "@/components/features/betting/ChallengeQuotaBars";
 import { NeonPiggyBank } from "@/components/features/dashboard/NeonPiggyBank";
 import { LiveStatusStrip } from "@/components/features/dashboard/LiveStatusStrip";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 import { TournamentProgressTimeline } from "@/components/features/dashboard/TournamentProgressTimeline";
 
 export default function DashboardPage() {
@@ -107,7 +108,7 @@ export default function DashboardPage() {
           </Button>
           <Link
             href="/profile"
-            className="inline-flex items-center justify-center px-4 py-2.5 text-sm rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10 transition-colors duration-200 cursor-pointer focus-ring"
+            className="inline-flex items-center justify-center px-4 py-2.5 text-sm rounded-xl border border-white/15 bg-white/5 text-white hover:bg-white/10 pressable cursor-pointer focus-ring"
           >
             Perfil y privacidad
           </Link>
@@ -138,18 +139,23 @@ export default function DashboardPage() {
             </span>
             <HelpTooltip helpKey="page.dashboard.stats" label="Estadísticas" />
           </div>
+          <StaggerItem index={0}>
           <Card className="p-4 text-center col-span-1 lg:col-span-1" glow>
             <p className="text-xs text-muted">Tu puesto</p>
             <p className="font-display text-4xl text-accent text-glow-accent">
               #{myEntry.position}
             </p>
           </Card>
+          </StaggerItem>
+          <StaggerItem index={1}>
           <Card className="p-4 text-center">
             <p className="text-xs text-muted">Puntos</p>
             <p className="font-display text-4xl text-white">
               {myEntry.total_points}
             </p>
           </Card>
+          </StaggerItem>
+          <StaggerItem index={2}>
           <Card className="p-4 col-span-2 lg:col-span-2 flex flex-col justify-center">
             <p className="text-xs text-muted">Distancia al líder</p>
             <p className="font-display text-xl text-white mt-1">
@@ -160,7 +166,9 @@ export default function DashboardPage() {
                   : "—"}
             </p>
           </Card>
+          </StaggerItem>
           {rivalData?.rival && (
+            <StaggerItem index={3} className="col-span-2 lg:col-span-4">
             <Card className="p-4 col-span-2 lg:col-span-4 border-warning/25 bg-warning/5">
               <p className="text-xs text-warning/80 uppercase tracking-wide mb-1">
                 Tu rival
@@ -178,6 +186,7 @@ export default function DashboardPage() {
                   : ""}
               </p>
             </Card>
+            </StaggerItem>
           )}
         </section>
       )}
@@ -365,6 +374,7 @@ export default function DashboardPage() {
                       isMe={entry.user_id === user?.id}
                       rankIndex={i}
                       compact
+                      animate
                     />
                   ))
               ) : !leaderboard ? (

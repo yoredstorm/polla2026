@@ -11,7 +11,14 @@ export const MOTION = {
   },
   stagger: 0.03,
   tap: { scale: 0.98 },
+  hover: { scale: 1.02 },
   spring: { type: "spring" as const, stiffness: 500, damping: 30 },
+  springSnappy: { type: "spring" as const, stiffness: 400, damping: 17 },
+} as const;
+
+export const pageEnter = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0 },
 } as const;
 
 export function staggerDelay(index: number): number {

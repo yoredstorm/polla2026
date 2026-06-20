@@ -3,6 +3,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { PromoMarquee } from "@/components/features/site/PromoMarquee";
 import { PaymentGlobalNotice } from "@/components/features/payment/PaymentGlobalNotice";
 import { PasswordChangeGuard } from "@/components/features/auth/PasswordChangeGuard";
+import { PageEnter } from "@/components/ui/PageEnter";
 import { cn } from "@/lib/utils";
 
 type MaxWidth = "sm" | "md" | "lg" | "xl" | "full";
@@ -55,7 +56,9 @@ export function PageShell({
         )}
       >
         {withNavbar && <PaymentGlobalNotice />}
-        <PasswordChangeGuard>{children}</PasswordChangeGuard>
+        <PasswordChangeGuard>
+          <PageEnter>{children}</PageEnter>
+        </PasswordChangeGuard>
       </main>
       {withFooter && <Footer />}
     </div>
