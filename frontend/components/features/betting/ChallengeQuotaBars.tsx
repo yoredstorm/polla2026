@@ -1,8 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
+import { MotionSafe, getMotionProps } from "@/components/ui/MotionSafe";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import type { ChallengeQuotaData } from "@/lib/challengeQuota";
 import { hasChallengeQuotaLimits } from "@/lib/challengeQuota";
+import { MOTION, entranceTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 interface QuotaRowProps {
@@ -24,14 +27,15 @@ function QuotaRow({
   pulse,
   compact,
 }: QuotaRowProps) {
+  const reduced = useReducedMotion();
   const rem = remaining ?? Math.max(0, limit - used);
   const pct = limit > 0 ? Math.min(100, (used / limit) * 100) : 0;
   const exhausted = rem <= 0;
 
   return (
-    <motion.div
-      animate={pulse ? { scale: [1, 1.02, 1] } : { scale: 1 }}
-      transition={{ duration: 0.35 }}
+    <MotionSafe
+      animate={pulse && !reduced ? { scale: [1, 1.02, 1] } : { scale: 1 }}
+      transition={{ duration: MOTION.duration.normal }}
       className={cn("space-y-1.5", compact ? "" : "mb-3 last:mb-0")}
     >
       <div className="flex justify-between items-baseline gap-2 text-xs">
@@ -42,12 +46,15 @@ function QuotaRow({
           ) : (
             <>
               <AnimatePresence mode="popLayout">
-                {pulse && (
+                {pulse && !reduced && (
                   <motion.span
                     key="minus"
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0 }}
+                    {...getMotionProps(reduced, {
+                      initial: { opacity: 0, y: -4 },
+                      animate: { opacity: 1, y: 0 },
+                      exit: { opacity: 0 },
+                      transition: entranceTransition(),
+                    })}
                     className="text-accent mr-1 inline-block"
                   >
                     −1
@@ -67,17 +74,20 @@ function QuotaRow({
         aria-valuemax={limit}
         aria-label={label}
       >
-        <motion.div
+        <MotionSafe
+          initial={false}
+          animate={{ width: `${pct}%` }}
+          transition={{
+            duration: MOTION.duration.normal,
+            ease: MOTION.ease.entrance,
+          }}
           className={cn(
             "h-full rounded-full",
             exhausted ? "bg-amber-500/80" : "bg-accent",
           )}
-          initial={false}
-          animate={{ width: `${pct}%` }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
         />
       </div>
-    </motion.div>
+    </MotionSafe>
   );
 }
 

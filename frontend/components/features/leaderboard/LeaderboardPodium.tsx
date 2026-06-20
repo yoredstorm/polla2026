@@ -2,6 +2,7 @@
 
 import { Trophy, Medal } from "lucide-react";
 import { MotionSafe } from "@/components/ui/MotionSafe";
+import { entranceTransition, staggerDelay } from "@/lib/motion";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { cn } from "@/lib/utils";
 import type { LeaderboardEntry } from "@/types/api";
@@ -46,7 +47,7 @@ function PodiumColumn({
     <MotionSafe
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: 0.35 }}
+      transition={{ ...entranceTransition(delay), duration: 0.25 }}
       className="flex flex-col items-center w-full min-w-0"
     >
       <div
@@ -97,9 +98,9 @@ export function LeaderboardPodium({ entries, currentUserId }: LeaderboardPodiumP
   return (
     <section className="mb-8" aria-label="Podio top 3">
       <div className="grid grid-cols-3 gap-x-2 sm:gap-x-4 items-end max-w-lg mx-auto px-1">
-        <PodiumColumn entry={second} rank={2} currentUserId={currentUserId} delay={0} />
-        <PodiumColumn entry={first}  rank={1} currentUserId={currentUserId} delay={0.08} />
-        <PodiumColumn entry={third}  rank={3} currentUserId={currentUserId} delay={0.16} />
+        <PodiumColumn entry={second} rank={2} currentUserId={currentUserId} delay={staggerDelay(0)} />
+        <PodiumColumn entry={first}  rank={1} currentUserId={currentUserId} delay={staggerDelay(1)} />
+        <PodiumColumn entry={third}  rank={3} currentUserId={currentUserId} delay={staggerDelay(2)} />
       </div>
     </section>
   );

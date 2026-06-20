@@ -34,7 +34,7 @@ export function BettingTrendsBar({ fixtureId, compact }: BettingTrendsBarProps) 
             </div>
             <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
               <div
-                className="h-full bg-accent/70 transition-all"
+                className="h-full bg-accent/70 transition-all duration-slow ease-entrance"
                 style={{ width: `${Math.min(100, o.pct)}%` }}
               />
             </div>

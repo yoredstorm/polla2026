@@ -1,4 +1,5 @@
 import type { Config } from "tailwindcss";
+import tailwindcssAnimate from "tailwindcss-animate";
 
 const config: Config = {
   darkMode: "class",
@@ -44,9 +45,18 @@ const config: Config = {
         'glow-accent': '0 0 10px rgba(0, 255, 136, 0.7)',
         'glow-accent-intense': '0 0 5px #fff, 0 0 15px #00ff88, 0 0 30px #00ff88',
       },
+      transitionDuration: {
+        fast: "150ms",
+        DEFAULT: "200ms",
+        slow: "300ms",
+      },
+      transitionTimingFunction: {
+        entrance: "cubic-bezier(0, 0, 0.2, 1)",
+        exit: "cubic-bezier(0.4, 0, 1, 1)",
+      },
     },
   },
-  plugins: [],
+  plugins: [tailwindcssAnimate],
 };
 
 export default config;

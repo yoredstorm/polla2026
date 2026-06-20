@@ -42,16 +42,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       ref={ref}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-2 transition-colors duration-200 cursor-pointer focus-ring disabled:opacity-50 disabled:cursor-not-allowed",
+        "inline-flex items-center justify-center gap-2 transition-[colors,transform] duration-fast ease-entrance cursor-pointer focus-ring disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 active:scale-[0.98]",
         variants[variant],
         sizes[size],
         className,
       )}
       {...props}
     >
-      {loading && <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />}
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> : null}
       {children}
     </button>
   ),
 );
+
 Button.displayName = "Button";

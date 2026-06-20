@@ -27,6 +27,12 @@ const sizeClasses: Record<ModalSize, string> = {
   xl: "max-w-3xl",
 };
 
+const overlayMotionClasses =
+  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-200";
+
+const contentMotionClasses =
+  "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-top-[2%] data-[state=open]:slide-in-from-top-[2%] duration-200";
+
 export function modalCloseHandler(onClose: () => void, onOpenChange?: (open: boolean) => void) {
   return (open: boolean) => {
     onOpenChange?.(open);
@@ -57,6 +63,7 @@ export function Modal({
         <Dialog.Overlay
           className={cn(
             "fixed inset-0 z-50 bg-black/70 backdrop-blur-sm",
+            overlayMotionClasses,
             overlayClassName,
           )}
         />
@@ -64,6 +71,7 @@ export function Modal({
           className={cn(
             "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-h-[min(90vh,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2",
             "overflow-y-auto rounded-2xl border border-white/10 bg-surface p-6 shadow-xl focus:outline-none",
+            contentMotionClasses,
             sizeClasses[size],
             className,
           )}
@@ -77,7 +85,7 @@ export function Modal({
           {children}
           {!hideCloseButton && (
             <Dialog.Close
-              className="absolute top-4 right-4 p-1 rounded-lg text-muted hover:text-white hover:bg-white/10 transition-colors duration-200 cursor-pointer focus-ring"
+              className="absolute top-4 right-4 p-1 rounded-lg text-muted hover:text-white hover:bg-white/10 transition-[colors,transform] duration-fast ease-entrance active:scale-[0.98] cursor-pointer focus-ring"
               aria-label="Cerrar"
             >
               <X className="w-5 h-5" />

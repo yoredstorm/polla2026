@@ -37,7 +37,7 @@ export function TournamentProgressTimeline({
 
       <div className="relative h-3 rounded-full bg-white/10 overflow-hidden mb-3">
         <div
-          className="absolute inset-y-0 left-0 bg-accent transition-all duration-500"
+          className="absolute inset-y-0 left-0 bg-accent transition-all duration-slow ease-entrance"
           style={{ width: `${overallPct}%` }}
         />
         {maxMilestone > 0 &&

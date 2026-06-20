@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { Trophy, Medal } from "lucide-react";
 import { MotionSafe } from "@/components/ui/MotionSafe";
+import { entranceTransition, staggerDelay } from "@/lib/motion";
 import { PageShell } from "@/components/layout/PageShell";
 import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
 import { HelpTooltip } from "@/components/features/help/HelpTooltip";
@@ -323,7 +324,7 @@ export default function FixtureDetailPage() {
                         key={row.user_id}
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: idx * 0.08 }}
+                        transition={entranceTransition(staggerDelay(idx))}
                         className={cn(
                           "rounded-xl border p-4 text-center relative",
                           idx === 0 &&

@@ -1,4 +1,6 @@
 "use client";
+
+import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { cn } from "@/lib/utils";
 
 export interface NeonPiggyBankProps {
@@ -8,56 +10,17 @@ export interface NeonPiggyBankProps {
 }
 
 export function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankProps) {
+  const reduced = useReducedMotion();
+  const showCoins = isAnimating && !reduced;
+
   return (
     <div className="relative w-full flex justify-center items-center py-8">
-      <style>{`
-        @keyframes dropCoin {
-          0% { transform: translateY(-40px) scale(0.5); opacity: 0; }
-          20% { transform: translateY(-10px) scale(1); opacity: 1; }
-          70% { transform: translateY(30px) scale(1); opacity: 1; }
-          100% { transform: translateY(50px) scale(0.5); opacity: 0; }
-        }
-        .golden-coin {
-          position: absolute;
-          width: 24px;
-          height: 24px;
-          border-radius: 50%;
-          background: radial-gradient(circle, #ffe066 0%, #f5b041 50%, #d4ac0d 100%);
-          border: 2px solid #fef9e7;
-          box-shadow: 0 0 15px rgba(241, 196, 15, 0.8), inset 0 0 5px rgba(255, 255, 255, 0.8);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #9a7d0a;
-          font-weight: bold;
-          font-size: 12px;
-          opacity: 0;
-          z-index: 20;
-        }
-        .coin-inside {
-          position: absolute;
-          width: 28px;
-          height: 10px;
-          border-radius: 50%;
-          background: linear-gradient(to bottom, #ffe066 0%, #f5b041 50%, #d4ac0d 100%);
-          border: 1px solid rgba(255,255,255,0.6);
-          border-bottom: 3px solid #b7950b;
-          opacity: 0.65;
-          box-shadow: 0 3px 5px rgba(0,0,0,0.3), inset 0 1px 2px rgba(255,255,255,0.8);
-        }
-        .animate-coin-1 { animation: dropCoin 1.2s ease-in forwards; }
-        .animate-coin-2 { animation: dropCoin 1.2s ease-in 0.3s forwards; }
-        .animate-coin-3 { animation: dropCoin 1.2s ease-in 0.6s forwards; }
-        .text-glow-pink {
-          text-shadow: 0 0 5px #fff, 0 0 15px #ff87dd, 0 0 30px #ff87dd;
-        }
-      `}</style>
       <div className="relative w-full max-w-[320px] aspect-[4/3] flex items-center justify-center">
-        {isAnimating && (
+        {showCoins && (
           <div className="absolute top-0 left-1/2 -translate-x-1/2 flex justify-center w-full h-full pointer-events-none">
-            <div className="golden-coin animate-coin-1 left-[45%]">$</div>
-            <div className="golden-coin animate-coin-2 left-[55%]">$</div>
-            <div className="golden-coin animate-coin-3 left-[48%]">$</div>
+            <div className="piggy-golden-coin piggy-animate-coin-1 left-[45%]">$</div>
+            <div className="piggy-golden-coin piggy-animate-coin-2 left-[55%]">$</div>
+            <div className="piggy-golden-coin piggy-animate-coin-3 left-[48%]">$</div>
           </div>
         )}
         <svg
@@ -89,10 +52,10 @@ export function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankPr
           <g
             filter="url(#neon-pink)"
             stroke="#ff87dd"
-            strokeWidth={isAnimating ? "5" : "3"}
+            strokeWidth={isAnimating && !reduced ? "5" : "3"}
             strokeLinecap="round"
             strokeLinejoin="round"
-            className="transition-all duration-300 ease-out"
+            className="transition-all duration-slow ease-entrance"
           >
             <path
               d="M 82 168 C 76 168 82 168 85 168 L 90 168 C 95 168 95 160 95 155 L 96 150"
@@ -129,12 +92,12 @@ export function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankPr
           />
         </svg>
         <div className="absolute inset-0 z-[1] pointer-events-none">
-          <div className="coin-inside absolute left-[38%] top-[77%] -rotate-6" />
-          <div className="coin-inside absolute left-[48%] top-[78%] rotate-3" />
-          <div className="coin-inside absolute left-[56%] top-[76%] rotate-12" />
-          <div className="coin-inside absolute left-[43%] top-[73%] rotate-6" />
-          <div className="coin-inside absolute left-[52%] top-[74%] -rotate-3" />
-          <div className="coin-inside absolute left-[47%] top-[70%] rotate-2" />
+          <div className="piggy-coin-inside absolute left-[38%] top-[77%] -rotate-6" />
+          <div className="piggy-coin-inside absolute left-[48%] top-[78%] rotate-3" />
+          <div className="piggy-coin-inside absolute left-[56%] top-[76%] rotate-12" />
+          <div className="piggy-coin-inside absolute left-[43%] top-[73%] rotate-6" />
+          <div className="piggy-coin-inside absolute left-[52%] top-[74%] -rotate-3" />
+          <div className="piggy-coin-inside absolute left-[47%] top-[70%] rotate-2" />
         </div>
         <div className="absolute inset-0 flex flex-col items-center justify-center pt-2 pr-4 z-10 pointer-events-none">
           <p className="text-[10px] text-white/60 uppercase tracking-widest mb-0.5">
@@ -145,8 +108,8 @@ export function NeonPiggyBank({ amount, currency, isAnimating }: NeonPiggyBankPr
             <span
               className={cn(
                 "font-display text-4xl text-white tabular-nums tracking-tight",
-                "text-glow-pink transition-all duration-300",
-                isAnimating && "scale-110",
+                "text-glow-pink transition-all duration-slow ease-entrance",
+                isAnimating && !reduced && "scale-110",
               )}
             >
               {amount}

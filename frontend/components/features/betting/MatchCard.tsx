@@ -5,6 +5,7 @@ import { Lock, MapPin } from "lucide-react";
 import type { Fixture } from "@/types/api";
 import { TeamAvatar } from "@/components/features/betting/TeamAvatar";
 import { MotionSafe } from "@/components/ui/MotionSafe";
+import { entranceTransition, staggerDelay } from "@/lib/motion";
 import { cn, formatMatchDate, formatCountdown, isWithin24Hours, getStatusLabel } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { BettingTrendsBar } from "@/components/features/betting/BettingTrendsBar";
@@ -30,7 +31,7 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
     <MotionSafe
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
+      transition={entranceTransition(staggerDelay(index))}
     >
       <Link
         href={`/fixtures/${fixture.id}`}

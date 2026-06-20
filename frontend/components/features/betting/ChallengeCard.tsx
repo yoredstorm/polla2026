@@ -1,7 +1,8 @@
 "use client";
-import { motion } from "framer-motion";
+import { MotionSafe } from "@/components/ui/MotionSafe";
 import type { Challenge } from "@/hooks/useChallenges";
 import { challengeStatusLabel } from "@/lib/challengeUtils";
+import { entranceTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
@@ -70,10 +71,11 @@ export function ChallengeCard({
   const isPending = ch.status === "pending_accept";
 
   return (
-    <motion.div
+    <MotionSafe
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
+      transition={entranceTransition()}
       className={cn(
         "rounded-2xl border bg-gradient-to-b from-white/[0.06] to-transparent p-4",
         isPending ? "border-accent/40" : "border-white/10",
@@ -149,6 +151,6 @@ export function ChallengeCard({
           </div>
         </div>
       )}
-    </motion.div>
+    </MotionSafe>
   );
 }

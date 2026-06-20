@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { MotionSafeSpan } from "@/components/ui/MotionSafe";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useCreateChallenge,
@@ -139,13 +139,13 @@ export function ChallengeModal({ fixtureId, open, onClose }: ChallengeModalProps
                 <p className="text-[10px] text-muted mt-0.5">{pts.available} disp.</p>
               )}
             </div>
-            <motion.span
-              animate={{ scale: [1, 1.08, 1] }}
+            <MotionSafeSpan
+              animate={{ scale: [1, 1.05, 1] }}
               transition={{ repeat: Infinity, duration: 2 }}
               className="font-display text-3xl text-white"
             >
               VS
-            </motion.span>
+            </MotionSafeSpan>
             <div className="flex flex-col items-center flex-1">
               <div
                 className={cn(

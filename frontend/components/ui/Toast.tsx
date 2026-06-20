@@ -1,7 +1,10 @@
 "use client";
-import { useEffect } from "react";
+
+import { AnimatePresence, motion } from "framer-motion";
 import { create } from "zustand";
 import { CheckCircle2, XCircle, Info } from "lucide-react";
+import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { entranceTransition, exitTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 type ToastType = "success" | "error" | "info";
@@ -46,36 +49,40 @@ export function ToastContainer() {
   const toasts = useToast((s) => s.toasts);
   const remove = useToast((s) => s.remove);
 
-  if (toasts.length === 0) return null;
-
   return (
     <div className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 max-w-sm toast-mobile-offset md:bottom-4">
-      {toasts.map((t) => (
-        <ToastItem key={t.id} toast={t} onDismiss={() => remove(t.id)} />
-      ))}
+      <AnimatePresence mode="popLayout">
+        {toasts.map((t) => (
+          <ToastItem key={t.id} toast={t} onDismiss={() => remove(t.id)} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
 
 function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
   const Icon = TYPE_ICONS[toast.type];
-
-  useEffect(() => {
-    const el = document.getElementById(`toast-${toast.id}`);
-    if (el) {
-      el.style.opacity = "0";
-      el.style.transform = "translateX(20px)";
-      requestAnimationFrame(() => {
-        el.style.transition = "opacity 200ms ease, transform 200ms ease";
-        el.style.opacity = "1";
-        el.style.transform = "translateX(0)";
-      });
-    }
-  }, [toast.id]);
+  const reduced = useReducedMotion();
 
   return (
-    <div
-      id={`toast-${toast.id}`}
+    <motion.div
+      layout
+      variants={{
+        initial: { opacity: 0, x: reduced ? 0 : 20 },
+        animate: {
+          opacity: 1,
+          x: 0,
+          transition: entranceTransition(),
+        },
+        exit: {
+          opacity: 0,
+          x: reduced ? 0 : 20,
+          transition: exitTransition(),
+        },
+      }}
+      initial="initial"
+      animate="animate"
+      exit="exit"
       className={cn(
         "rounded-xl border px-4 py-3 text-sm shadow-lg backdrop-blur-md flex items-start gap-2",
         TYPE_STYLES[toast.type],
@@ -87,11 +94,11 @@ function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }
       <button
         type="button"
         onClick={onDismiss}
-        className="opacity-60 hover:opacity-100 text-xs mt-0.5 cursor-pointer focus-ring rounded"
+        className="opacity-60 hover:opacity-100 text-xs mt-0.5 cursor-pointer focus-ring rounded pressable"
         aria-label="Cerrar"
       >
         &times;
       </button>
-    </div>
+    </motion.div>
   );
 }
