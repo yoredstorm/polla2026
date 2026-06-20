@@ -1,8 +1,11 @@
 "use client";
+import { useState } from "react";
 import { PageShell } from "@/components/layout/PageShell";
 import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
 import { HelpTooltip } from "@/components/features/help/HelpTooltip";
 import { Chip } from "@/components/ui/Chip";
+import { Button } from "@/components/ui/Button";
+import { Sheet } from "@/components/ui/Sheet";
 import { MatchCard } from "@/components/features/betting/MatchCard";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { QueryState } from "@/components/ui/QueryState";
@@ -34,6 +37,7 @@ const STATUSES: { value: FixtureStatus | undefined; label: string }[] = [
 ];
 
 export default function FixturesPage() {
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
   const {
     groupName,
     tournamentPhase,
@@ -61,6 +65,59 @@ export default function FixturesPage() {
   const fixtures = data?.data ?? [];
   const finishedFixtures = finishedData?.data ?? [];
 
+  const filterPanel = (
+    <>
+      <div className="flex gap-2 flex-wrap items-center overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:overflow-visible md:snap-none">
+        <span className="text-muted text-xs uppercase tracking-wider mr-1 shrink-0">Fase:</span>
+        <Chip
+          className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
+          active={!tournamentPhase}
+          onClick={() => selectTournamentPhase(undefined)}
+        >
+          Todas
+        </Chip>
+        {phaseOptions.map((p) => (
+          <Chip
+            key={p.key}
+            className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
+            active={tournamentPhase === p.key}
+            onClick={() => selectTournamentPhase(p.key)}
+          >
+            {p.label}
+          </Chip>
+        ))}
+      </div>
+      {!tournamentPhase && (
+        <div className="flex gap-2 flex-wrap items-center overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:overflow-visible md:snap-none">
+          <span className="text-muted text-xs uppercase tracking-wider mr-1 shrink-0">Grupo:</span>
+          {GROUPS.map((g) => (
+            <Chip
+              key={g.id ?? "all"}
+              className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
+              active={groupName === g.id}
+              onClick={() => selectGroup(g.id)}
+            >
+              {g.label}
+            </Chip>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2 flex-wrap items-center">
+        <span className="text-muted text-xs uppercase tracking-wider mr-1">Estado:</span>
+        {STATUSES.map((s) => (
+          <Chip
+            key={s.value ?? "all"}
+            className="!px-3 !py-1.5 !text-sm"
+            active={status === s.value}
+            onClick={() => selectStatus(s.value)}
+          >
+            {s.label}
+          </Chip>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     <PageShell maxWidth="xl">
         <HelpSectionTitle as="h1" helpKey="page.fixtures" className="mb-2">
@@ -69,59 +126,32 @@ export default function FixturesPage() {
         <p className="text-muted text-sm mb-6">FIFA World Cup 2026</p>
 
         <div className="flex flex-col gap-3 mb-6">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-muted text-xs uppercase tracking-wider">Filtros</span>
-            <HelpTooltip helpKey="page.fixtures.filters" label="Filtros de partidos" />
-          </div>
-          <div className="flex gap-2 flex-wrap items-center overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:overflow-visible md:snap-none">
-            <span className="text-muted text-xs uppercase tracking-wider mr-1 shrink-0">Fase:</span>
-            <Chip
-              className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
-              active={!tournamentPhase}
-              onClick={() => selectTournamentPhase(undefined)}
-            >
-              Todas
-            </Chip>
-            {phaseOptions.map((p) => (
-              <Chip
-                key={p.key}
-                className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
-                active={tournamentPhase === p.key}
-                onClick={() => selectTournamentPhase(p.key)}
-              >
-                {p.label}
-              </Chip>
-            ))}
-          </div>
-          {!tournamentPhase && (
-            <div className="flex gap-2 flex-wrap items-center overflow-x-auto snap-x snap-mandatory pb-1 -mx-1 px-1 md:overflow-visible md:snap-none">
-              <span className="text-muted text-xs uppercase tracking-wider mr-1 shrink-0">Grupo:</span>
-              {GROUPS.map((g) => (
-                <Chip
-                  key={g.id ?? "all"}
-                  className="!px-3 !py-1.5 !text-sm shrink-0 snap-start"
-                  active={groupName === g.id}
-                  onClick={() => selectGroup(g.id)}
-                >
-                  {g.label}
-                </Chip>
-              ))}
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-2">
+              <span className="text-muted text-xs uppercase tracking-wider">Filtros</span>
+              <HelpTooltip helpKey="page.fixtures.filters" label="Filtros de partidos" />
             </div>
-          )}
-          <div className="flex gap-2 flex-wrap items-center">
-            <span className="text-muted text-xs uppercase tracking-wider mr-1">Estado:</span>
-            {STATUSES.map((s) => (
-              <Chip
-                key={s.value ?? "all"}
-                className="!px-3 !py-1.5 !text-sm"
-                active={status === s.value}
-                onClick={() => selectStatus(s.value)}
-              >
-                {s.label}
-              </Chip>
-            ))}
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="md:hidden shrink-0"
+              onClick={() => setFilterSheetOpen(true)}
+            >
+              Filtros
+            </Button>
           </div>
+          <div className="hidden md:flex flex-col gap-3">{filterPanel}</div>
         </div>
+
+        <Sheet
+          open={filterSheetOpen}
+          onClose={() => setFilterSheetOpen(false)}
+          title="Filtros de partidos"
+          side="bottom"
+        >
+          <div className="flex flex-col gap-4 mt-2">{filterPanel}</div>
+        </Sheet>
 
         <h2 className="text-sm font-medium text-white/90 mb-3">Próximos y en curso</h2>
 

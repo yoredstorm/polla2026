@@ -4,7 +4,9 @@ import Link from "next/link";
 import { Swords } from "lucide-react";
 import { useMyChallenges, type Challenge } from "@/hooks/useChallenges";
 import { ChallengeHistoryCard } from "@/components/features/betting/ChallengeHistoryCard";
+import { Chip } from "@/components/ui/Chip";
 import { cn } from "@/lib/utils";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 
@@ -84,9 +86,9 @@ export function MyChallengesSection() {
             </Button>
           </div>
           <ul className="mt-4 space-y-2">
-            {incomingPending.slice(0, 3).map((ch) => (
+            {incomingPending.slice(0, 3).map((ch, i) => (
               <li key={ch.id}>
-                <ChallengeHistoryCard challenge={ch} highlight />
+                <ChallengeHistoryCard challenge={ch} highlight index={i} />
               </li>
             ))}
           </ul>
@@ -127,19 +129,14 @@ export function MyChallengesSection() {
 
       <div className="flex flex-wrap gap-2 mb-4">
         {FILTERS.map((f) => (
-          <button
+          <Chip
             key={f.id}
-            type="button"
+            active={filter === f.id}
             onClick={() => setFilter(f.id)}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-              filter === f.id
-                ? "bg-accent text-background"
-                : "bg-white/5 text-muted hover:bg-white/10 hover:text-white",
-            )}
+            className="!px-3 !py-1.5 !text-xs"
           >
             {f.label}
-          </button>
+          </Chip>
         ))}
       </div>
 
@@ -159,8 +156,8 @@ export function MyChallengesSection() {
         <p className="text-muted text-center py-8 text-sm">No hay retos en este filtro.</p>
       ) : (
         <div className="space-y-3">
-          {filtered.map((ch) => (
-            <ChallengeHistoryCard key={ch.id} challenge={ch} />
+          {filtered.map((ch, i) => (
+            <ChallengeHistoryCard key={ch.id} challenge={ch} index={i} />
           ))}
         </div>
       )}

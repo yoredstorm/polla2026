@@ -11,7 +11,7 @@ import { useMyBets, useMyChangeRequests, type ChangeRequest } from "@/hooks/useB
 import { useActivePolla } from "@/hooks/useGroups";
 import { PaymentEntryBlock } from "@/components/features/payment/PaymentEntryBlock";
 import { MyChallengesSection } from "@/components/features/betting/MyChallengesSection";
-import { cn } from "@/lib/utils";
+import { TabPill } from "@/components/ui/TabPill";
 
 type TabId = "pronosticos" | "retos";
 
@@ -113,30 +113,16 @@ function MyBetsPageContent() {
             <HelpTooltip helpKey="page.myBets.challenges" label="Retos 1v1" />
           )}
         </div>
-        <div className="flex gap-2 mb-6 p-1 rounded-xl bg-white/5 border border-white/10">
-          <button
-            type="button"
-            onClick={() => selectTab("pronosticos")}
-            className={cn(
-              "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
-              tab === "pronosticos" ? "bg-accent text-background" : "text-muted hover:text-white",
-            )}
-          >
-            Pronósticos
-          </button>
-          {challengesEnabled && (
-            <button
-              type="button"
-              onClick={() => selectTab("retos")}
-              className={cn(
-                "flex-1 py-2 rounded-lg text-sm font-medium transition-colors",
-                tab === "retos" ? "bg-accent text-background" : "text-muted hover:text-white",
-              )}
-            >
-              Retos 1v1
-            </button>
-          )}
-        </div>
+        <TabPill
+          items={[
+            { id: "pronosticos" as const, label: "Pronósticos" },
+            ...(challengesEnabled ? [{ id: "retos" as const, label: "Retos 1v1" }] : []),
+          ]}
+          value={tab}
+          onChange={selectTab}
+          layoutId="my-bets-tab"
+          className="mb-6"
+        />
 
         {tab === "pronosticos" ? (
           <>
@@ -152,9 +138,10 @@ function MyBetsPageContent() {
             ) : (
               <>
                 <div className="space-y-3">
-                  {data?.data.map((bet) => (
+                  {data?.data.map((bet, i) => (
                     <BettingSlip
                       key={bet.id}
+                      index={i}
                       bet={bet}
                       showChangeRequest
                       pendingRequest={pendingByBetId.get(bet.id) ?? null}

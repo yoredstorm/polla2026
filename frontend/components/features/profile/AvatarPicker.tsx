@@ -78,7 +78,7 @@ export function AvatarPicker({ user }: AvatarPickerProps) {
             title={p.label}
             onClick={() => void pickPreset(p.id)}
             className={cn(
-              "rounded-xl border p-2 transition-colors hover:border-accent/50",
+              "rounded-xl border p-2 pressable transition-[border-color,background-color] duration-fast ease-entrance hover:border-accent/50",
               user.avatar_preset === p.id && !user.avatar_url
                 ? "border-accent bg-accent/10"
                 : "border-white/10 bg-white/5",

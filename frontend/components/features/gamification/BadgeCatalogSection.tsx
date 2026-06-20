@@ -11,6 +11,11 @@ import {
 } from "@/lib/badges";
 import { useBadgeCatalog, useMyBadgeProgress } from "@/hooks/useBadgeCatalog";
 import { useAuth } from "@/hooks/useAuth";
+import { Chip } from "@/components/ui/Chip";
+import { StaggerItem } from "@/components/ui/StaggerItem";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { MotionSafe } from "@/components/ui/MotionSafe";
+import { MOTION } from "@/lib/motion";
 
 const FILTERS: { id: BadgeCategory; label: string }[] = [
   { id: "all", label: "Todas" },
@@ -23,15 +28,17 @@ const FILTERS: { id: BadgeCategory; label: string }[] = [
 function CatalogCard({
   badge,
   earned,
+  index,
 }: {
   badge: BadgeCatalogEntry;
   earned: boolean;
+  index: number;
 }) {
   const style = BADGE_STYLES[badge.id] ?? "from-white/10 to-white/5 border-white/15";
-  return (
+  const card = (
     <div
       className={cn(
-        "relative rounded-xl border bg-gradient-to-br p-4 transition-all",
+        "relative rounded-xl border bg-gradient-to-br p-4 transition-all h-full",
         style,
         earned ? "ring-1 ring-accent/40 shadow-md shadow-accent/10" : "opacity-75 saturate-[0.45]",
       )}
@@ -46,13 +53,25 @@ function CatalogCard({
           🔒
         </span>
       )}
-      <p className={cn("text-3xl mb-2", !earned && "grayscale")}>{BADGE_EMOJI[badge.id] ?? "🏅"}</p>
+      <MotionSafe
+        initial={earned ? { scale: 0.92 } : false}
+        animate={earned ? { scale: 1 } : undefined}
+        transition={MOTION.spring}
+      >
+        <p className={cn("text-3xl mb-2", !earned && "grayscale")}>{BADGE_EMOJI[badge.id] ?? "🏅"}</p>
+      </MotionSafe>
       <p className="text-sm font-semibold text-white pr-12">{badge.label}</p>
       <p className="text-[11px] text-muted mt-1 leading-snug">{badge.description}</p>
       {badge.hint && (
         <p className="text-[10px] text-muted/70 mt-2 italic border-t border-white/10 pt-2">{badge.hint}</p>
       )}
     </div>
+  );
+
+  return (
+    <StaggerItem index={Math.min(index, 12)}>
+      {card}
+    </StaggerItem>
   );
 }
 
@@ -105,16 +124,11 @@ export function BadgeCatalogSection() {
 
       <div className="flex flex-wrap gap-2 mb-6">
         {FILTERS.map((f) => (
-          <button
+          <Chip
             key={f.id}
-            type="button"
+            active={filter === f.id}
             onClick={() => setFilter(f.id)}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium transition-colors",
-              filter === f.id
-                ? "bg-accent text-background"
-                : "bg-white/5 text-muted hover:bg-white/10 hover:text-white",
-            )}
+            className="!px-3 !py-1.5 !text-xs"
           >
             {f.label}
             {f.id !== "all" && (
@@ -122,20 +136,20 @@ export function BadgeCatalogSection() {
                 ({badges.filter((b) => b.category === f.id).length})
               </span>
             )}
-          </button>
+          </Chip>
         ))}
       </div>
 
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div key={i} className="h-36 rounded-xl bg-white/5 animate-pulse" />
+            <Skeleton key={i} className="h-36 rounded-xl skeleton-shimmer" />
           ))}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((badge) => (
-            <CatalogCard key={badge.id} badge={badge} earned={earnedSet.has(badge.id)} />
+          {filtered.map((badge, i) => (
+            <CatalogCard key={badge.id} badge={badge} earned={earnedSet.has(badge.id)} index={i} />
           ))}
         </div>
       )}

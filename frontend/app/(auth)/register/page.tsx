@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
 import { AuthErrorAlert } from "@/components/ui/AuthErrorAlert";
+import { AuthFormStagger, AuthPageEnter } from "@/components/ui/AuthPageEnter";
 
 const nameField = z
   .string()
@@ -73,39 +74,49 @@ export default function RegisterPage() {
       style={{ backgroundImage: "url('/image/background.png')" }}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative z-10 w-full max-w-md">
+      <AuthPageEnter className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="font-display text-4xl text-accent mb-2">POLLA DEPORTIVA</h1>
           <p className="text-muted">Crea tu cuenta con nombre y usuario</p>
         </div>
         <form onSubmit={handleSubmit(onSubmit)} className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-8 space-y-5">
-          {fields.map((field) => (
-            <div key={field.name}>
-              <label className="text-sm text-muted mb-1 block">{field.label}</label>
-              <input
-                {...register(field.name)}
-                type={field.type}
-                placeholder={field.placeholder}
-                autoComplete={field.autoComplete}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
-              />
-              {errors[field.name] && (
-                <p className="text-danger text-xs mt-1">{errors[field.name]?.message}</p>
-              )}
-            </div>
+          {fields.map((field, i) => (
+            <AuthFormStagger key={field.name} index={i}>
+              <div>
+                <label className="text-sm text-muted mb-1 block">{field.label}</label>
+                <input
+                  {...register(field.name)}
+                  type={field.type}
+                  placeholder={field.placeholder}
+                  autoComplete={field.autoComplete}
+                  className="auth-input"
+                />
+                {errors[field.name] && (
+                  <p className="text-danger text-xs mt-1">{errors[field.name]?.message}</p>
+                )}
+              </div>
+            </AuthFormStagger>
           ))}
-          {registerMutation.isError && <AuthErrorAlert error={registerMutation.error} />}
-          <Button type="submit" size="lg" loading={registerMutation.isPending}>
-            Crear cuenta
-          </Button>
-          <p className="text-center text-muted text-sm">
-            ¿Ya tienes cuenta?{" "}
-            <Link href="/login" className="text-accent hover:underline">
-              Inicia sesión
-            </Link>
-          </p>
+          {registerMutation.isError && (
+            <AuthFormStagger index={fields.length}>
+              <AuthErrorAlert error={registerMutation.error} />
+            </AuthFormStagger>
+          )}
+          <AuthFormStagger index={fields.length + 1}>
+            <Button type="submit" size="lg" loading={registerMutation.isPending}>
+              Crear cuenta
+            </Button>
+          </AuthFormStagger>
+          <AuthFormStagger index={fields.length + 2}>
+            <p className="text-center text-muted text-sm">
+              ¿Ya tienes cuenta?{" "}
+              <Link href="/login" className="text-accent nav-link hover:underline">
+                Inicia sesión
+              </Link>
+            </p>
+          </AuthFormStagger>
         </form>
-      </div>
+      </AuthPageEnter>
     </div>
   );
 }

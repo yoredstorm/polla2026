@@ -177,7 +177,7 @@ function QueueCard({
     <Link
       href={href}
       className={cn(
-        "rounded-xl border p-4 transition-colors duration-200 cursor-pointer focus-ring",
+        "rounded-xl border p-4 card-interactive focus-ring",
         count > 0
           ? "border-accent/40 bg-accent/10 hover:bg-accent/15"
           : "border-white/10 bg-glass hover:bg-white/5",

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 interface QueryStateProps {
   isLoading: boolean;
@@ -26,7 +27,7 @@ export function QueryState({
   children,
 }: QueryStateProps) {
   if (isLoading) {
-    return <>{loadingSlot ?? <p className="text-muted text-sm animate-pulse py-8 text-center">Cargando...</p>}</>;
+    return <>{loadingSlot ?? <Skeleton className="h-24 w-full" />}</>;
   }
   if (isError) {
     return (

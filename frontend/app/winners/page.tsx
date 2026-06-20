@@ -1,9 +1,13 @@
 "use client";
 import Link from "next/link";
-import { Trophy, Medal } from "lucide-react";
+import { Trophy } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
+import { LeaderboardPodium } from "@/components/features/leaderboard/LeaderboardPodium";
+import { StaggerItem } from "@/components/ui/StaggerItem";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useQuery } from "@tanstack/react-query";
+import type { LeaderboardEntry } from "@/types/api";
 import api from "@/lib/api";
 
 interface WinnerEntry {
@@ -28,15 +32,27 @@ function formatMoney(currency: string, value: string | number) {
   return `${currency} ${n.toLocaleString("es-PE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function toLeaderboardEntry(w: WinnerEntry): LeaderboardEntry {
+  return {
+    position: w.position,
+    user_id: w.username,
+    username: w.username,
+    total_points: w.total_points,
+    total_bets: 0,
+    correct_results: 0,
+    accuracy_pct: 0,
+  };
+}
+
 export default function WinnersPage() {
   const { data, isLoading } = useQuery({
     queryKey: ["pool", "winners"],
     queryFn: () => api.get<WinnersResponse | null>("/groups/pool/active/winners"),
   });
 
-  const medalIcons = [Trophy, Medal, Medal];
   const podium = data?.podium?.length ? data.podium : data?.winners ?? [];
   const prizeWinners = data?.winners ?? [];
+  const podiumEntries = podium.slice(0, 3).map(toLeaderboardEntry);
 
   return (
     <PageShell maxWidth="md">
@@ -48,91 +64,56 @@ export default function WinnersPage() {
           en el primer puesto, el premio se reparte en partes iguales entre ellos.
         </p>
 
-        {isLoading && <p className="text-muted">Cargando...</p>}
+        {isLoading && (
+          <div className="space-y-4">
+            <Skeleton className="h-8 w-48 mx-auto" />
+            <Skeleton className="h-40 w-full" />
+          </div>
+        )}
         {!isLoading && !data && <p className="text-muted">No hay polla activa.</p>}
         {data && (
           <>
-            <div className="text-center mb-8">
-              <p className="text-xs text-muted uppercase tracking-wide mb-1">Pozo total confirmado</p>
-              <p className="text-accent font-display text-2xl tabular-nums">
-                {formatMoney(data.currency, data.prize_pool)}
-              </p>
-            </div>
+            <StaggerItem index={0}>
+              <div className="text-center mb-8">
+                <p className="text-xs text-muted uppercase tracking-wide mb-1">Pozo total confirmado</p>
+                <p className="text-accent font-display text-2xl tabular-nums text-glow-accent">
+                  {formatMoney(data.currency, data.prize_pool)}
+                </p>
+              </div>
+            </StaggerItem>
+
+            {podiumEntries.length > 0 && (
+              <LeaderboardPodium entries={podiumEntries} />
+            )}
 
             {prizeWinners.length > 0 && (
-              <section className="mb-8" aria-labelledby="prize-winners-heading">
+              <section className="mb-8 mt-8" aria-labelledby="prize-winners-heading">
                 <h2 id="prize-winners-heading" className="text-sm font-medium text-white mb-3">
                   {data.tied_for_first ? "Ganadores del pozo (empate)" : "Ganador del pozo"}
                 </h2>
                 <div className="space-y-3">
-                  {prizeWinners.map((w) => (
-                    <div
-                      key={`prize-${w.username}-${w.position}`}
-                      className="flex items-center gap-4 rounded-2xl border border-warning/30 bg-warning/5 p-5"
-                    >
-                      <Trophy className="w-8 h-8 text-warning shrink-0" aria-hidden />
-                      <div className="flex-1 min-w-0">
-                        <Link
-                          href={`/u/${encodeURIComponent(w.username)}`}
-                          className="font-display text-xl text-white hover:text-accent"
-                        >
-                          {w.username}
-                        </Link>
-                        <p className="text-sm text-muted">{w.total_points} pts</p>
-                        {data.tied_for_first && (
-                          <p className="text-xs text-muted mt-0.5">Empate en el primer puesto</p>
-                        )}
-                      </div>
-                      <p className="font-display text-xl text-accent tabular-nums shrink-0">
-                        {formatMoney(data.currency, w.prize_amount)}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {podium.length > 0 && (
-              <section aria-labelledby="podium-heading">
-                <h2 id="podium-heading" className="text-sm font-medium text-muted mb-3">
-                  Podio del ranking
-                </h2>
-                <div className="space-y-4">
-                  {podium.map((w) => {
-                    const Icon = medalIcons[w.position - 1];
-                    const receivesPrize = prizeWinners.some(
-                      (p) => p.username === w.username && p.total_points === w.total_points,
-                    );
-                    return (
-                      <div
-                        key={`podium-${w.position}-${w.username}`}
-                        className="flex items-center gap-4 rounded-2xl border border-white/10 bg-glass p-5"
-                      >
-                        {Icon ? (
-                          <Icon
-                            className={w.position === 1 ? "w-8 h-8 text-warning" : "w-7 h-7 text-muted"}
-                            aria-hidden
-                          />
-                        ) : (
-                          <span className="font-display text-2xl text-muted w-8 text-center">
-                            {w.position}
-                          </span>
-                        )}
+                  {prizeWinners.map((w, i) => (
+                    <StaggerItem key={`prize-${w.username}-${w.position}`} index={i + 1}>
+                      <div className="flex items-center gap-4 rounded-2xl border border-warning/30 bg-warning/5 p-5 card-interactive">
+                        <Trophy className="w-8 h-8 text-warning shrink-0" aria-hidden />
                         <div className="flex-1 min-w-0">
                           <Link
                             href={`/u/${encodeURIComponent(w.username)}`}
-                            className="font-display text-xl text-white hover:text-accent"
+                            className="font-display text-xl text-white hover:text-accent transition-colors duration-fast"
                           >
                             {w.username}
                           </Link>
                           <p className="text-sm text-muted">{w.total_points} pts</p>
-                          {!receivesPrize && w.position > 1 && (
-                            <p className="text-xs text-muted mt-0.5">Sin premio en efectivo</p>
+                          {data.tied_for_first && (
+                            <p className="text-xs text-muted mt-0.5">Empate en el primer puesto</p>
                           )}
                         </div>
+                        <p className="font-display text-xl text-accent tabular-nums shrink-0 text-glow-accent">
+                          {formatMoney(data.currency, w.prize_amount)}
+                        </p>
                       </div>
-                    );
-                  })}
+                    </StaggerItem>
+                  ))}
                 </div>
               </section>
             )}
@@ -144,7 +125,7 @@ export default function WinnersPage() {
             )}
           </>
         )}
-        <Link href="/dashboard" className="inline-block mt-8 text-sm text-accent hover:underline">
+        <Link href="/dashboard" className="inline-block mt-8 text-sm text-accent hover:underline nav-link">
           Volver al inicio
         </Link>
       </PageShell>

@@ -21,6 +21,7 @@ import { CopyProfileModal } from "@/components/features/betting/CopyProfileModal
 import { FollowButton } from "@/components/features/social/FollowButton";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 import { CopyBetDetailModal } from "@/components/features/betting/CopyBetDetailModal";
 import type { Bet } from "@/types/api";
 
@@ -132,7 +133,7 @@ export default function UserPublicProfilePage() {
           <p className="text-muted text-center py-16">Cargando perfil...</p>
         ) : (
           <>
-            <div className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 mb-6">
+            <StaggerItem index={0} className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 mb-6">
               <div className="flex items-center gap-2 mb-4">
                 <HelpSectionTitle as="h1" helpKey="page.publicProfile">
                   Perfil público
@@ -185,16 +186,16 @@ export default function UserPublicProfilePage() {
                   <HelpTooltip helpKey="page.publicProfile.copy" label="Copiar apuestas" />
                 </div>
               )}
-            </div>
+            </StaggerItem>
 
             {canShowBadges && (
-              <div className="rounded-xl border border-white/10 bg-glass p-4 mb-6">
+              <StaggerItem index={1} className="rounded-xl border border-white/10 bg-glass p-4 mb-6">
                 <h2 className="font-display text-lg text-white mb-3">Medallas</h2>
                 <BadgeGrid
                   badges={badgesData?.badges ?? []}
                   emptyLabel="Sin medallas por ahora."
                 />
-              </div>
+              </StaggerItem>
             )}
 
             {!canListBets && summary.bets_profile_visibility === "invite_only" && !isMe && (

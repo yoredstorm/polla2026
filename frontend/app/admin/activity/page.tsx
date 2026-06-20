@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useAuditLog, type AuditEntry, downloadAuditLogCsv } from "@/hooks/useAdmin";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 import { cn } from "@/lib/utils";
 
 const ACTION_FILTERS: { value: string | undefined; label: string }[] = [
@@ -208,8 +209,13 @@ export default function ActivityPage() {
               </tr>
             </thead>
             <tbody>
-              {logs.map((entry: AuditEntry) => (
-                <tr key={entry.id} className="border-b border-white/5 hover:bg-white/5 align-top">
+              {logs.map((entry: AuditEntry, i) => (
+                <StaggerItem
+                  key={entry.id}
+                  as="tr"
+                  index={Math.min(i, 12)}
+                  className="border-b border-white/5 hover:bg-white/5 align-top transition-[background-color,transform] duration-fast ease-entrance hover:-translate-y-px"
+                >
                   <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
                     {formatDate(entry.created_at)}
                   </td>
@@ -238,7 +244,7 @@ export default function ActivityPage() {
                   <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">
                     {entry.ip_address ?? "—"}
                   </td>
-                </tr>
+                </StaggerItem>
               ))}
             </tbody>
           </table>

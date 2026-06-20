@@ -239,9 +239,10 @@ export default function FixtureDetailPage() {
           <HelpSectionTitle as="h3" helpKey="page.fixtureDetail.challenge">
             Duelos
           </HelpSectionTitle>
-          {challenges.map((ch) => (
+          {challenges.map((ch, i) => (
             <ChallengeCard
               key={ch.id}
+              index={i}
               challenge={ch}
               currentUserId={user?.id}
               hasBet={hasBet}

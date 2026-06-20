@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { LeaderboardListSkeleton } from "@/components/ui/Skeleton";
 import { useGlobalLeaderboard, useWeeklyLeaderboard, type LeaderboardSort } from "@/hooks/useLeaderboard";
 import { useAuth } from "@/hooks/useAuth";
-import { LeaderboardEntryCard } from "@/components/features/leaderboard/LeaderboardEntryCard";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 import { useMyRival } from "@/hooks/useRival";
 import { Card } from "@/components/ui/Card";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
@@ -17,6 +17,7 @@ import { UserAvatar } from "@/components/ui/UserAvatar";
 import { cn } from "@/lib/utils";
 import type { LeaderboardEntry } from "@/types/api";
 import { LeaderboardPodium } from "@/components/features/leaderboard/LeaderboardPodium";
+import { TabPill } from "@/components/ui/TabPill";
 import { QueryState } from "@/components/ui/QueryState";
 
 const PAGE_SIZE = 20;
@@ -64,10 +65,11 @@ function LeaderboardTable({
             rank === 1 ? "🥇" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : null;
 
           return (
-            <div
+            <StaggerItem
               key={entry.user_id}
+              index={Math.min(i, 12)}
               className={cn(
-                "grid grid-cols-[2rem_1fr_3.5rem_3.5rem_4rem] gap-x-2 px-3 py-2.5 items-center text-sm transition-colors",
+                "grid grid-cols-[2rem_1fr_3.5rem_3.5rem_4rem] gap-x-2 px-3 py-2.5 items-center text-sm transition-[background-color,transform] duration-fast ease-entrance hover:-translate-y-px",
                 isMe ? "bg-accent/8 hover:bg-accent/12" : "hover:bg-white/[0.03]",
               )}
             >
@@ -119,7 +121,7 @@ function LeaderboardTable({
                 {entry.total_points}
                 <span className="text-[9px] font-normal text-muted ml-0.5">pts</span>
               </span>
-            </div>
+            </StaggerItem>
           );
         })}
       </div>
@@ -208,33 +210,16 @@ export default function LeaderboardPage() {
         Mínimo {MIN_WAGERS} apuesta(s) registrada(s). El % acierto usa solo apuestas liquidadas.
       </p>
 
-      {/* ── Tabs Top 3 / Tabla general ── */}
-      <div className="flex gap-1 p-1 rounded-xl bg-white/[0.05] border border-white/10 mb-6 w-fit">
-        <button
-          type="button"
-          onClick={() => setDisplayMode("top3")}
-          className={cn(
-            "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
-            displayMode === "top3"
-              ? "bg-accent text-black shadow-sm"
-              : "text-muted hover:text-white",
-          )}
-        >
-          🏆 Podio
-        </button>
-        <button
-          type="button"
-          onClick={() => setDisplayMode("tabla")}
-          className={cn(
-            "px-4 py-1.5 rounded-lg text-sm font-medium transition-all duration-200",
-            displayMode === "tabla"
-              ? "bg-accent text-black shadow-sm"
-              : "text-muted hover:text-white",
-          )}
-        >
-          Tabla general
-        </button>
-      </div>
+      <TabPill
+        layoutId="leaderboard-display-mode"
+        className="mb-6 w-fit"
+        items={[
+          { id: "top3", label: "🏆 Podio" },
+          { id: "tabla", label: "Tabla general" },
+        ]}
+        value={displayMode}
+        onChange={setDisplayMode}
+      />
 
       {/* ── Contenido ── */}
       <QueryState

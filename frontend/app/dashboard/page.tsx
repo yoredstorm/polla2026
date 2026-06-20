@@ -281,19 +281,20 @@ export default function DashboardPage() {
               <Card
                 className="p-4 text-center border-accent/40 bg-accent/5"
                 glow
+                interactive
               >
                 <p className="font-display text-4xl text-accent mb-2">2</p>
                 <p className="text-xs font-bold text-white uppercase tracking-wide">
                   Exacto
                 </p>
               </Card>
-              <Card className="p-4 text-center border-warning/40 bg-warning/5">
+              <Card className="p-4 text-center border-warning/40 bg-warning/5" interactive>
                 <p className="font-display text-4xl text-warning mb-2">1</p>
                 <p className="text-xs font-bold text-white uppercase tracking-wide">
                   Ganador
                 </p>
               </Card>
-              <Card className="p-4 text-center">
+              <Card className="p-4 text-center" interactive>
                 <p className="font-display text-4xl text-muted mb-2">0</p>
                 <p className="text-xs font-bold text-white uppercase tracking-wide">
                   Fallo

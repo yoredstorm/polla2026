@@ -27,6 +27,8 @@ export interface NotificationItemProps {
   onRejectClick?: (n: Notification) => void;
   layout?: "page" | "bell";
   onNavigate?: () => void;
+  /** When true, renders inner content only (for AnimatedListItem wrapper). */
+  contentOnly?: boolean;
 }
 
 export function NotificationItem({
@@ -36,6 +38,7 @@ export function NotificationItem({
   onRejectClick,
   layout = "page",
   onNavigate,
+  contentOnly = false,
 }: NotificationItemProps) {
   const p = n.payload ?? {};
   const href = notificationHref(n);
@@ -93,6 +96,20 @@ export function NotificationItem({
       </div>
     </>
   );
+
+  if (contentOnly) {
+    return (
+      <div
+        className={cn(
+          layout === "bell" ? "px-4 py-3 space-y-2" : "rounded-xl border p-4 space-y-2",
+          layout === "page" &&
+            (n.read_at ? "border-white/10 bg-glass opacity-70" : "border-accent/30 bg-accent/5"),
+        )}
+      >
+        {content}
+      </div>
+    );
+  }
 
   if (layout === "bell") {
     return (

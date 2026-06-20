@@ -139,7 +139,7 @@ export function CopyBetModal({ bet, onClose }: Props) {
                   type="button"
                   onClick={() => setSelectedFixtureId(f.id)}
                   className={cn(
-                    "w-full text-left rounded-xl border px-4 py-3 transition-colors duration-200 cursor-pointer focus-ring",
+                    "w-full text-left rounded-xl border px-4 py-3 card-interactive focus-ring",
                     selectedFixtureId === f.id
                       ? "border-accent bg-accent/10"
                       : "border-white/10 bg-white/5 hover:bg-white/10",

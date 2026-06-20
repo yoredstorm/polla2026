@@ -8,6 +8,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/Button";
 import { AuthErrorAlert } from "@/components/ui/AuthErrorAlert";
+import { AuthFormStagger, AuthPageEnter } from "@/components/ui/AuthPageEnter";
 
 const loginSchema = z.object({
   username: z
@@ -40,47 +41,65 @@ function LoginForm() {
   return (
     <>
       {inactivityLogout && (
-        <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 mb-4 text-sm text-yellow-200 text-center">
-          Tu sesion fue cerrada por inactividad. Inicia sesion nuevamente.
-        </div>
+        <AuthFormStagger index={0}>
+          <div className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 mb-4 text-sm text-yellow-200 text-center">
+            Tu sesion fue cerrada por inactividad. Inicia sesion nuevamente.
+          </div>
+        </AuthFormStagger>
       )}
-      <form onSubmit={handleSubmit(onSubmit)} className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-8 space-y-5">
-        <div>
-          <label className="text-sm text-muted mb-1 block">Usuario</label>
-          <input
-            {...register("username")}
-            type="text"
-            autoComplete="username"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
-            placeholder="tu usuario"
-          />
-          {errors.username && <p className="text-danger text-xs mt-1">{errors.username.message}</p>}
-        </div>
-        <div>
-          <label className="text-sm text-muted mb-1 block">Contraseña</label>
-          <input
-            {...register("password")}
-            type="password"
-            autoComplete="current-password"
-            className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-accent"
-            placeholder="••••••••"
-          />
-          {errors.password && <p className="text-danger text-xs mt-1">{errors.password.message}</p>}
-        </div>
-        {login.isError && <AuthErrorAlert error={login.error} />}
-        <Button type="submit" size="lg" loading={login.isPending}>
-          Iniciar Sesión
-        </Button>
-        <p className="text-center text-muted text-sm">
-          <Link href="/forgot-password" className="text-accent hover:underline">
-            ¿Olvidaste tu contraseña?
-          </Link>
-        </p>
-        <p className="text-center text-muted text-sm">
-          ¿No tienes cuenta?{" "}
-          <Link href="/register" className="text-accent hover:underline">Regístrate</Link>
-        </p>
-      </form>
+      <AuthFormStagger index={inactivityLogout ? 1 : 0}>
+        <form onSubmit={handleSubmit(onSubmit)} className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-8 space-y-5">
+          <AuthFormStagger index={0}>
+            <div>
+              <label className="text-sm text-muted mb-1 block">Usuario</label>
+              <input
+                {...register("username")}
+                type="text"
+                autoComplete="username"
+                className="auth-input"
+                placeholder="tu usuario"
+              />
+              {errors.username && <p className="text-danger text-xs mt-1">{errors.username.message}</p>}
+            </div>
+          </AuthFormStagger>
+          <AuthFormStagger index={1}>
+            <div>
+              <label className="text-sm text-muted mb-1 block">Contraseña</label>
+              <input
+                {...register("password")}
+                type="password"
+                autoComplete="current-password"
+                className="auth-input"
+                placeholder="••••••••"
+              />
+              {errors.password && <p className="text-danger text-xs mt-1">{errors.password.message}</p>}
+            </div>
+          </AuthFormStagger>
+          {login.isError && (
+            <AuthFormStagger index={2}>
+              <AuthErrorAlert error={login.error} />
+            </AuthFormStagger>
+          )}
+          <AuthFormStagger index={3}>
+            <Button type="submit" size="lg" loading={login.isPending}>
+              Iniciar Sesión
+            </Button>
+          </AuthFormStagger>
+          <AuthFormStagger index={4}>
+            <p className="text-center text-muted text-sm">
+              <Link href="/forgot-password" className="text-accent nav-link hover:underline">
+                ¿Olvidaste tu contraseña?
+              </Link>
+            </p>
+          </AuthFormStagger>
+          <AuthFormStagger index={5}>
+            <p className="text-center text-muted text-sm">
+              ¿No tienes cuenta?{" "}
+              <Link href="/register" className="text-accent nav-link hover:underline">Regístrate</Link>
+            </p>
+          </AuthFormStagger>
+        </form>
+      </AuthFormStagger>
     </>
   );
 }
@@ -92,7 +111,7 @@ export default function LoginPage() {
       style={{ backgroundImage: "url('/image/background.png')" }}
     >
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative z-10 w-full max-w-md">
+      <AuthPageEnter className="relative z-10 w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="font-display text-4xl text-accent mb-2">POLLA DEPORTIVA</h1>
           <p className="text-muted">Inicia sesión con tu usuario</p>
@@ -100,7 +119,7 @@ export default function LoginPage() {
         <Suspense fallback={null}>
           <LoginForm />
         </Suspense>
-      </div>
+      </AuthPageEnter>
     </div>
   );
 }

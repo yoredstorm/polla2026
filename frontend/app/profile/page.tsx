@@ -17,6 +17,7 @@ import { AvatarPicker } from "@/components/features/profile/AvatarPicker";
 import { ChangePasswordSection } from "@/components/features/profile/ChangePasswordSection";
 import { ProfileSecuritySection } from "@/components/features/profile/ProfileSecuritySection";
 import { useMyBadgeProgress } from "@/hooks/useBadgeCatalog";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 import { cn } from "@/lib/utils";
 import type { BadgeOut } from "@/types/api";
 
@@ -50,7 +51,10 @@ function BadgesSection() {
             </span>
           </div>
           <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-            <div className="h-full bg-accent transition-all" style={{ width: `${pct}%` }} />
+            <div
+              className="h-full bg-accent transition-all duration-slow ease-entrance"
+              style={{ width: `${pct}%` }}
+            />
           </div>
         </div>
       )}
@@ -158,21 +162,24 @@ export default function ProfilePage() {
         <HelpSectionTitle as="h1" helpKey="page.profile" className="mb-2">
           Mi perfil
         </HelpSectionTitle>
-        <div className="mb-8">
+        <StaggerItem index={0} className="mb-8">
           <UserDisplayName username={me.username} firstName={me.first_name} lastName={me.last_name} />
-        </div>
+        </StaggerItem>
 
         {!fullName(me.first_name, me.last_name) && (
-          <p className="mb-6 text-sm text-amber-200/90 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
-            Completa tu nombre y apellido para que otros participantes te reconozcan en apuestas y ranking.
-          </p>
+          <StaggerItem index={1} className="mb-6">
+            <p className="text-sm text-amber-200/90 rounded-xl border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+              Completa tu nombre y apellido para que otros participantes te reconozcan en apuestas y ranking.
+            </p>
+          </StaggerItem>
         )}
 
-        <div className="mb-6">
+        <StaggerItem index={2} className="mb-6">
           <AvatarPicker user={me} />
-        </div>
+        </StaggerItem>
 
-        <section className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 space-y-4 mb-6">
+        <StaggerItem index={3} className="mb-6">
+        <section className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 space-y-4">
           <h2 className="font-display text-lg text-white">Tu nombre</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -212,7 +219,9 @@ export default function ProfilePage() {
             Guardar nombre
           </Button>
         </section>
+        </StaggerItem>
 
+        <StaggerItem index={4}>
         <section className="rounded-2xl border border-white/10 bg-glass backdrop-blur-sm p-6 space-y-6">
           <div>
             <div className="flex items-center gap-2 mb-1">
@@ -374,6 +383,7 @@ export default function ProfilePage() {
             </div>
           )}
         </section>
+        </StaggerItem>
 
         <p className="text-center mt-8">
           <Link href="/dashboard" className="text-sm text-muted hover:text-white">

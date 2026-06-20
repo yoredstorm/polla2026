@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { AnimatePresence } from "framer-motion";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useNotifications,
@@ -13,6 +14,9 @@ import { useRealtimeSync } from "@/components/providers/RealtimeSyncProvider";
 import type { Notification } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
+import { MotionSafe } from "@/components/ui/MotionSafe";
+import { entranceTransition, exitTransition } from "@/lib/motion";
+import { AnimatedList, AnimatedListItem } from "@/components/ui/AnimatedList";
 import { NotificationItem } from "@/components/features/notifications/NotificationItem";
 
 export function NotificationBell() {
@@ -57,7 +61,7 @@ export function NotificationBell() {
         type="button"
         data-help-tour="notifications"
         onClick={() => setOpen((v) => !v)}
-        className="relative p-2 rounded-lg text-muted hover:text-white hover:bg-white/5 transition-colors"
+        className="relative p-2 rounded-lg text-muted hover:text-white hover:bg-white/5 pressable focus-ring"
         aria-label="Notificaciones"
       >
         <span
@@ -76,19 +80,21 @@ export function NotificationBell() {
           />
         </svg>
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-accent text-background text-[10px] font-bold">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-accent text-background text-[10px] font-bold animate-pulse">
             {unread > 99 ? "99+" : unread}
           </span>
         )}
       </button>
 
-      {open && (
-        <div className=" fixed top-16 left-1/2 -translate-x-1/2
-            w-[min(100vw-2rem,380px)] max-w-[380px]
-            rounded-2xl border border-white/10 bg-surface shadow-2xl
-            z-50 overflow-hidden
-            sm:absolute sm:top-full sm:right-0 sm:left-auto
-            sm:translate-x-0 sm:mt-2">
+      <AnimatePresence>
+        {open && (
+          <MotionSafe
+            initial={{ opacity: 0, y: -8, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.98, transition: exitTransition() }}
+            transition={entranceTransition()}
+            className="fixed top-16 left-1/2 -translate-x-1/2 w-[min(100vw-2rem,380px)] max-w-[380px] rounded-2xl border border-white/10 bg-surface shadow-2xl z-50 overflow-hidden sm:absolute sm:top-full sm:right-0 sm:left-auto sm:translate-x-0 sm:mt-2 origin-top-right"
+          >
           <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
             <h3 className="font-display text-sm text-white">Notificaciones</h3>
             <Link
@@ -113,24 +119,32 @@ export function NotificationBell() {
             {notifications.length === 0 ? (
               <p className="text-muted text-sm text-center py-10">No tienes avisos nuevos</p>
             ) : (
-              <ul className="divide-y divide-white/5">
+              <AnimatedList as="ul" className="divide-y divide-white/5">
                 {notifications.map((n) => (
-                  <NotificationItem
+                  <AnimatedListItem
                     key={n.id}
-                    notification={n}
-                    isAdmin={!!user.is_admin}
-                    layout="bell"
-                    onRead={() => {
-                      if (!n.read_at) markRead.mutate(n.id);
-                    }}
-                    onRejectClick={(target) => {
-                      setRejectTarget(target);
-                      setRejectNotes("");
-                    }}
-                    onNavigate={() => setOpen(false)}
-                  />
+                    id={n.id}
+                    as="li"
+                    highlight={!n.read_at}
+                    className={cn(!n.read_at && "bg-accent/5")}
+                  >
+                    <NotificationItem
+                      notification={n}
+                      isAdmin={!!user.is_admin}
+                      layout="bell"
+                      contentOnly
+                      onRead={() => {
+                        if (!n.read_at) markRead.mutate(n.id);
+                      }}
+                      onRejectClick={(target) => {
+                        setRejectTarget(target);
+                        setRejectNotes("");
+                      }}
+                      onNavigate={() => setOpen(false)}
+                    />
+                  </AnimatedListItem>
                 ))}
-              </ul>
+              </AnimatedList>
             )}
           </div>
 
@@ -145,8 +159,9 @@ export function NotificationBell() {
               </Link>
             </div>
           )}
-        </div>
-      )}
+          </MotionSafe>
+        )}
+      </AnimatePresence>
 
       {rejectTarget && (
         <Modal

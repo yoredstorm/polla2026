@@ -157,9 +157,10 @@ export function Navbar() {
                 <AnimatePresence>
                   {dropdownOpen && (
                     <MotionSafe
-                      initial={false}
-                      exit={{ opacity: 0, scale: 0.96, y: -4 }}
-                      transition={exitTransition()}
+                      initial={{ opacity: 0, scale: 0.98, y: -4 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96, y: -4, transition: exitTransition() }}
+                      transition={{ duration: MOTION.duration.fast, ease: MOTION.ease.entrance }}
                       className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-surface shadow-xl py-1 z-50 origin-top-right"
                     >
                       <Link

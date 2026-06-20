@@ -4,6 +4,7 @@ import type { Challenge } from "@/hooks/useChallenges";
 import { challengeStatusLabel } from "@/lib/challengeUtils";
 import { cn } from "@/lib/utils";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 
 const RESULT_STYLES: Record<string, { label: string; className: string }> = {
   won: { label: "Ganado", className: "bg-emerald-500/20 text-emerald-200 border-emerald-500/30" },
@@ -32,9 +33,11 @@ function formatMatchDate(iso: string | null | undefined) {
 export function ChallengeHistoryCard({
   challenge: ch,
   highlight = false,
+  index,
 }: {
   challenge: Challenge;
   highlight?: boolean;
+  index?: number;
 }) {
   const result = ch.duel_result ?? ch.status;
   const resultStyle = RESULT_STYLES[result] ?? {
@@ -47,10 +50,10 @@ export function ChallengeHistoryCard({
       ? `${ch.fixture_home_team} vs ${ch.fixture_away_team}`
       : "Partido";
 
-  return (
+  const card = (
     <div
       className={cn(
-        "rounded-xl border bg-glass backdrop-blur-sm p-4 transition-colors duration-200",
+        "rounded-xl border bg-glass backdrop-blur-sm p-4 card-interactive",
         highlight && "border-amber-500/40 ring-1 ring-amber-500/20",
         result === "won" && "border-emerald-500/25",
         result === "lost" && "border-red-500/20",
@@ -62,7 +65,7 @@ export function ChallengeHistoryCard({
         <div className="min-w-0">
           <Link
             href={`/fixtures/${ch.fixture_id}`}
-            className="text-sm font-medium text-white hover:text-accent transition-colors truncate block"
+            className="text-sm font-medium text-white hover:text-accent transition-colors duration-fast truncate block"
           >
             {matchLabel}
           </Link>
@@ -130,4 +133,9 @@ export function ChallengeHistoryCard({
       </div>
     </div>
   );
+
+  if (index !== undefined) {
+    return <StaggerItem index={Math.min(index, 12)}>{card}</StaggerItem>;
+  }
+  return card;
 }

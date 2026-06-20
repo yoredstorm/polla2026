@@ -6,14 +6,24 @@ import { cn } from "@/lib/utils";
 
 interface StaggerItemProps {
   index?: number;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
+  as?: "div" | "li" | "tr";
+  id?: string;
 }
 
 /** Staggered list/card entrance with consistent timing. */
-export function StaggerItem({ index = 0, children, className }: StaggerItemProps) {
+export function StaggerItem({
+  index = 0,
+  children,
+  className,
+  as = "div",
+  id,
+}: StaggerItemProps) {
   return (
     <MotionSafe
+      as={as}
+      id={id}
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={entranceTransition(staggerDelay(index))}

@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { DUPLICATE_PREDICTION_MESSAGE } from "@/lib/betPredictionUtils";
 import { useBetForm } from "@/hooks/betting/useBetForm";
+import { MotionSafeSpan } from "@/components/ui/MotionSafe";
+import { entranceTransition } from "@/lib/motion";
 import { parseApiError } from "@/lib/apiError";
 
 function ScoreInput({
@@ -28,16 +30,24 @@ function ScoreInput({
           type="button"
           aria-label={`Reducir goles ${label}`}
           onClick={() => onChange(Math.max(0, value - 1))}
-          className="min-h-11 min-w-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white font-bold transition-colors"
+          className="min-h-11 min-w-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white font-bold pressable"
         >
           –
         </button>
-        <span className="font-display text-3xl w-10 text-center text-white">{value}</span>
+        <MotionSafeSpan
+          key={value}
+          initial={{ scale: 1.12 }}
+          animate={{ scale: 1 }}
+          transition={entranceTransition()}
+          className="font-display text-3xl w-10 text-center text-white inline-block"
+        >
+          {value}
+        </MotionSafeSpan>
         <button
           type="button"
           aria-label={`Aumentar goles ${label}`}
           onClick={() => onChange(Math.min(20, value + 1))}
-          className="min-h-11 min-w-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white font-bold transition-colors"
+          className="min-h-11 min-w-11 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 text-white font-bold pressable"
         >
           +
         </button>

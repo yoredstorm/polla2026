@@ -1,5 +1,5 @@
 "use client";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageShell } from "@/components/layout/PageShell";
 import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
@@ -17,6 +17,10 @@ import { NotificationItem } from "@/components/features/notifications/Notificati
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types/api";
 import { QueryState } from "@/components/ui/QueryState";
+import { AnimatedList, AnimatedListItem } from "@/components/ui/AnimatedList";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { TabPill } from "@/components/ui/TabPill";
+import { Chip } from "@/components/ui/Chip";
 
 const TABS: { id: NotificationFilter; label: string }[] = [
   { id: "unread", label: "Nuevas" },
@@ -37,7 +41,6 @@ function NotificationsPageContent() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const focusId = searchParams.get("focus");
-  const focusRef = useRef<HTMLLIElement | null>(null);
   const [tab, setTab] = useState<NotificationFilter>(focusId ? "all" : "unread");
   const [category, setCategory] = useState<NotificationCategory>("all");
   const [page, setPage] = useState(1);
@@ -93,39 +96,24 @@ function NotificationsPageContent() {
         )}
       </div>
 
-      <div className="flex gap-2 mb-4 border-b border-white/10 pb-2 overflow-x-auto">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => switchTab(t.id)}
-            className={cn(
-              "px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap cursor-pointer",
-              tab === t.id
-                ? "bg-accent/20 text-accent"
-                : "text-muted hover:text-white",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <TabPill
+        items={TABS}
+        value={tab}
+        onChange={switchTab}
+        layoutId="notifications-tab"
+        className="mb-4"
+      />
 
       <div className="flex gap-2 mb-6 flex-wrap">
         {CATEGORIES.map((c) => (
-          <button
+          <Chip
             key={c.id}
-            type="button"
+            active={category === c.id}
             onClick={() => switchCategory(c.id)}
-            className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-medium transition-colors cursor-pointer",
-              category === c.id
-                ? "bg-white/15 text-white border border-white/20"
-                : "text-muted border border-transparent hover:text-white",
-            )}
+            className="!px-3 !py-1.5 !text-xs"
           >
             {c.label}
-          </button>
+          </Chip>
         ))}
       </div>
 
@@ -135,33 +123,41 @@ function NotificationsPageContent() {
         isEmpty={false}
         onRetry={() => refetch()}
         errorMessage="No se pudieron cargar las notificaciones."
-        loadingSlot={<p className="text-muted">Cargando...</p>}
+        loadingSlot={
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <Skeleton key={i} className="h-24 w-full rounded-xl skeleton-shimmer" />
+            ))}
+          </div>
+        }
       >
-      <ul className="space-y-3">
+      <AnimatedList className="space-y-3">
         {items.map((n) => (
-          <li
+          <AnimatedListItem
             key={n.id}
-            id={`notification-${n.id}`}
-            ref={n.id === focusId ? focusRef : undefined}
-            className={cn(
-              n.id === focusId && "rounded-xl ring-2 ring-accent/50 ring-offset-2 ring-offset-background",
-            )}
+            id={n.id}
+            as="li"
+            highlight={!n.read_at || n.id === focusId}
+            className={cn(n.id === focusId && "ring-2 ring-accent/50 ring-offset-2 ring-offset-background rounded-xl")}
           >
-          <NotificationItem
-            notification={n}
-            isAdmin={!!user?.is_admin}
-            layout="page"
-            onRead={() => {
-              if (!n.read_at) markRead.mutate(n.id);
-            }}
-            onRejectClick={(target) => {
-              setRejectTarget(target);
-              setRejectNotes("");
-            }}
-          />
-          </li>
+            <div id={`notification-${n.id}`}>
+              <NotificationItem
+                notification={n}
+                isAdmin={!!user?.is_admin}
+                layout="page"
+                contentOnly
+                onRead={() => {
+                  if (!n.read_at) markRead.mutate(n.id);
+                }}
+                onRejectClick={(target) => {
+                  setRejectTarget(target);
+                  setRejectNotes("");
+                }}
+              />
+            </div>
+          </AnimatedListItem>
         ))}
-      </ul>
+      </AnimatedList>
 
       {!items.length && (
         <p className="text-muted text-center py-12">

@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { useAdminUsers, usePatchUser } from "@/hooks/useAdmin";
+import { StaggerItem } from "@/components/ui/StaggerItem";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { QueryState } from "@/components/ui/QueryState";
 import type { AdminUserEntry } from "@/types/api";
@@ -26,7 +28,13 @@ export default function AdminUsersPage() {
         isEmpty={users.length === 0}
         onRetry={() => refetch()}
         errorMessage="No se pudieron cargar los usuarios."
-        loadingSlot={<p className="text-muted">Cargando usuarios...</p>}
+        loadingSlot={
+          <div className="space-y-2">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <Skeleton key={i} className="h-12 w-full skeleton-shimmer" />
+            ))}
+          </div>
+        }
         emptySlot={<p className="text-muted">No hay usuarios registrados.</p>}
       >
         <>
@@ -43,8 +51,13 @@ export default function AdminUsersPage() {
                 </tr>
               </thead>
               <tbody>
-                {users.map((u: AdminUserEntry) => (
-                  <tr key={u.id} className="border-b border-white/5 hover:bg-white/5">
+                {users.map((u: AdminUserEntry, i) => (
+                  <StaggerItem
+                    key={u.id}
+                    as="tr"
+                    index={Math.min(i, 12)}
+                    className="border-b border-white/5 hover:bg-white/5 transition-[background-color,transform] duration-fast ease-entrance hover:-translate-y-px"
+                  >
                     <td className="px-4 py-3 text-white font-medium">{u.username}</td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -55,13 +68,13 @@ export default function AdminUsersPage() {
                         onClick={() => toggle(u.id, "is_active", u.is_active)}
                         disabled={patchUser.isPending}
                         className={cn(
-                          "min-h-11 min-w-11 w-11 h-6 rounded-full relative transition-colors inline-flex items-center",
+                          "min-h-11 min-w-11 w-11 h-6 rounded-full relative transition-[background-color] duration-fast ease-entrance inline-flex items-center",
                           u.is_active ? "bg-emerald-500" : "bg-white/20",
                         )}
                       >
                         <span
                           className={cn(
-                            "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                            "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-fast ease-entrance",
                             u.is_active ? "left-5" : "left-0.5",
                           )}
                         />
@@ -76,13 +89,13 @@ export default function AdminUsersPage() {
                         onClick={() => toggle(u.id, "is_admin", u.is_admin)}
                         disabled={patchUser.isPending}
                         className={cn(
-                          "min-h-11 min-w-11 w-11 h-6 rounded-full relative transition-colors inline-flex items-center",
+                          "min-h-11 min-w-11 w-11 h-6 rounded-full relative transition-[background-color] duration-fast ease-entrance inline-flex items-center",
                           u.is_admin ? "bg-accent" : "bg-white/20",
                         )}
                       >
                         <span
                           className={cn(
-                            "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                            "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-fast ease-entrance",
                             u.is_admin ? "left-5" : "left-0.5",
                           )}
                         />
@@ -91,7 +104,7 @@ export default function AdminUsersPage() {
                     <td className="px-4 py-3 text-right text-muted">{u.total_bets}</td>
                     <td className="px-4 py-3 text-right text-accent font-bold">{u.total_points}</td>
                     <td className="px-4 py-3 text-muted text-xs">{new Date(u.created_at).toLocaleDateString()}</td>
-                  </tr>
+                  </StaggerItem>
                 ))}
               </tbody>
             </table>

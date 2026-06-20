@@ -10,6 +10,7 @@ import { getPointsColor, formatAmount, cn, isChangeRequestWindowOpen } from "@/l
 import { EXACT_POINTS, WINNER_POINTS } from "@/lib/scoring";
 import { getChangeRequestClosesAt } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
+import { StaggerItem } from "@/components/ui/StaggerItem";
 
 interface BettingSlipProps {
   bet: Bet;
@@ -17,6 +18,7 @@ interface BettingSlipProps {
   showCopy?: boolean;
   showChangeRequest?: boolean;
   pendingRequest?: ChangeRequest | null;
+  index?: number;
 }
 
 export function BettingSlip({
@@ -25,6 +27,7 @@ export function BettingSlip({
   showCopy = false,
   showChangeRequest = false,
   pendingRequest,
+  index = 0,
 }: BettingSlipProps) {
   const isSettled = bet.points_earned !== null;
   const fixtureFinished =
@@ -62,7 +65,9 @@ export function BettingSlip({
 
   return (
     <>
+      <StaggerItem index={Math.min(index, 12)}>
       <Card
+        interactive
         className={cn(
           "p-4",
           isSettled && bet.points_earned === EXACT_POINTS && "border-accent/30",
@@ -198,6 +203,7 @@ export function BettingSlip({
           </div>
         )}
       </Card>
+      </StaggerItem>
 
       {copying && <CopyBetModal bet={bet} onClose={() => setCopying(false)} />}
       {modifyOpen && (

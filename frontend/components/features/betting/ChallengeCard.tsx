@@ -2,7 +2,7 @@
 import { MotionSafe } from "@/components/ui/MotionSafe";
 import type { Challenge } from "@/hooks/useChallenges";
 import { challengeStatusLabel } from "@/lib/challengeUtils";
-import { entranceTransition } from "@/lib/motion";
+import { entranceTransition, staggerDelay } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
@@ -55,6 +55,7 @@ interface ChallengeCardProps {
   onReject?: () => void;
   acceptPending?: boolean;
   rejectPending?: boolean;
+  index?: number;
 }
 
 export function ChallengeCard({
@@ -65,6 +66,7 @@ export function ChallengeCard({
   onReject,
   acceptPending,
   rejectPending,
+  index = 0,
 }: ChallengeCardProps) {
   const isChallenged = ch.challenged_id === currentUserId;
   const canRespond = ch.status === "pending_accept" && isChallenged;
@@ -75,7 +77,7 @@ export function ChallengeCard({
       layout
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={entranceTransition()}
+      transition={entranceTransition(staggerDelay(index))}
       className={cn(
         "rounded-2xl border bg-gradient-to-b from-white/[0.06] to-transparent p-4",
         isPending ? "border-accent/40" : "border-white/10",

@@ -30,8 +30,7 @@ export function PaymentPendingBanner() {
         }
       }}
       className={cn(
-        "sticky top-0 z-40 mb-4 w-full rounded-xl border-l-4 px-4 py-3.5 text-left",
-        "cursor-pointer transition-colors duration-200 focus-ring",
+        "sticky top-0 z-40 mb-4 w-full rounded-xl border-l-4 px-4 py-3.5 text-left card-interactive focus-ring",
         hasProof
           ? "border-l-emerald-500 border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/15"
           : "border-l-danger border-danger/50 bg-danger/10 hover:bg-danger/15",

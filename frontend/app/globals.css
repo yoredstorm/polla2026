@@ -118,6 +118,10 @@
     );
   }
 
+  .auth-input {
+    @apply w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-white transition-[border-color,box-shadow] duration-fast ease-entrance focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/25;
+  }
+
   .focus-ring {
     @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background;
   }

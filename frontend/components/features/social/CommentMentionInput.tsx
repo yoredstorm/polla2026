@@ -142,7 +142,7 @@ export function CommentMentionInput({
       {open && suggestions.length > 0 && (
         <ul
           ref={listRef}
-          className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-white/10 bg-surface shadow-xl max-h-44 overflow-y-auto"
+          className="absolute z-20 left-0 right-0 mt-1 rounded-lg border border-white/10 bg-surface shadow-xl max-h-44 overflow-y-auto animate-in fade-in-0 zoom-in-95 duration-150"
           role="listbox"
         >
           {suggestions.map((u, idx) => (
