@@ -78,6 +78,13 @@ BADGE_CATALOG: list[dict] = [
         "hint": "Sube en el ranking global del torneo",
     },
     {
+        "id": "groups_phase_winner",
+        "label": "Campeon de grupos",
+        "description": "Ganador de la fase de grupos de la polla",
+        "category": "ranking",
+        "hint": "Lidera el ranking al cerrar la fase de grupos",
+    },
+    {
         "id": "comentarista",
         "label": "El Comentarista",
         "description": "5 partidos distintos comentados seguidos",
@@ -186,6 +193,7 @@ async def compute_badges(
 
     if group_id is not None:
         await _append_challenge_badges(db, user_id, group_id, badges)
+        await _append_phase_winner_badges(db, user_id, group_id, badges)
 
     if position is not None and 1 <= position <= 3:
         labels = {1: "Oro", 2: "Plata", 3: "Bronce"}
@@ -197,6 +205,35 @@ async def compute_badges(
 
     await _append_social_badges(db, user_id, badges)
     return badges
+
+
+async def _append_phase_winner_badges(
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    group_id: uuid.UUID,
+    badges: list[dict],
+) -> None:
+    from app.models.phase_winner import PhaseWinnerHistory
+
+    result = await db.execute(
+        select(PhaseWinnerHistory.phase_key).where(
+            and_(
+                PhaseWinnerHistory.group_id == group_id,
+                PhaseWinnerHistory.winner_user_id == user_id,
+            )
+        )
+    )
+    phase_badges = {
+        "groups": {
+            "id": "groups_phase_winner",
+            "label": "Campeon de grupos",
+            "description": "Ganador de la fase de grupos de la polla",
+        },
+    }
+    for (phase_key,) in result.all():
+        meta = phase_badges.get(phase_key)
+        if meta and not any(b["id"] == meta["id"] for b in badges):
+            badges.append(dict(meta))
 
 
 async def _append_challenge_badges(

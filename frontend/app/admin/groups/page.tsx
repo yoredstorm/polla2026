@@ -121,13 +121,16 @@ export default function AdminPollaPage() {
               </div>
               <p className="text-xs text-muted mb-4">
                 Miembros que ya pagaron eliminatorias mientras la fase de grupos sigue activa.
-                Confirma el pago para que puedan apostar cuando comience la fase eliminatoria.
+                Este pago no habilita apuestas aún; solo reserva cupo para cuando empiecen los
+                partidos de eliminatorias.
               </p>
               <PhasePendingEntriesPanel
                 pollaId={polla.id}
                 currency={currency}
                 phaseKey="knockout"
                 phaseLabel={knockoutPhaseFee?.label ?? "Eliminatorias"}
+                entryFee={knockoutPhaseFee?.entry_fee}
+                confirmLabel="Confirmar pago — Eliminatorias"
               />
             </div>
           )}

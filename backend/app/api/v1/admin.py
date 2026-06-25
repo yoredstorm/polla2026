@@ -1512,6 +1512,9 @@ async def confirm_phase_enrollment_route(
 
     await ensure_phase_fees_for_group(db, group)
     phase_key = body.phase_key or group.current_phase_key or get_effective_phases(group)[0]
+    current_phase = group.current_phase_key or get_effective_phases(group)[0]
+    is_early = phase_key != current_phase
+    label = phase_label(phase_key, group)
     prev_pool = group.prize_pool
     enr = await confirm_phase_enrollment(db, group, body.user_id, phase_key, admin.id)
     await log_action(
@@ -1535,6 +1538,23 @@ async def confirm_phase_enrollment_route(
             "user_id": str(body.user_id),
             "phase_key": phase_key,
         },
+    )
+    from app.services.notification_service import build_phase_enrollment_confirmed, create_notification
+
+    n_title, n_body, n_payload = build_phase_enrollment_confirmed(
+        phase_label=label,
+        phase_key=phase_key,
+        group_id=str(group_id),
+        is_early_enrollment=is_early,
+    )
+    await create_notification(
+        db,
+        redis,
+        user_id=body.user_id,
+        type="entry_confirmed",
+        title=n_title,
+        body=n_body,
+        payload=n_payload,
     )
     await db.commit()
     await broadcast_polla_updated(

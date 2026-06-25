@@ -525,6 +525,32 @@ def build_entry_confirmed(*, group_name: str | None = None) -> tuple[str, str, d
     return title, body, {}
 
 
+def build_phase_enrollment_confirmed(
+    *,
+    phase_label: str,
+    phase_key: str,
+    group_id: str,
+    is_early_enrollment: bool,
+) -> tuple[str, str, dict[str, Any]]:
+    title = f"Inscripcion confirmada — {phase_label}"
+    if is_early_enrollment:
+        body = (
+            f"Tu pago para {phase_label} fue confirmado. "
+            "Podras apostar en esa fase cuando termine la fase de grupos."
+        )
+    else:
+        body = (
+            f"Tu pago para {phase_label} fue confirmado. "
+            "Ya puedes apostar en los partidos de esta etapa."
+        )
+    return title, body, {
+        "group_id": group_id,
+        "phase_key": phase_key,
+        "phase_label": phase_label,
+        "is_early_enrollment": is_early_enrollment,
+    }
+
+
 def build_extra_confirmed(
     *,
     amount: str,

@@ -57,7 +57,7 @@ export function PaymentEntryBlock({
             {!polla.is_member
               ? "Confirma tu pago para poder apostar en la polla."
               : isEarly
-                ? `Paga ya ${phaseLabel} para estar listo cuando termine ${polla.current_phase_label ?? "la fase actual"}.`
+                ? `Paga ya ${phaseLabel} para reservar tu cupo. Las apuestas de eliminatorias abren cuando termine ${polla.current_phase_label ?? "la fase actual"}.`
                 : `Paga el hito ${phaseLabel} para participar en los partidos de esta etapa.`}
           </p>
         </div>

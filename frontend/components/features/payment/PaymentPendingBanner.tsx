@@ -68,8 +68,10 @@ export function PaymentPendingBanner() {
               ? "Comprobante enviado — el admin revisará tu pago pronto"
               : needsInitial
                 ? "Toca para ver el QR y cómo pagar"
-                : isEarly
-                  ? `Paga ya ${phaseLabel} para estar listo cuando termine la fase de grupos`
+              : isEarly
+                ? hasProof
+                  ? "Tu pago queda registrado. Podrás apostar eliminatorias cuando termine la fase de grupos."
+                  : `Paga ya ${phaseLabel} para reservar tu cupo (apuestas cuando termine grupos)`
                   : `Paga el hito ${phaseLabel} para seguir apostando`}
           </p>
           {hasProof && (

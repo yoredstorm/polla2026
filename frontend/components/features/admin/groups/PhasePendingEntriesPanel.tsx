@@ -15,16 +15,25 @@ export function PhasePendingEntriesPanel({
   currency,
   phaseKey,
   phaseLabel,
+  entryFee,
+  confirmLabel,
 }: {
   pollaId: string;
   currency: string;
   phaseKey: string;
   phaseLabel: string;
+  entryFee?: string;
+  confirmLabel?: string;
 }) {
   const { data, refetch } = useAdminPhasePendingEntries(pollaId, phaseKey);
   const confirm = useConfirmPhaseEnrollment();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const pending = data?.pending ?? [];
+  const feeDisplay =
+    entryFee != null && parseFloat(entryFee) > 0
+      ? `${currency} ${parseFloat(entryFee).toFixed(2)}`
+      : null;
+  const buttonLabel = confirmLabel ?? "Confirmar pago";
 
   async function handleConfirm(userId: string) {
     await confirm.mutateAsync({ groupId: pollaId, userId, phaseKey });
@@ -52,7 +61,10 @@ export function PhasePendingEntriesPanel({
               firstName={row.first_name}
               lastName={row.last_name}
             />
-            <p className="text-xs text-muted mt-0.5">{phaseLabel}</p>
+            <p className="text-xs text-muted mt-0.5">
+              {phaseLabel}
+              {feeDisplay ? ` · ${feeDisplay}` : ""}
+            </p>
           </div>
           <div className="flex gap-2">
             <button
@@ -68,17 +80,25 @@ export function PhasePendingEntriesPanel({
               className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium"
               onClick={() => void handleConfirm(row.user_id)}
             >
-              Confirmar pago
+              {buttonLabel}
             </button>
           </div>
         </li>
       ))}
-      <PhaseProofLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
+      <PhaseProofLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} phaseLabel={phaseLabel} />
     </ul>
   );
 }
 
-function PhaseProofLightbox({ url, onClose }: { url: string | null; onClose: () => void }) {
+function PhaseProofLightbox({
+  url,
+  onClose,
+  phaseLabel,
+}: {
+  url: string | null;
+  onClose: () => void;
+  phaseLabel: string;
+}) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     if (!url) {
@@ -90,7 +110,7 @@ function PhaseProofLightbox({ url, onClose }: { url: string | null; onClose: () 
     return () => setSrc(null);
   }, [url]);
   return (
-    <Modal open={!!url} onClose={onClose} title="Comprobante de fase" size="md">
+    <Modal open={!!url} onClose={onClose} title={`Comprobante — ${phaseLabel}`} size="md">
       {src ? (
         <img src={src} alt="Comprobante" className="w-full rounded-lg" />
       ) : (

@@ -124,8 +124,8 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
       <div className="space-y-5 mt-2">
         {isEarly && (
           <p className="text-xs text-accent/90 bg-accent/10 border border-accent/30 rounded-lg px-3 py-2">
-            La fase de {polla.current_phase_label ?? "grupos"} sigue activa. Puedes inscribirte ya
-            en {phaseLabel} para estar listo cuando comience.
+            La fase de {polla.current_phase_label ?? "grupos"} sigue activa. Tu pago queda
+            registrado para {phaseLabel}; podrás apostar cuando termine la fase de grupos.
           </p>
         )}
 

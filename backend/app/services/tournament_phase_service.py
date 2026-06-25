@@ -210,18 +210,23 @@ async def try_close_completed_phases(
             continue
         if not await is_phase_complete(db, phase_key, group):
             break
-        await close_phase(db, group, phase_key)
+        record = await close_phase(db, group, phase_key)
         await db.refresh(group)
         closed_keys.append(phase_key)
         closed.add(phase_key)
-        if redis and group.current_phase_key:
-            from app.services.phase_enrollment_service import (
-                notify_members_needing_phase_enrollment,
-            )
+        if redis:
+            if record and record.winner_user_id:
+                from app.services.badge_notify_service import notify_new_badges_for_user_social
 
-            await notify_members_needing_phase_enrollment(
-                db, redis, group, group.current_phase_key
-            )
+                await notify_new_badges_for_user_social(db, redis, record.winner_user_id)
+            if group.current_phase_key:
+                from app.services.phase_enrollment_service import (
+                    notify_members_needing_phase_enrollment,
+                )
+
+                await notify_members_needing_phase_enrollment(
+                    db, redis, group, group.current_phase_key
+                )
 
     return closed_keys
 
