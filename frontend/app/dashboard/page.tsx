@@ -32,6 +32,7 @@ import { NeonPiggyBank } from "@/components/features/dashboard/NeonPiggyBank";
 import { LiveStatusStrip } from "@/components/features/dashboard/LiveStatusStrip";
 import { StaggerItem } from "@/components/ui/StaggerItem";
 import { TournamentProgressTimeline } from "@/components/features/dashboard/TournamentProgressTimeline";
+import { PhaseHistoryPanel } from "@/components/features/dashboard/PhaseHistoryPanel";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -44,7 +45,7 @@ export default function DashboardPage() {
     status: "scheduled",
     limit: 6,
   });
-  const { data: tournamentProgress } = useTournamentProgress();
+  const { data: tournamentProgress, isLoading: progressLoading, isError: progressError, refetch: refetchProgress } = useTournamentProgress();
   const { data: leaderboard } = useGlobalLeaderboard(1, 50, "points", 1);
   const { data: polla } = useActivePolla();
   const { data: rivalData } = useMyRival(!!user);
@@ -124,6 +125,19 @@ export default function DashboardPage() {
             />
           </div>
           <TournamentProgressTimeline progress={tournamentProgress} />
+        </Card>
+      )}
+
+      {(tournamentProgress?.phase_winners?.length ?? 0) > 0 && (
+        <Card className="mb-8 p-4 rounded-2xl">
+          <PhaseHistoryPanel
+            phases={tournamentProgress!.phase_winners}
+            currency={currency}
+            currentPhaseKey={tournamentProgress?.current_phase_key}
+            isLoading={progressLoading}
+            isError={progressError}
+            onRetry={() => void refetchProgress()}
+          />
         </Card>
       )}
 

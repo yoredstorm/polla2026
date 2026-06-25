@@ -8,6 +8,8 @@ import { Chip } from "@/components/ui/Chip";
 import { Button } from "@/components/ui/Button";
 import { LeaderboardListSkeleton } from "@/components/ui/Skeleton";
 import { useGlobalLeaderboard, useWeeklyLeaderboard, type LeaderboardSort } from "@/hooks/useLeaderboard";
+import { useActivePolla, useTournamentProgress } from "@/hooks/useGroups";
+import { PhaseHistoryPanel } from "@/components/features/dashboard/PhaseHistoryPanel";
 import { useAuth } from "@/hooks/useAuth";
 import { StaggerItem } from "@/components/ui/StaggerItem";
 import { useMyRival } from "@/hooks/useRival";
@@ -137,6 +139,14 @@ export default function LeaderboardPage() {
   const [sort, setSort] = useState<LeaderboardSort>("points");
   const { user } = useAuth();
   const { data: rivalData } = useMyRival(!!user);
+  const { data: polla } = useActivePolla();
+  const {
+    data: tournamentProgress,
+    isLoading: progressLoading,
+    isError: progressError,
+    refetch: refetchProgress,
+  } = useTournamentProgress();
+  const currency = polla?.currency ?? "PEN";
 
   const {
     data: global,
@@ -171,6 +181,19 @@ export default function LeaderboardPage() {
             Historial: {rivalData.rival.wins} victorias, {rivalData.rival.losses} derrotas
             {rivalData.rival.draws > 0 ? `, ${rivalData.rival.draws} empates` : ""}
           </p>
+        </Card>
+      )}
+
+      {(tournamentProgress?.phase_winners?.length ?? 0) > 0 && (
+        <Card className="mb-6 p-4">
+          <PhaseHistoryPanel
+            phases={tournamentProgress!.phase_winners}
+            currency={currency}
+            currentPhaseKey={tournamentProgress?.current_phase_key}
+            isLoading={progressLoading}
+            isError={progressError}
+            onRetry={() => void refetchProgress()}
+          />
         </Card>
       )}
 

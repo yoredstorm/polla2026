@@ -111,12 +111,13 @@ async def test_close_phase_resets_points_and_pool(db_session):
     assert record.winner_points == 15
     assert record.phase_prize_pool == Decimal("50")
 
-    await db_session.refresh(group)
     await db_session.refresh(m1)
     await db_session.refresh(m2)
     assert group.prize_pool == Decimal("0")
     assert m1.total_points == 0
     assert m2.total_points == 0
+    assert len(record.top_snapshot or []) == 1
+    assert record.top_snapshot[0]["user_id"] == str(owner.id)
 
 
 @pytest.mark.asyncio
@@ -209,3 +210,106 @@ async def test_list_phase_winners_admin_shape(db_session):
     assert phases[5]["phase_key"] == "third_place"
     assert phases[6]["phase_key"] == "final"
     assert phases[0]["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_close_phase_saves_full_leaderboard_snapshot(db_session):
+    owner = User(username="snap_owner", hashed_password="x")
+    u2 = User(username="snap_u2", hashed_password="x")
+    u3 = User(username="snap_u3", hashed_password="x")
+    db_session.add_all([owner, u2, u3])
+    await db_session.flush()
+
+    group = Group(
+        name="Snapshot Polla",
+        owner_id=owner.id,
+        invite_code="snappolla01",
+        entry_fee=Decimal("10"),
+        prize_pool=Decimal("30"),
+        is_active=True,
+    )
+    db_session.add(group)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=owner.id, total_points=20),
+            GroupMember(group_id=group.id, user_id=u2.id, total_points=12),
+            GroupMember(group_id=group.id, user_id=u3.id, total_points=5),
+        ]
+    )
+    from app.models.group_phase import GroupPhaseEnrollment
+
+    for uid in (owner.id, u2.id, u3.id):
+        db_session.add(
+            GroupPhaseEnrollment(
+                group_id=group.id,
+                user_id=uid,
+                phase_key="groups",
+                status="confirmed",
+                entry_fee_paid=Decimal("10"),
+            )
+        )
+    db_session.add(_fixture(400, group_name="Group A", status="finished"))
+    await db_session.flush()
+
+    record = await close_phase(db_session, group, "groups")
+    assert record is not None
+    assert len(record.top_snapshot) == 3
+    assert record.top_snapshot[0]["total_points"] == 20
+    assert record.top_snapshot[1]["total_points"] == 12
+    assert record.top_snapshot[2]["total_points"] == 5
+
+
+@pytest.mark.asyncio
+async def test_tournament_progress_includes_phase_winners(db_session):
+    owner = User(username="hist_owner", hashed_password="x")
+    u2 = User(username="hist_u2", hashed_password="x")
+    db_session.add_all([owner, u2])
+    await db_session.flush()
+
+    group = Group(
+        name="History Polla",
+        owner_id=owner.id,
+        invite_code="histpolla01",
+        entry_fee=Decimal("10"),
+        prize_pool=Decimal("20"),
+        is_active=True,
+        prize_structure_mode="groups_knockout",
+        current_phase_key="groups",
+    )
+    db_session.add(group)
+    await db_session.flush()
+
+    db_session.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=owner.id, total_points=18),
+            GroupMember(group_id=group.id, user_id=u2.id, total_points=9),
+        ]
+    )
+    from app.models.group_phase import GroupPhaseEnrollment
+
+    for uid in (owner.id, u2.id):
+        db_session.add(
+            GroupPhaseEnrollment(
+                group_id=group.id,
+                user_id=uid,
+                phase_key="groups",
+                status="confirmed",
+                entry_fee_paid=Decimal("10"),
+            )
+        )
+    db_session.add(_fixture(500, group_name="Group A", status="finished"))
+    await db_session.flush()
+
+    await close_phase(db_session, group, "groups")
+    await db_session.refresh(group)
+
+    progress = await build_tournament_progress(db_session, group.id)
+    assert len(progress["phase_winners"]) == 1
+    hist = progress["phase_winners"][0]
+    assert hist["phase_key"] == "groups"
+    assert hist["phase_prize_pool"] == "20.00"
+    assert hist["participant_count"] == 2
+    assert len(hist["top_snapshot"]) == 2
+    assert hist["winner"]["user_id"] == str(owner.id)

@@ -314,6 +314,26 @@ export interface AdminGroupEntry extends Group {
 }
 
 /** Admin polla detail (settings + payment + challenges). */
+export interface PhaseWinnerSnapshotRow {
+  position: number;
+  user_id: string;
+  username: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  total_points: number;
+}
+
+export interface PhaseWinnerHistoryEntry {
+  phase_key: string;
+  label: string;
+  closed_at: string;
+  closed_by: string;
+  phase_prize_pool?: string;
+  participant_count?: number;
+  winner: PhaseWinnerInfo | null;
+  top_snapshot: PhaseWinnerSnapshotRow[];
+}
+
 export interface PhaseWinnerInfo {
   user_id: string;
   username?: string;
@@ -330,14 +350,7 @@ export interface PhaseWinnerPhaseRow {
   total_fixtures: number;
   finished_fixtures: number;
   winner: PhaseWinnerInfo | null;
-  top_snapshot: {
-    position: number;
-    user_id: string;
-    username: string;
-    first_name?: string | null;
-    last_name?: string | null;
-    total_points: number;
-  }[];
+  top_snapshot: PhaseWinnerSnapshotRow[];
   closed_at: string | null;
   phase_prize_pool: string | null;
 }
@@ -369,14 +382,7 @@ export interface TournamentProgress {
   current_phase_key: string | null;
   prize_structure_mode?: PrizeStructureMode;
   phases: TournamentPhaseProgress[];
-  phase_winners: {
-    phase_key: string;
-    label: string;
-    closed_at: string;
-    closed_by: string;
-    winner: PhaseWinnerInfo | null;
-    top_snapshot: PhaseWinnerPhaseRow["top_snapshot"];
-  }[];
+  phase_winners: PhaseWinnerHistoryEntry[];
 }
 
 export interface AdminGroupDetail extends Group {

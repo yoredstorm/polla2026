@@ -125,8 +125,9 @@ async def get_current_phase_key(db: AsyncSession, group_id: uuid.UUID) -> str | 
 
 
 def _leaderboard_snapshot(entries: list) -> list[dict]:
+    """Full frozen ranking for phase transparency (all enrolled participants)."""
     out = []
-    for e in entries[:3]:
+    for e in entries:
         out.append(
             {
                 "position": e.position,
@@ -147,7 +148,7 @@ async def close_phase(
     *,
     closed_by: str = "system",
 ) -> PhaseWinnerHistory | None:
-    """Record phase winner, snapshot top 3, reset member points and prize pool."""
+    """Record phase winner, snapshot full ranking, reset member points and prize pool."""
     if not is_effective_phase(phase_key, group):
         return None
 
@@ -331,13 +332,16 @@ def _history_out(h: PhaseWinnerHistory, group: Group) -> dict:
             "points": h.winner_points,
             "prize_pool": str(h.phase_prize_pool),
         }
+    snapshot = h.top_snapshot or []
     return {
         "phase_key": h.phase_key,
         "label": phase_label(h.phase_key, group),
         "closed_at": h.phase_closed_at.isoformat(),
         "closed_by": h.closed_by,
+        "phase_prize_pool": str(h.phase_prize_pool),
+        "participant_count": len(snapshot),
         "winner": winner,
-        "top_snapshot": h.top_snapshot or [],
+        "top_snapshot": snapshot,
     }
 
 

@@ -93,20 +93,30 @@ export function PhaseWinnersPanel({
                   })}
                 </p>
               )}
-              {phase.top_snapshot.length > 1 && (
-                <details className="mt-2 text-xs">
-                  <summary className="cursor-pointer text-muted hover:text-white">
-                    Top 3 de la fase (transparencia)
-                  </summary>
-                  <ol className="mt-1 space-y-0.5 list-decimal list-inside">
+              {phase.top_snapshot.length > 0 && (
+                <div className="mt-3 rounded-lg border border-white/10 overflow-hidden">
+                  <p className="text-[10px] uppercase tracking-wide text-muted px-3 py-2 border-b border-white/10">
+                    Ranking final ({phase.top_snapshot.length} jugadores)
+                  </p>
+                  <ol className="divide-y divide-white/[0.06] max-h-48 overflow-y-auto" role="list">
                     {phase.top_snapshot.map((row) => (
-                      <li key={row.user_id} className="text-muted">
-                        {row.username} — {row.total_points} pts
+                      <li
+                        key={row.user_id}
+                        className="flex items-center justify-between gap-2 px-3 py-1.5 text-xs text-muted"
+                      >
+                        <span>
+                          <span className="text-white/70 mr-1">#{row.position}</span>
+                          {row.username}
+                        </span>
+                        <span className="tabular-nums">{row.total_points} pts</span>
                       </li>
                     ))}
                   </ol>
-                </details>
+                </div>
               )}
+              <p className="text-[10px] text-muted mt-2">
+                Ranking congelado automáticamente al cerrar la fase.
+              </p>
             </div>
           ) : phase.status === "active" ? (
             <p className="text-xs text-muted">
