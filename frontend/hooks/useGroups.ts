@@ -8,6 +8,7 @@ import type {
   LeaderboardEntry,
   BetWithUser,
   GroupFixtureStandingEntry,
+  FixturePredictionsBoard,
   TournamentProgress,
 } from "@/types/api";
 
@@ -84,6 +85,35 @@ export function useGroupFixtureStandings(groupId: string, fixtureId: string, opt
     queryFn: () =>
       api.get<GroupFixtureStandingEntry[]>(`/groups/${groupId}/fixtures/${fixtureId}/standings`),
     enabled: (options?.enabled ?? true) && !!groupId && !!fixtureId,
+    retry: false,
+  });
+}
+
+export function useFixturePredictionsBoard(
+  groupId: string | undefined,
+  fixtureId: string,
+  options?: {
+    enabled?: boolean;
+    atScore?: { home: number; away: number } | null;
+    refetchInterval?: number | false;
+  },
+) {
+  const at = options?.atScore;
+  return useQuery({
+    queryKey: [
+      "fixture-predictions-board",
+      groupId,
+      fixtureId,
+      at?.home ?? null,
+      at?.away ?? null,
+    ],
+    queryFn: () =>
+      api.get<FixturePredictionsBoard>(
+        `/groups/${groupId}/fixtures/${fixtureId}/predictions-board`,
+        at != null ? { at_home: at.home, at_away: at.away } : undefined,
+      ),
+    enabled: (options?.enabled ?? true) && !!groupId && !!fixtureId,
+    refetchInterval: options?.refetchInterval ?? false,
     retry: false,
   });
 }

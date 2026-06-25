@@ -65,6 +65,7 @@ const FIXTURE_FINISHED_KEYS = [
   ["leaderboard"],
   ["pool", "active"],
   ["group-fixture-standings"],
+  ["fixture-predictions-board"],
 ] as const;
 
 const DATA_REFRESH_KEYS = [
@@ -183,7 +184,14 @@ export async function handleRealtimeMessage(
     if (!ok) return;
     invalidateKeys(
       queryClient,
-      [["fixtures"], ["fixture"], ["my-bets"], ["leaderboard"]],
+      [
+        ["fixtures"],
+        ["fixture"],
+        ["my-bets"],
+        ["leaderboard"],
+        ["fixture-predictions-board"],
+        ["group-fixture-standings"],
+      ],
       { refetch: true },
     );
     return;

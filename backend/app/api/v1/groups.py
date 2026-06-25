@@ -25,6 +25,7 @@ from app.schemas.group import (
     GroupMemberOut,
     LeaderboardEntry,
     GroupFixtureStandingEntry,
+    FixturePredictionsBoardOut,
 )
 from app.schemas.bet import BetOut, BetWithUserOut
 from app.services.group_service import (
@@ -688,6 +689,54 @@ async def group_fixture_standings(
             )
         )
     return rows
+
+
+@router.get(
+    "/{group_id}/fixtures/{fixture_id}/predictions-board",
+    response_model=FixturePredictionsBoardOut,
+)
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def group_fixture_predictions_board(
+    request: Request,
+    group_id: uuid.UUID,
+    fixture_id: uuid.UUID,
+    current_user: CurrentUser,
+    db: DBSession,
+    at_home: int | None = Query(None, ge=0),
+    at_away: int | None = Query(None, ge=0),
+):
+    await _assert_member(db, group_id, current_user.id)
+    from app.services.fixture_predictions_service import build_fixture_predictions_board
+
+    score_home = at_home if at_home is not None and at_away is not None else None
+    score_away = at_away if at_home is not None and at_away is not None else None
+
+    try:
+        data = await build_fixture_predictions_board(
+            db,
+            group_id,
+            fixture_id,
+            current_user.id,
+            viewer_is_admin=bool(getattr(current_user, "is_admin", False)),
+            score_home=score_home,
+            score_away=score_away,
+        )
+    except ValueError as exc:
+        code = str(exc)
+        if code == "FIXTURE_NOT_FOUND":
+            raise HTTPException(status_code=404, detail="Fixture not found")
+        if code == "FIXTURE_NOT_LIVE":
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "code": "FIXTURE_NOT_LIVE",
+                        "message": "Predictions board is only available during live or finished matches.",
+                    }
+                },
+            )
+        raise
+    return FixturePredictionsBoardOut(**data)
 
 
 @router.get("/{group_id}/bets", response_model=list[BetWithUserOut])

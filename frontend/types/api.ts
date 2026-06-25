@@ -186,6 +186,40 @@ export interface GroupFixtureStandingEntry {
   amount: string;
 }
 
+export interface FixtureScoreTimelineEvent {
+  home_score: number;
+  away_score: number;
+  recorded_at: string;
+  recorded_by: string;
+}
+
+export interface FixturePredictionBoardEntry {
+  user_id: string;
+  username?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  predicted_home_score?: number | null;
+  predicted_away_score?: number | null;
+  projected_points?: number | null;
+  points_earned?: number | null;
+  display_points: number;
+  is_blurred: boolean;
+  position: number;
+  amount: string;
+  show_bet_amounts: boolean;
+}
+
+export interface FixturePredictionsBoard {
+  fixture_id: string;
+  group_id: string;
+  status: string;
+  home_score: number;
+  away_score: number;
+  participant_count: number;
+  score_timeline: FixtureScoreTimelineEvent[];
+  entries: FixturePredictionBoardEntry[];
+}
+
 export type BetAmountMode = "single_entry" | "per_bet";
 
 export interface Group {

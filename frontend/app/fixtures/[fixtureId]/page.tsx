@@ -1,9 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { Trophy, Medal } from "lucide-react";
-import { MotionSafe } from "@/components/ui/MotionSafe";
-import { entranceTransition, staggerDelay } from "@/lib/motion";
 import { PageShell } from "@/components/layout/PageShell";
 import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
 import { HelpTooltip } from "@/components/features/help/HelpTooltip";
@@ -18,20 +15,20 @@ import { getApiErrorMessage } from "@/lib/challengeUtils";
 import { useFixture } from "@/hooks/useFixtures";
 import { useMyBetsForFixture } from "@/hooks/useBets";
 import { useActivePolla } from "@/hooks/useGroups";
-import { useGroupFixtureStandings } from "@/hooks/useGroups";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useFixtureChallenges,
   useAcceptChallenge,
   useRejectChallenge,
 } from "@/hooks/useChallenges";
-import { formatMatchDate, getStatusLabel, formatAmount, cn } from "@/lib/utils";
+import { formatMatchDate, getStatusLabel, cn } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
 import { BettingTrendsBar } from "@/components/features/betting/BettingTrendsBar";
 import { ActivityFeed } from "@/components/features/activity/ActivityFeed";
 import { FixtureSocialSection } from "@/components/features/social/FixtureSocialSection";
-import { UserDisplayName } from "@/components/ui/UserDisplayName";
+import { FixturePredictionsBoard } from "@/components/features/fixtures/FixturePredictionsBoard";
+import { FixtureAdminLivePanel } from "@/components/features/fixtures/FixtureAdminLivePanel";
 
 export default function FixtureDetailPage() {
   const params = useParams();
@@ -48,14 +45,10 @@ export default function FixtureDetailPage() {
   const { data: myBets } = useMyBetsForFixture(fixtureId);
   const { data: polla } = useActivePolla();
 
-  const standingsEnabled = fixture?.status === "finished" && !!polla?.id;
-  const {
-    data: standings,
-    isLoading: standingsLoading,
-    isError: standingsError,
-  } = useGroupFixtureStandings(polla?.id ?? "", fixtureId, {
-    enabled: standingsEnabled,
-  });
+  const showPredictionsBoard =
+    (fixture?.status === "live" || fixture?.status === "finished") &&
+    !!polla?.is_member &&
+    !!polla?.id;
 
   if (isLoading) {
     return (
@@ -88,8 +81,6 @@ export default function FixtureDetailPage() {
     );
   }
 
-  const topThree = standings?.slice(0, 3) ?? [];
-  const rest = standings?.slice(3) ?? [];
   const primaryBet = myBets?.[0];
   const hasBet = (myBets?.length ?? 0) > 0;
 
@@ -158,6 +149,17 @@ export default function FixtureDetailPage() {
           </div>
         </div>
       </div>
+
+      {user?.is_admin && <FixtureAdminLivePanel fixture={fixture} />}
+
+      {showPredictionsBoard && polla && (
+        <FixturePredictionsBoard
+          fixture={fixture}
+          groupId={polla.id}
+          currency={polla.currency}
+          currentUserId={user?.id}
+        />
+      )}
 
       {fixture.status === "scheduled" &&
         fixture.betting_open &&
@@ -279,144 +281,6 @@ export default function FixtureDetailPage() {
         open={challengeOpen}
         onClose={() => setChallengeOpen(false)}
       />
-
-      {fixture.status === "finished" && polla && (
-        <section className="rounded-2xl border border-accent/25 bg-gradient-to-b from-accent/10 via-white/[0.04] to-transparent p-6 mb-6 overflow-hidden">
-          <div className="mb-5">
-            <h2 className="font-display text-2xl text-white">
-              Resultados en la polla
-            </h2>
-            <p className="text-muted text-sm mt-1">
-              Marcador final {fixture.home_score}–{fixture.away_score}: ranking
-              de predicciones.
-            </p>
-          </div>
-
-          {standingsLoading && (
-            <p className="text-muted text-center py-8">
-              Cargando ranking del partido...
-            </p>
-          )}
-          {standingsError && (
-            <p className="text-warning text-sm text-center py-4">
-              No hay datos de ranking para este partido (puede que aun no se
-              hayan liquidado las apuestas).
-            </p>
-          )}
-          {!standingsLoading &&
-            !standingsError &&
-            standings &&
-            standings.length === 0 && (
-              <p className="text-muted text-center py-6">
-                Nadie aposto este partido en la polla.
-              </p>
-            )}
-          {!standingsLoading &&
-            !standingsError &&
-            standings &&
-            standings.length > 0 && (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                  {topThree.map((row, idx) => {
-                    const MedalIcon = idx === 0 ? Trophy : Medal;
-                    const isMe = row.user_id === user?.id;
-                    return (
-                      <MotionSafe
-                        key={row.user_id}
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={entranceTransition(staggerDelay(idx))}
-                        className={cn(
-                          "rounded-xl border p-4 text-center relative",
-                          idx === 0 &&
-                            "border-warning/50 bg-warning/5 shadow-glow-sm",
-                          idx === 1 && "border-zinc-400/40 bg-white/[0.04]",
-                          idx === 2 && "border-amber-700/50 bg-amber-900/10",
-                          isMe && "ring-2 ring-accent/50",
-                        )}
-                      >
-                        <MedalIcon
-                          className={cn(
-                            "w-8 h-8 mx-auto mb-1",
-                            idx === 0
-                              ? "text-warning"
-                              : idx === 1
-                                ? "text-muted"
-                                : "text-amber-700",
-                          )}
-                          aria-hidden
-                        />
-                        <UserDisplayName
-                          username={row.username}
-                          firstName={row.first_name}
-                          lastName={row.last_name}
-                          nameClassName={cn(
-                            "font-display text-lg",
-                            isMe && "text-accent",
-                          )}
-                        />
-                        {isMe && (
-                          <span className="text-accent text-xs">(Tú)</span>
-                        )}
-                        <p className="text-white font-display text-xl mt-2">
-                          {row.predicted_home_score} –{" "}
-                          {row.predicted_away_score}
-                        </p>
-                        <p className="text-accent font-bold mt-1">
-                          {row.points_earned ?? "—"} pts
-                        </p>
-                        {parseFloat(row.amount) > 0 && (
-                          <p className="text-xs text-muted mt-1">
-                            {formatAmount(row.amount)}
-                          </p>
-                        )}
-                      </MotionSafe>
-                    );
-                  })}
-                </div>
-                {rest.length > 0 && (
-                  <div className="rounded-xl border border-white/10 divide-y divide-white/10">
-                    {rest.map((row, i) => {
-                      const isMe = row.user_id === user?.id;
-                      return (
-                        <div
-                          key={row.user_id}
-                          className={cn(
-                            "flex items-center justify-between px-4 py-3 text-sm",
-                            isMe && "bg-accent/5",
-                          )}
-                        >
-                          <span className="text-muted w-8">{i + 4}</span>
-                          <span className="flex-1 min-w-0">
-                            <UserDisplayName
-                              username={row.username}
-                              firstName={row.first_name}
-                              lastName={row.last_name}
-                              nameClassName={isMe ? "text-accent" : undefined}
-                              layout="inline"
-                            />
-                            {isMe && (
-                              <span className="text-accent text-xs ml-1">
-                                (Tú)
-                              </span>
-                            )}
-                          </span>
-                          <span className="text-white font-display w-20 text-center">
-                            {row.predicted_home_score}–
-                            {row.predicted_away_score}
-                          </span>
-                          <span className="text-accent font-bold w-14 text-right">
-                            {row.points_earned ?? "—"}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-        </section>
-      )}
 
       <div
         className={cn(

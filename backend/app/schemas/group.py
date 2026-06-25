@@ -110,3 +110,37 @@ class GroupFixtureStandingEntry(BaseModel):
     predicted_away_score: int
     points_earned: Optional[int] = None
     amount: Decimal
+
+
+class FixtureScoreTimelineEvent(BaseModel):
+    home_score: int
+    away_score: int
+    recorded_at: str
+    recorded_by: str
+
+
+class FixturePredictionBoardEntry(BaseModel):
+    user_id: str
+    username: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    predicted_home_score: int | None = None
+    predicted_away_score: int | None = None
+    projected_points: int | None = None
+    points_earned: int | None = None
+    display_points: int
+    is_blurred: bool = False
+    position: int
+    amount: str
+    show_bet_amounts: bool = True
+
+
+class FixturePredictionsBoardOut(BaseModel):
+    fixture_id: str
+    group_id: str
+    status: str
+    home_score: int
+    away_score: int
+    participant_count: int
+    score_timeline: list[FixtureScoreTimelineEvent]
+    entries: list[FixturePredictionBoardEntry]

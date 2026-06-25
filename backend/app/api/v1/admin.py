@@ -9,7 +9,7 @@ from typing import Literal, Optional
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 from app.core.cors_utils import apply_cors_headers
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, func, and_
 
 from app.api.deps import CurrentAdmin, DBSession, RedisClient
@@ -73,6 +73,11 @@ class FixtureResultIn(BaseModel):
 
 class FixtureStatusIn(BaseModel):
     status: Literal["scheduled", "live", "finished", "cancelled"]
+
+
+class FixtureLiveScoreIn(BaseModel):
+    home_score: int = Field(ge=0)
+    away_score: int = Field(ge=0)
 
 
 class SettleResponse(BaseModel):
@@ -309,6 +314,10 @@ async def update_fixture_status(
         fixture.is_locked = True
         fixture.betting_open = False
         await cancel_unpaid_extras_for_fixture(db, fixture, reason="admin_status")
+    if body.status == "live":
+        from app.services.fixture_score_timeline_service import init_live_timeline
+
+        init_live_timeline(fixture, recorded_by=admin.id)
     await db.commit()
     await broadcast_fixture_updated(
         db,
@@ -321,6 +330,50 @@ async def update_fixture_status(
         away_team=fixture.away_team,
     )
     return {"ok": True, "status": fixture.status}
+
+
+@router.patch("/fixtures/{fixture_id}/live-score")
+@limiter.limit(ADMIN_RATE)
+async def update_fixture_live_score(
+    request: Request,
+    fixture_id: uuid.UUID,
+    body: FixtureLiveScoreIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+    redis: RedisClient,
+):
+    result = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
+    fixture = result.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    if fixture.status != "live":
+        raise HTTPException(status_code=400, detail="Fixture is not live")
+
+    from app.services.fixture_score_timeline_service import append_score_event
+
+    timeline = append_score_event(
+        fixture,
+        home_score=body.home_score,
+        away_score=body.away_score,
+        recorded_by=admin.id,
+    )
+    await db.commit()
+    await broadcast_fixture_updated(
+        db,
+        redis,
+        fixture_id=fixture.id,
+        status=fixture.status,
+        home_score=fixture.home_score,
+        away_score=fixture.away_score,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+    )
+    return {
+        "ok": True,
+        "home_score": fixture.home_score,
+        "away_score": fixture.away_score,
+        "score_timeline": timeline,
+    }
 
 
 # ── Fixture editing ──────────────────────────────────────────────────

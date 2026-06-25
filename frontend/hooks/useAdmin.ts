@@ -102,7 +102,10 @@ export function useSettleFixture() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin"] });
       qc.invalidateQueries({ queryKey: ["fixtures"] });
+      qc.invalidateQueries({ queryKey: ["fixture"] });
       qc.invalidateQueries({ queryKey: ["leaderboard"] });
+      qc.invalidateQueries({ queryKey: ["fixture-predictions-board"] });
+      qc.invalidateQueries({ queryKey: ["group-fixture-standings"] });
     },
   });
 }
@@ -148,6 +151,33 @@ export function useUpdateFixtureStatus() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["admin"] });
       qc.invalidateQueries({ queryKey: ["fixtures"] });
+      qc.invalidateQueries({ queryKey: ["fixture"] });
+      qc.invalidateQueries({ queryKey: ["fixture-predictions-board"] });
+    },
+  });
+}
+
+export function useUpdateFixtureLiveScore() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      fixtureId,
+      homeScore,
+      awayScore,
+    }: {
+      fixtureId: string;
+      homeScore: number;
+      awayScore: number;
+    }) =>
+      api.patch<{ ok: boolean; home_score: number; away_score: number }>(
+        `/admin/fixtures/${fixtureId}/live-score`,
+        { home_score: homeScore, away_score: awayScore },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin"] });
+      qc.invalidateQueries({ queryKey: ["fixtures"] });
+      qc.invalidateQueries({ queryKey: ["fixture"] });
+      qc.invalidateQueries({ queryKey: ["fixture-predictions-board"] });
     },
   });
 }
