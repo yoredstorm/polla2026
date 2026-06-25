@@ -120,9 +120,8 @@ export default function AdminPollaPage() {
                 <PollaBadge count={earlyPendingCount} />
               </div>
               <p className="text-xs text-muted mb-4">
-                Miembros que ya pagaron eliminatorias mientras la fase de grupos sigue activa.
-                Este pago no habilita apuestas aún; solo reserva cupo para cuando empiecen los
-                partidos de eliminatorias.
+                Miembros y usuarios nuevos que eligieron solo eliminatorias. El pago no habilita
+                apuestas aún; solo reserva cupo para cuando empiecen los partidos de eliminatorias.
               </p>
               <PhasePendingEntriesPanel
                 pollaId={polla.id}
@@ -161,7 +160,8 @@ export default function AdminPollaPage() {
               <PollaBadge count={pendingEntryCount} />
             </div>
             <p className="text-xs text-muted mb-4">
-              Usuarios registrados que aun no estan en la polla. Confirma su pago para agregarlos.
+              Usuarios nuevos que eligieron inscribirse en la fase de grupos. Confirma su pago
+              para agregarlos a la polla.
             </p>
             <PendingEntriesPanel pollaId={polla.id} currency={currency} />
           </div>

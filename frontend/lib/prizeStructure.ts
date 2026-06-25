@@ -62,6 +62,9 @@ export function showsEarlyEnrollmentPanel(
 }
 
 export function pollaNeedsPaymentAction(polla: ActivePolla): boolean {
+  if (!polla.is_member) {
+    return true;
+  }
   return (
     !!polla.payment_target_phase_key &&
     polla.phase_enrollment_status !== "confirmed"

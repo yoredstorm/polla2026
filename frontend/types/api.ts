@@ -70,6 +70,14 @@ export interface ActivePolla {
   payment_target_phase_label?: string | null;
   payment_target_entry_fee?: string | null;
   early_enrollment_available?: boolean;
+  enrollment_choices?: EnrollmentChoice[];
+}
+
+export interface EnrollmentChoice {
+  phase_key: string;
+  label: string;
+  entry_fee: string;
+  has_uploaded_proof: boolean;
 }
 
 export type PrizeStructureMode =
@@ -93,6 +101,7 @@ export interface PhasePendingEntry {
   phase_label: string;
   has_proof: boolean;
   proof_url: string;
+  is_member?: boolean;
 }
 
 export interface AdminNonMember {

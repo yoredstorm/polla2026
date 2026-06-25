@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   useAdminPhasePendingEntries,
   useConfirmPhaseEnrollment,
+  useAddGroupMember,
 } from "@/hooks/useAdmin";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { Modal } from "@/components/ui/Modal";
@@ -27,6 +28,7 @@ export function PhasePendingEntriesPanel({
 }) {
   const { data, refetch } = useAdminPhasePendingEntries(pollaId, phaseKey);
   const confirm = useConfirmPhaseEnrollment();
+  const addMember = useAddGroupMember();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const pending = data?.pending ?? [];
   const feeDisplay =
@@ -34,9 +36,14 @@ export function PhasePendingEntriesPanel({
       ? `${currency} ${parseFloat(entryFee).toFixed(2)}`
       : null;
   const buttonLabel = confirmLabel ?? "Confirmar pago";
+  const isPending = confirm.isPending || addMember.isPending;
 
-  async function handleConfirm(userId: string) {
-    await confirm.mutateAsync({ groupId: pollaId, userId, phaseKey });
+  async function handleConfirm(userId: string, isMember: boolean) {
+    if (!isMember) {
+      await addMember.mutateAsync({ groupId: pollaId, userId, phaseKey });
+    } else {
+      await confirm.mutateAsync({ groupId: pollaId, userId, phaseKey });
+    }
     refetch();
   }
 
@@ -50,41 +57,47 @@ export function PhasePendingEntriesPanel({
 
   return (
     <ul className="space-y-2">
-      {pending.map((row) => (
-        <li
-          key={row.user_id}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 p-3"
-        >
-          <div>
-            <UserDisplayName
-              username={row.username}
-              firstName={row.first_name}
-              lastName={row.last_name}
-            />
-            <p className="text-xs text-muted mt-0.5">
-              {phaseLabel}
-              {feeDisplay ? ` · ${feeDisplay}` : ""}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="text-xs px-3 py-1.5 rounded-lg border border-white/15 text-muted hover:text-white"
-              onClick={() => setLightboxUrl(row.proof_url)}
-            >
-              Ver comprobante
-            </button>
-            <button
-              type="button"
-              disabled={confirm.isPending}
-              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium"
-              onClick={() => void handleConfirm(row.user_id)}
-            >
-              {buttonLabel}
-            </button>
-          </div>
-        </li>
-      ))}
+      {pending.map((row) => {
+        const isMember = row.is_member !== false;
+        return (
+          <li
+            key={row.user_id}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 bg-white/5 p-3"
+          >
+            <div>
+              <UserDisplayName
+                username={row.username}
+                firstName={row.first_name}
+                lastName={row.last_name}
+              />
+              <p className="text-xs text-muted mt-0.5">
+                {phaseLabel}
+                {feeDisplay ? ` · ${feeDisplay}` : ""}
+                {!isMember && (
+                  <span className="ml-1 text-accent">· Usuario nuevo</span>
+                )}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="text-xs px-3 py-1.5 rounded-lg border border-white/15 text-muted hover:text-white"
+                onClick={() => setLightboxUrl(row.proof_url)}
+              >
+                Ver comprobante
+              </button>
+              <button
+                type="button"
+                disabled={isPending}
+                className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-medium"
+                onClick={() => void handleConfirm(row.user_id, isMember)}
+              >
+                {buttonLabel}
+              </button>
+            </div>
+          </li>
+        );
+      })}
       <PhaseProofLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} phaseLabel={phaseLabel} />
     </ul>
   );

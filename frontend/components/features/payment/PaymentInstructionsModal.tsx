@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Copy, MessageCircle, Phone } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { PaymentProofUploadZone } from "@/components/features/payment/PaymentProofUploadZone";
 import { useToast } from "@/components/ui/Toast";
 import { useUploadEntryProof, useUploadPhaseEntryProof } from "@/hooks/useGroups";
-import type { ActivePolla } from "@/types/api";
+import type { ActivePolla, EnrollmentChoice } from "@/types/api";
 import {
   paymentContactName,
   paymentPhone,
@@ -25,11 +25,43 @@ interface PaymentInstructionsModalProps {
   polla: ActivePolla;
 }
 
+function pickInitialChoice(
+  choices: EnrollmentChoice[],
+  polla: ActivePolla,
+): EnrollmentChoice {
+  const withProof = choices.find((c) => c.has_uploaded_proof);
+  if (withProof) return withProof;
+  if (polla.payment_target_phase_key) {
+    const matched = choices.find((c) => c.phase_key === polla.payment_target_phase_key);
+    if (matched) return matched;
+  }
+  return choices[0];
+}
+
 export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstructionsModalProps) {
   const toast = useToast((s) => s.add);
   const uploadEntry = useUploadEntryProof();
   const uploadPhase = useUploadPhaseEntryProof();
-  const usePhaseUpload = polla.is_member;
+
+  const dualChoices = useMemo(
+    () =>
+      !polla.is_member && (polla.enrollment_choices?.length ?? 0) > 1
+        ? polla.enrollment_choices!
+        : null,
+    [polla.is_member, polla.enrollment_choices],
+  );
+
+  const [selectedPhaseKey, setSelectedPhaseKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!dualChoices?.length) {
+      setSelectedPhaseKey(null);
+      return;
+    }
+    setSelectedPhaseKey(pickInitialChoice(dualChoices, polla).phase_key);
+  }, [open, dualChoices, polla.payment_target_phase_key, polla.id]);
+
+  const usePhaseUpload = polla.is_member || selectedPhaseKey === "knockout";
   const upload = usePhaseUpload ? uploadPhase : uploadEntry;
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrError, setQrError] = useState(false);
@@ -90,13 +122,27 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
   const phone = paymentPhone(polla);
   const wa = whatsAppUrl(phone);
   const currency = polla.currency ?? "PEN";
+
+  const selectedChoice = dualChoices?.find((c) => c.phase_key === selectedPhaseKey);
   const phaseLabel =
-    polla.payment_target_phase_label ?? polla.current_phase_label ?? "entrada";
+    selectedChoice?.label ??
+    polla.payment_target_phase_label ??
+    polla.current_phase_label ??
+    "entrada";
   const fee =
-    parseFloat(polla.payment_target_entry_fee ?? polla.current_phase_entry_fee ?? polla.entry_fee) ||
-    0;
-  const isEarly = !!polla.early_enrollment_available;
-  const phaseKey = polla.payment_target_phase_key ?? undefined;
+    parseFloat(
+      selectedChoice?.entry_fee ??
+        polla.payment_target_entry_fee ??
+        polla.current_phase_entry_fee ??
+        polla.entry_fee,
+    ) || 0;
+  const isEarly =
+    !!polla.early_enrollment_available ||
+    (selectedPhaseKey === "knockout" && !polla.is_member);
+  const phaseKey =
+    selectedPhaseKey ?? polla.payment_target_phase_key ?? undefined;
+  const hasUploaded =
+    selectedChoice?.has_uploaded_proof ?? !!polla.has_uploaded_proof;
 
   async function copyPhone() {
     try {
@@ -112,16 +158,71 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
       open={open}
       onClose={onClose}
       title={
-        usePhaseUpload
-          ? isEarly
-            ? `Inscripción anticipada — ${phaseLabel}`
-            : `Inscripción — ${phaseLabel}`
-          : "Cómo pagar tu entrada"
+        dualChoices
+          ? "Elige tu inscripción"
+          : usePhaseUpload
+            ? isEarly
+              ? `Inscripción anticipada — ${phaseLabel}`
+              : `Inscripción — ${phaseLabel}`
+            : "Cómo pagar tu entrada"
       }
       description={`${polla.name} · ${currency} ${fee.toFixed(2)}`}
       size="md"
     >
       <div className="space-y-5 mt-2">
+        {dualChoices && (
+          <div className="space-y-2">
+            <p className="text-xs text-muted">
+              Elige en qué fase quieres participar. Solo puedes inscribirte en una.
+            </p>
+            <div
+              role="radiogroup"
+              aria-label="Fase de inscripción"
+              className="grid grid-cols-2 gap-2"
+            >
+              {dualChoices.map((choice) => {
+                const selected = choice.phase_key === selectedPhaseKey;
+                return (
+                  <button
+                    key={choice.phase_key}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setSelectedPhaseKey(choice.phase_key)}
+                    className={cn(
+                      "rounded-xl border px-3 py-3 text-left transition-colors",
+                      selected
+                        ? "border-accent bg-accent/10 text-white"
+                        : "border-white/10 bg-white/[0.03] text-muted hover:border-white/20",
+                    )}
+                  >
+                    <span className="block text-sm font-semibold">{choice.label}</span>
+                    <span className="block text-xs mt-1 opacity-80">
+                      {currency} {parseFloat(choice.entry_fee).toFixed(2)}
+                    </span>
+                    {choice.has_uploaded_proof && (
+                      <span className="block text-[10px] mt-1 text-emerald-400 uppercase tracking-wide">
+                        Comprobante enviado
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedPhaseKey === "groups" && (
+              <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+                Apostarás los partidos de la fase de grupos cuando el admin confirme tu pago.
+              </p>
+            )}
+            {selectedPhaseKey === "knockout" && (
+              <p className="text-xs text-muted bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2">
+                No podrás apostar partidos de grupos. Tu cupo es para cuando empiecen las
+                eliminatorias.
+              </p>
+            )}
+          </div>
+        )}
+
         {isEarly && (
           <p className="text-xs text-accent/90 bg-accent/10 border border-accent/30 rounded-lg px-3 py-2">
             La fase de {polla.current_phase_label ?? "grupos"} sigue activa. Tu pago queda
@@ -196,8 +297,8 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
         </ol>
 
         <PaymentProofUploadZone
-          hasUploaded={!!polla.has_uploaded_proof}
-          disabled={upload.isPending}
+          hasUploaded={hasUploaded}
+          disabled={upload.isPending || (dualChoices != null && !selectedPhaseKey)}
           onUpload={async (file) => {
             if (usePhaseUpload) {
               await uploadPhase.mutateAsync({ file, phaseKey });

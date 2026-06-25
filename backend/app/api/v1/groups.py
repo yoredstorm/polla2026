@@ -50,6 +50,13 @@ from pydantic import BaseModel, Field
 router = APIRouter(prefix="/groups", tags=["Groups"])
 
 
+class EnrollmentChoiceOut(BaseModel):
+    phase_key: str
+    label: str
+    entry_fee: str
+    has_uploaded_proof: bool = False
+
+
 class ActivePollaOut(BaseModel):
     id: uuid.UUID
     name: str
@@ -75,6 +82,7 @@ class ActivePollaOut(BaseModel):
     payment_target_phase_label: str | None = None
     payment_target_entry_fee: str | None = None
     early_enrollment_available: bool = False
+    enrollment_choices: list[EnrollmentChoiceOut] = Field(default_factory=list)
 
 
 async def _get_active_group(db: DBSession) -> Group | None:
@@ -106,6 +114,7 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         ensure_phase_fees_for_group,
         resolve_payment_target_phase,
         get_phase_fee,
+        get_new_user_enrollment_choices,
     )
     from app.services.prize_structure_service import get_effective_phases, phase_label, is_effective_phase
 
@@ -138,6 +147,18 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
     payment_target = await resolve_payment_target_phase(
         db, group, current_user.id, is_member=is_member
     )
+
+    enrollment_choices_out: list[EnrollmentChoiceOut] = []
+    if not is_member:
+        for choice in await get_new_user_enrollment_choices(db, group, current_user.id):
+            enrollment_choices_out.append(
+                EnrollmentChoiceOut(
+                    phase_key=choice.phase_key,
+                    label=choice.label,
+                    entry_fee=str(choice.entry_fee),
+                    has_uploaded_proof=choice.has_uploaded_proof,
+                )
+            )
 
     has_proof = False
     enroll_status = "confirmed"
@@ -187,6 +208,7 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         payment_target_phase_label=payment_target_label,
         payment_target_entry_fee=payment_target_fee,
         early_enrollment_available=early_enrollment,
+        enrollment_choices=enrollment_choices_out,
     )
 
 
@@ -287,7 +309,7 @@ async def upload_phase_entry_proof(
     from app.services.phase_enrollment_service import (
         enrollment_status_for_phase,
         is_allowed_proof_phase_key,
-        resolve_payment_target_phase,
+        new_user_dual_enrollment_available,
     )
     from app.services.prize_structure_service import get_effective_phases, phase_label, is_effective_phase
 
@@ -302,12 +324,6 @@ async def upload_phase_entry_proof(
         )
     )
     is_member = member_res.scalar_one_or_none() is not None
-
-    payment_target = await resolve_payment_target_phase(
-        db, group, current_user.id, is_member=is_member
-    )
-    if not payment_target:
-        raise HTTPException(status_code=403, detail="Already enrolled in this phase")
 
     current = group.current_phase_key or first_phase
     current_status = (
@@ -327,14 +343,17 @@ async def upload_phase_entry_proof(
         ):
             raise HTTPException(status_code=403, detail="Phase enrollment not allowed")
         target_key = phase_key
+    elif not is_member and new_user_dual_enrollment_available(group):
+        raise HTTPException(status_code=400, detail="Select a phase for enrollment")
     else:
-        target_key = payment_target.phase_key
+        from app.services.phase_enrollment_service import resolve_payment_target_phase
 
-    if not is_member and target_key != first_phase:
-        raise HTTPException(
-            status_code=403,
-            detail="You must be a polla member before re-enrolling in a new phase",
+        payment_target = await resolve_payment_target_phase(
+            db, group, current_user.id, is_member=is_member
         )
+        if not payment_target:
+            raise HTTPException(status_code=403, detail="Already enrolled in this phase")
+        target_key = payment_target.phase_key
 
     target_status = await enrollment_status_for_phase(
         db, group.id, current_user.id, target_key

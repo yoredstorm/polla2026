@@ -32,6 +32,71 @@ class PaymentTargetPhase:
     is_early_enrollment: bool
 
 
+@dataclass
+class EnrollmentChoice:
+    phase_key: str
+    label: str
+    entry_fee: Decimal
+    has_uploaded_proof: bool
+
+
+def new_user_dual_enrollment_available(group: Group) -> bool:
+    """New users may pick groups or knockout while the groups phase is still active."""
+    mode = getattr(group, "prize_structure_mode", None)
+    first_phase = get_effective_phases(group)[0]
+    current = group.current_phase_key or first_phase
+    return mode == "groups_knockout" and current == "groups"
+
+
+async def get_new_user_enrollment_choices(
+    db: AsyncSession,
+    group: Group,
+    user_id: uuid.UUID,
+) -> list[EnrollmentChoice]:
+    if not new_user_dual_enrollment_available(group):
+        return []
+
+    from app.models.group import GroupEntryProof
+
+    choices: list[EnrollmentChoice] = []
+    for phase_key in ("groups", "knockout"):
+        fee_row = await get_phase_fee(db, group.id, phase_key)
+        entry_fee = fee_row.entry_fee if fee_row else group.entry_fee
+        if phase_key == "groups":
+            proof_res = await db.execute(
+                select(GroupEntryProof).where(
+                    and_(GroupEntryProof.group_id == group.id, GroupEntryProof.user_id == user_id)
+                )
+            )
+            has_proof = proof_res.scalar_one_or_none() is not None
+        else:
+            has_proof = await _has_phase_proof(db, group.id, user_id, phase_key)
+        choices.append(
+            EnrollmentChoice(
+                phase_key=phase_key,
+                label=phase_label(phase_key, group),
+                entry_fee=entry_fee,
+                has_uploaded_proof=has_proof,
+            )
+        )
+    return choices
+
+
+def is_allowed_initial_member_phase_key(group: Group, phase_key: str) -> bool:
+    phases = get_effective_phases(group)
+    first_phase = phases[0]
+    current = group.current_phase_key or first_phase
+    if phase_key == first_phase and current == first_phase:
+        return True
+    if (
+        phase_key == "knockout"
+        and current == "groups"
+        and new_user_dual_enrollment_available(group)
+    ):
+        return True
+    return False
+
+
 async def ensure_phase_fees_for_group(db: AsyncSession, group: Group) -> None:
     result = await db.execute(
         select(GroupPhaseFee.id).where(GroupPhaseFee.group_id == group.id).limit(1)
@@ -202,6 +267,39 @@ async def resolve_payment_target_phase(
     if not is_member:
         if current != first_phase:
             return None
+
+        if new_user_dual_enrollment_available(group):
+            from app.models.group import GroupEntryProof
+
+            group_proof = await db.execute(
+                select(GroupEntryProof).where(
+                    and_(GroupEntryProof.group_id == group.id, GroupEntryProof.user_id == user_id)
+                )
+            )
+            if group_proof.scalar_one_or_none():
+                fee_row = await get_phase_fee(db, group.id, "groups")
+                entry_fee = fee_row.entry_fee if fee_row else group.entry_fee
+                return PaymentTargetPhase(
+                    phase_key="groups",
+                    label=phase_label("groups", group),
+                    entry_fee=entry_fee,
+                    enrollment_status="none",
+                    has_uploaded_proof=True,
+                    is_early_enrollment=False,
+                )
+            if await _has_phase_proof(db, group.id, user_id, "knockout"):
+                fee_row = await get_phase_fee(db, group.id, "knockout")
+                entry_fee = fee_row.entry_fee if fee_row else group.entry_fee
+                return PaymentTargetPhase(
+                    phase_key="knockout",
+                    label=phase_label("knockout", group),
+                    entry_fee=entry_fee,
+                    enrollment_status="none",
+                    has_uploaded_proof=True,
+                    is_early_enrollment=True,
+                )
+            return None
+
         fee_row = await get_phase_fee(db, group.id, first_phase)
         entry_fee = fee_row.entry_fee if fee_row else group.entry_fee
         from app.models.group import GroupEntryProof
@@ -266,7 +364,16 @@ def is_allowed_proof_phase_key(
     next_key = next_effective_phase_key(group, current)
 
     if not is_member:
-        return phase_key == first_phase and current == first_phase
+        if phase_key == first_phase and current == first_phase:
+            return True
+        if (
+            phase_key == "knockout"
+            and current == "groups"
+            and next_key == "knockout"
+            and new_user_dual_enrollment_available(group)
+        ):
+            return True
+        return False
     if phase_key == current:
         return current_status != "confirmed"
     if next_key and phase_key == next_key:

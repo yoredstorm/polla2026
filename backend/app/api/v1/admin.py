@@ -1049,6 +1049,7 @@ async def patch_group(
 
 class AddMemberIn(BaseModel):
     user_id: uuid.UUID
+    phase_key: str | None = None
 
 
 @router.get("/groups/{group_id}/members")
@@ -1123,36 +1124,56 @@ async def add_group_member(
         await db.commit()
         return {"ok": True, "username": user.username, "already_member": True}
 
-    proof_res = await db.execute(
-        select(GroupEntryProof).where(
-            and_(GroupEntryProof.group_id == group_id, GroupEntryProof.user_id == body.user_id)
-        )
-    )
-    proof_row = proof_res.scalar_one_or_none()
-    had_proof = proof_row is not None
-
     from app.services.phase_enrollment_service import (
         confirm_phase_enrollment,
         ensure_phase_fees_for_group,
         get_phase_fee,
+        is_allowed_initial_member_phase_key,
     )
-
-    from app.services.prize_structure_service import get_effective_phases
+    from app.services.prize_structure_service import get_effective_phases, phase_label
 
     await ensure_phase_fees_for_group(db, group)
     first_phase = get_effective_phases(group)[0]
-    fee_row = await get_phase_fee(db, group_id, first_phase)
+    enroll_phase = body.phase_key or first_phase
+    if not is_allowed_initial_member_phase_key(group, enroll_phase):
+        raise HTTPException(status_code=400, detail="Invalid phase for new member enrollment")
+
+    if enroll_phase == first_phase:
+        proof_res = await db.execute(
+            select(GroupEntryProof).where(
+                and_(GroupEntryProof.group_id == group_id, GroupEntryProof.user_id == body.user_id)
+            )
+        )
+        proof_row = proof_res.scalar_one_or_none()
+    else:
+        proof_res = await db.execute(
+            select(GroupPhaseEntryProof).where(
+                and_(
+                    GroupPhaseEntryProof.group_id == group_id,
+                    GroupPhaseEntryProof.user_id == body.user_id,
+                    GroupPhaseEntryProof.phase_key == enroll_phase,
+                )
+            )
+        )
+        proof_row = proof_res.scalar_one_or_none()
+    had_proof = proof_row is not None
+
+    fee_row = await get_phase_fee(db, group_id, enroll_phase)
     entry_fee = fee_row.entry_fee if fee_row else group.entry_fee
+    phase_lbl = phase_label(enroll_phase, group)
+    current_phase = group.current_phase_key or first_phase
+    is_early_knockout = enroll_phase == "knockout" and current_phase == "groups"
 
     prev_pool = group.prize_pool
     member = GroupMember(group_id=group_id, user_id=body.user_id, total_amount_bet=entry_fee)
     db.add(member)
-    await confirm_phase_enrollment(db, group, body.user_id, first_phase, admin.id)
+    await confirm_phase_enrollment(db, group, body.user_id, enroll_phase, admin.id)
     await log_action(db, user_id=admin.id, action="admin_confirm_entry", detail={
         "group_id": str(group_id),
         "member_user_id": str(body.user_id),
         "username": user.username,
         "entry_fee": str(entry_fee),
+        "phase_key": enroll_phase,
         "had_proof": had_proof,
         "confirmed_with_proof": had_proof,
         "proof_uploaded_at": proof_row.uploaded_at.isoformat() if proof_row else None,
@@ -1165,16 +1186,49 @@ async def add_group_member(
         notification_type="entry_pending",
         payload_match={"group_id": str(group_id), "user_id": str(body.user_id)},
     )
-    entry_title, entry_body, entry_payload = build_entry_confirmed(group_name=group.name)
-    await create_notification(
+    await resolve_actionable_notifications(
         db,
         redis,
-        user_id=body.user_id,
-        type="entry_confirmed",
-        title=entry_title,
-        body=entry_body,
-        payload=entry_payload,
+        notification_type="phase_entry_pending",
+        payload_match={
+            "group_id": str(group_id),
+            "user_id": str(body.user_id),
+            "phase_key": enroll_phase,
+        },
     )
+    from app.services.notification_service import (
+        build_entry_confirmed,
+        build_phase_enrollment_confirmed,
+        create_notification,
+    )
+
+    if enroll_phase == first_phase and not is_early_knockout:
+        entry_title, entry_body, entry_payload = build_entry_confirmed(group_name=group.name)
+        await create_notification(
+            db,
+            redis,
+            user_id=body.user_id,
+            type="entry_confirmed",
+            title=entry_title,
+            body=entry_body,
+            payload=entry_payload,
+        )
+    else:
+        n_title, n_body, n_payload = build_phase_enrollment_confirmed(
+            phase_label=phase_lbl,
+            phase_key=enroll_phase,
+            group_id=str(group_id),
+            is_early_enrollment=is_early_knockout,
+        )
+        await create_notification(
+            db,
+            redis,
+            user_id=body.user_id,
+            type="entry_confirmed",
+            title=n_title,
+            body=n_body,
+            payload=n_payload,
+        )
     await db.commit()
     await broadcast_polla_updated(
         db,
@@ -1266,11 +1320,18 @@ async def list_non_members(
     admin: CurrentAdmin,
     db: DBSession,
 ):
-    """Users registered but NOT yet members of this group (pending entry confirmation)."""
+    """Users registered but NOT yet members — groups entry proof only."""
     member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+    groups_proof_user_ids = select(GroupEntryProof.user_id).where(
+        GroupEntryProof.group_id == group_id
+    )
     q = (
         select(User.id, User.username, User.first_name, User.last_name, User.created_at)
-        .where(User.is_active == True, User.id.not_in(member_ids_q))
+        .where(
+            User.is_active == True,
+            User.id.not_in(member_ids_q),
+            User.id.in_(groups_proof_user_ids),
+        )
         .order_by(User.created_at.desc())
     )
     rows = (await db.execute(q)).all()
@@ -1422,6 +1483,7 @@ async def list_phase_pending_entries(
     )
     rows = (await db.execute(members_q)).all()
     out = []
+    seen_user_ids: set[uuid.UUID] = set()
     for user, _member, proof in rows:
         enr_res = await db.execute(
             select(GroupPhaseEnrollment).where(
@@ -1437,6 +1499,7 @@ async def list_phase_pending_entries(
             continue
         if not proof:
             continue
+        seen_user_ids.add(user.id)
         out.append(
             {
                 "user_id": str(user.id),
@@ -1447,8 +1510,40 @@ async def list_phase_pending_entries(
                 "phase_label": phase_label(pk, group),
                 "has_proof": True,
                 "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
+                "is_member": True,
             }
         )
+
+    if pk == "knockout":
+        member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+        non_member_q = (
+            select(User, GroupPhaseEntryProof)
+            .join(
+                GroupPhaseEntryProof,
+                and_(
+                    GroupPhaseEntryProof.user_id == User.id,
+                    GroupPhaseEntryProof.group_id == group_id,
+                    GroupPhaseEntryProof.phase_key == pk,
+                ),
+            )
+            .where(User.is_active == True, User.id.not_in(member_ids_q))
+        )
+        for user, _proof in (await db.execute(non_member_q)).all():
+            if user.id in seen_user_ids:
+                continue
+            out.append(
+                {
+                    "user_id": str(user.id),
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phase_key": pk,
+                    "phase_label": phase_label(pk, group),
+                    "has_proof": True,
+                    "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
+                    "is_member": False,
+                }
+            )
     return {"group_id": str(group_id), "phase_key": pk, "pending": out}
 
 

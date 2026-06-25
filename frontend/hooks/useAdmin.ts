@@ -336,11 +336,23 @@ export function useGroupMembers(groupId: string | null) {
 export function useAddGroupMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ groupId, userId }: { groupId: string; userId: string }) =>
-      api.post<any>(`/admin/groups/${groupId}/members`, { user_id: userId }),
+    mutationFn: ({
+      groupId,
+      userId,
+      phaseKey,
+    }: {
+      groupId: string;
+      userId: string;
+      phaseKey?: string;
+    }) =>
+      api.post<any>(`/admin/groups/${groupId}/members`, {
+        user_id: userId,
+        ...(phaseKey ? { phase_key: phaseKey } : {}),
+      }),
     onSuccess: (_data, vars) => {
       qc.invalidateQueries({ queryKey: ["admin", "group-members", vars.groupId] });
       qc.invalidateQueries({ queryKey: ["admin", "non-members", vars.groupId] });
+      qc.invalidateQueries({ queryKey: ["admin", "phase-pending", vars.groupId] });
       qc.invalidateQueries({ queryKey: ["admin", "groups"] });
       qc.invalidateQueries({ queryKey: ["pool"] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
