@@ -83,6 +83,7 @@ export default function FixtureDetailPage() {
 
   const primaryBet = myBets?.[0];
   const hasBet = (myBets?.length ?? 0) > 0;
+  const viewerHasGroupBet = (myBets ?? []).some((b) => b.group_id === polla?.id);
 
   const showBetForm =
     fixture.status === "scheduled" &&
@@ -150,7 +151,9 @@ export default function FixtureDetailPage() {
         </div>
       </div>
 
-      {user?.is_admin && <FixtureAdminLivePanel fixture={fixture} />}
+      {user?.is_admin && (
+        <FixtureAdminLivePanel fixture={fixture} groupId={polla?.id} />
+      )}
 
       {showPredictionsBoard && polla && (
         <FixturePredictionsBoard
@@ -158,6 +161,7 @@ export default function FixtureDetailPage() {
           groupId={polla.id}
           currency={polla.currency}
           currentUserId={user?.id}
+          viewerHasBet={viewerHasGroupBet}
         />
       )}
 

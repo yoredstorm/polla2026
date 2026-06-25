@@ -309,6 +309,35 @@ async def update_fixture_status(
     fixture = result.scalar_one_or_none()
     if not fixture:
         raise HTTPException(status_code=404, detail="Fixture not found")
+    if body.status == "live":
+        from app.core.match_timing import (
+            can_admin_start_live,
+            is_admin_live_start_expired,
+        )
+
+        if is_admin_live_start_expired(fixture):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "code": "FIXTURE_LIVE_START_EXPIRED",
+                        "message": (
+                            "El horario para iniciar en vivo ya pasó. "
+                            "Liquida el resultado desde el panel de partidos."
+                        ),
+                    }
+                },
+            )
+        if not can_admin_start_live(fixture):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": {
+                        "code": "FIXTURE_KICKOFF_NOT_REACHED",
+                        "message": "El partido solo puede iniciarse cuando llegue la hora programada.",
+                    }
+                },
+            )
     fixture.status = body.status
     if body.status in ("live", "finished", "cancelled"):
         fixture.is_locked = True

@@ -63,3 +63,30 @@ def test_timing_constants():
     assert BETTING_CLOSE_BEFORE == timedelta(minutes=1)
     assert USER_CHANGE_REQUEST_BEFORE == timedelta(hours=1)
     assert ADMIN_RESOLVE_BEFORE == timedelta(minutes=1)
+
+
+def test_can_admin_start_live_only_after_kickoff():
+    from app.core.match_timing import can_admin_start_live
+
+    f = _fixture(minutes_from_now=30)
+    assert can_admin_start_live(f) is False
+    f2 = _fixture(minutes_from_now=-1)
+    assert can_admin_start_live(f2) is True
+    f2.status = "live"
+    assert can_admin_start_live(f2) is False
+
+
+def test_can_admin_start_live_within_two_hour_window():
+    from app.core.match_timing import (
+        LIVE_START_WINDOW_AFTER,
+        can_admin_start_live,
+        is_admin_live_start_expired,
+    )
+
+    assert LIVE_START_WINDOW_AFTER == timedelta(hours=2)
+    f = _fixture(minutes_from_now=-30)
+    assert can_admin_start_live(f) is True
+    assert is_admin_live_start_expired(f) is False
+    f_expired = _fixture(minutes_from_now=-150)
+    assert can_admin_start_live(f_expired) is False
+    assert is_admin_live_start_expired(f_expired) is True

@@ -8,6 +8,7 @@ from app.models.fixture import Fixture
 BETTING_CLOSE_BEFORE = timedelta(minutes=1)
 USER_CHANGE_REQUEST_BEFORE = timedelta(hours=1)
 ADMIN_RESOLVE_BEFORE = timedelta(minutes=1)
+LIVE_START_WINDOW_AFTER = timedelta(hours=2)
 
 
 def _kickoff(fixture: Fixture) -> datetime:
@@ -52,6 +53,26 @@ def can_resolve_change_request_for_fixture(fixture: Fixture, *, now: datetime | 
     if fixture.status != "scheduled":
         return False
     return not is_admin_resolve_cutoff_passed(fixture, now=now)
+
+
+def live_start_deadline_at(fixture: Fixture) -> datetime:
+    return _kickoff(fixture) + LIVE_START_WINDOW_AFTER
+
+
+def is_admin_live_start_expired(fixture: Fixture, *, now: datetime | None = None) -> bool:
+    if fixture.status != "scheduled":
+        return False
+    t = now if now is not None else datetime.now(timezone.utc)
+    return t > live_start_deadline_at(fixture)
+
+
+def can_admin_start_live(fixture: Fixture, *, now: datetime | None = None) -> bool:
+    """True during the 2h window after kickoff while the fixture is still scheduled."""
+    if fixture.status != "scheduled":
+        return False
+    t = now if now is not None else datetime.now(timezone.utc)
+    kickoff = _kickoff(fixture)
+    return kickoff <= t <= live_start_deadline_at(fixture)
 
 
 def fixture_deadline_fields(fixture: Fixture) -> dict[str, datetime | None]:

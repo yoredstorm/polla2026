@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Radio, Users } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Radio, Users, Info } from "lucide-react";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { useFixturePredictionsBoard } from "@/hooks/useGroups";
 import type { Fixture, FixtureScoreTimelineEvent } from "@/types/api";
@@ -17,15 +17,17 @@ function formatTimelineTime(iso: string) {
 export function FixturePredictionsBoard({
   fixture,
   groupId,
-  currency = "PEN",
   currentUserId,
+  viewerHasBet = true,
 }: {
   fixture: Fixture;
   groupId: string;
   currency?: string;
   currentUserId?: string;
+  viewerHasBet?: boolean;
 }) {
   const [selectedEvent, setSelectedEvent] = useState<FixtureScoreTimelineEvent | null>(null);
+  const myRowRef = useRef<HTMLLIElement>(null);
   const isLive = fixture.status === "live";
   const enabled = isLive || fixture.status === "finished";
 
@@ -49,6 +51,16 @@ export function FixturePredictionsBoard({
     if (data) return `${data.home_score}–${data.away_score}`;
     return `${fixture.home_score ?? 0}–${fixture.away_score ?? 0}`;
   }, [selectedEvent, data, fixture.home_score, fixture.away_score]);
+
+  const viewerInBoard = useMemo(
+    () => !!currentUserId && (data?.entries.some((e) => e.user_id === currentUserId) ?? false),
+    [currentUserId, data?.entries],
+  );
+
+  useEffect(() => {
+    if (!viewerInBoard || !myRowRef.current) return;
+    myRowRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [viewerInBoard, data?.entries.length]);
 
   if (!enabled) return null;
 
@@ -87,9 +99,14 @@ export function FixturePredictionsBoard({
     return (
       <section className="rounded-2xl border border-white/10 bg-glass p-6 mb-6 text-center">
         <p className="text-sm text-muted">Nadie apostó este partido en la polla aún.</p>
+        {!viewerHasBet && (
+          <p className="text-xs text-muted mt-2">Tú tampoco apostaste este partido.</p>
+        )}
       </section>
     );
   }
+
+  const showNoBetBanner = !viewerHasBet && !viewerInBoard;
 
   return (
     <section className="rounded-2xl border border-white/10 bg-glass p-6 mb-6 space-y-4">
@@ -118,6 +135,18 @@ export function FixturePredictionsBoard({
           </p>
         </div>
       </div>
+
+      {showNoBetBanner && (
+        <div
+          className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5"
+          role="status"
+        >
+          <Info className="w-4 h-4 text-muted shrink-0 mt-0.5" aria-hidden />
+          <p className="text-xs text-muted">
+            No participaste en este partido. Solo ves el ranking de quienes apostaron.
+          </p>
+        </div>
+      )}
 
       {timeline.length > 1 && (
         <div className="overflow-x-auto pb-1">
@@ -173,9 +202,11 @@ export function FixturePredictionsBoard({
             return (
               <li
                 key={row.user_id}
+                ref={isMe ? myRowRef : undefined}
+                aria-current={isMe ? "true" : undefined}
                 className={cn(
                   "grid grid-cols-[2.5rem_1fr_4.5rem_3.5rem] gap-x-2 px-3 py-2.5 text-sm items-center",
-                  isMe && "bg-accent/5",
+                  isMe && "bg-accent/10 ring-2 ring-inset ring-accent/40",
                 )}
               >
                 <span
@@ -218,9 +249,6 @@ export function FixturePredictionsBoard({
       <p className="text-[11px] text-muted">
         Los perfiles privados aparecen en la lista pero con datos difuminados. Los puntos se
         actualizan en tiempo real según el marcador del partido.
-        {parseFloat(data.entries[0]?.amount ?? "0") > 0 && (
-          <span> Montos extra visibles solo si el usuario lo permite.</span>
-        )}
       </p>
     </section>
   );

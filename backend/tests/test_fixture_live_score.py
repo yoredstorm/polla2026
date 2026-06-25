@@ -52,6 +52,7 @@ async def _seed_polla(
     owner_id: uuid.UUID,
     *,
     status: str = "scheduled",
+    minutes_from_now: float = 48 * 60,
 ) -> tuple[Group, Fixture]:
     for g in (await db.execute(select(Group).where(Group.is_active == True))).scalars().all():  # noqa: E712
         g.is_active = False
@@ -66,7 +67,7 @@ async def _seed_polla(
         league_name="Test",
         league_id=1,
         league_logo_url=None,
-        match_date=datetime.now(timezone.utc) + timedelta(hours=48),
+        match_date=datetime.now(timezone.utc) + timedelta(minutes=minutes_from_now),
         status=status,
         home_score=0 if status != "scheduled" else None,
         away_score=0 if status != "scheduled" else None,
@@ -162,12 +163,46 @@ async def test_live_score_only_when_live(client: AsyncClient, db_session: AsyncS
 
 
 @pytest.mark.asyncio
+async def test_start_live_blocked_before_kickoff(client: AsyncClient, db_session: AsyncSession):
+    cookies, user_id = await _register(client, "live_admin9")
+    await _make_admin(db_session, "live_admin9")
+    group, fixture = await _seed_polla(db_session, user_id, minutes_from_now=120)
+
+    resp = await client.patch(
+        f"/api/v1/admin/fixtures/{fixture.id}/status",
+        json={"status": "live"},
+        cookies=cookies,
+    )
+    assert resp.status_code == 400
+    from tests.conftest import assert_api_error
+
+    assert_api_error(resp, "FIXTURE_KICKOFF_NOT_REACHED", status=400)
+
+
+@pytest.mark.asyncio
+async def test_start_live_blocked_after_window(client: AsyncClient, db_session: AsyncSession):
+    cookies, user_id = await _register(client, "live_admin10")
+    await _make_admin(db_session, "live_admin10")
+    group, fixture = await _seed_polla(db_session, user_id, minutes_from_now=-150)
+
+    resp = await client.patch(
+        f"/api/v1/admin/fixtures/{fixture.id}/status",
+        json={"status": "live"},
+        cookies=cookies,
+    )
+    assert resp.status_code == 400
+    from tests.conftest import assert_api_error
+
+    assert_api_error(resp, "FIXTURE_LIVE_START_EXPIRED", status=400)
+
+
+@pytest.mark.asyncio
 async def test_live_score_updates_timeline_without_settling(
     client: AsyncClient, db_session: AsyncSession
 ):
     cookies, user_id = await _register(client, "live_admin3")
     await _make_admin(db_session, "live_admin3")
-    group, fixture = await _seed_polla(db_session, user_id)
+    group, fixture = await _seed_polla(db_session, user_id, minutes_from_now=-5)
     await _add_bet(db_session, user_id=user_id, group_id=group.id, fixture_id=fixture.id, home=2, away=1)
 
     start = await client.patch(
@@ -318,7 +353,7 @@ async def test_predictions_board_at_score_snapshot(
 async def test_timeline_appends_on_score_change(client: AsyncClient, db_session: AsyncSession):
     cookies, user_id = await _register(client, "live_admin8")
     await _make_admin(db_session, "live_admin8")
-    group, fixture = await _seed_polla(db_session, user_id)
+    group, fixture = await _seed_polla(db_session, user_id, minutes_from_now=-5)
 
     await client.patch(
         f"/api/v1/admin/fixtures/{fixture.id}/status",

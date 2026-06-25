@@ -6,6 +6,7 @@ const MS_HOUR = 60 * MS_MINUTE;
 export const BETTING_CLOSE_MS = MS_MINUTE;
 export const USER_CHANGE_REQUEST_MS = MS_HOUR;
 export const ADMIN_RESOLVE_MS = MS_MINUTE;
+export const LIVE_START_WINDOW_MS = 2 * MS_HOUR;
 
 type FixtureTiming = {
   match_date: string;
@@ -51,6 +52,29 @@ export function isChangeRequestWindowOpen(fixture: FixtureTiming): boolean {
 export function isAdminResolveWindowOpen(fixture: FixtureTiming): boolean {
   if (fixture.status !== "scheduled") return false;
   return Date.now() < getAdminResolveClosesAt(fixture);
+}
+
+/** Kickoff instant (ms). Mirrors backend match_date. */
+export function getKickoffAt(fixture: FixtureTiming): number {
+  return kickoffMs(fixture);
+}
+
+/** Last instant (ms) admin may start live (kickoff + 2h). */
+export function getLiveStartDeadlineAt(fixture: FixtureTiming): number {
+  return getKickoffAt(fixture) + LIVE_START_WINDOW_MS;
+}
+
+/** Scheduled fixture passed the 2h live-start window without going live. */
+export function isAdminLiveStartExpired(fixture: FixtureTiming, nowMs = Date.now()): boolean {
+  if (fixture.status !== "scheduled") return false;
+  return nowMs > getLiveStartDeadlineAt(fixture);
+}
+
+/** Admin may start live only within 2h after kickoff while still scheduled. */
+export function canAdminStartLive(fixture: FixtureTiming, nowMs = Date.now()): boolean {
+  if (fixture.status !== "scheduled") return false;
+  const kickoff = getKickoffAt(fixture);
+  return nowMs >= kickoff && nowMs <= getLiveStartDeadlineAt(fixture);
 }
 
 export function formatDeadlineRemaining(deadlineMs: number, nowMs = Date.now()): string {
