@@ -29,7 +29,7 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
   const toast = useToast((s) => s.add);
   const uploadEntry = useUploadEntryProof();
   const uploadPhase = useUploadPhaseEntryProof();
-  const usePhaseUpload = polla.is_member && polla.phase_enrollment_status !== "confirmed";
+  const usePhaseUpload = polla.is_member;
   const upload = usePhaseUpload ? uploadPhase : uploadEntry;
   const [qrLoaded, setQrLoaded] = useState(false);
   const [qrError, setQrError] = useState(false);
@@ -90,8 +90,13 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
   const phone = paymentPhone(polla);
   const wa = whatsAppUrl(phone);
   const currency = polla.currency ?? "PEN";
-  const fee = parseFloat(polla.current_phase_entry_fee ?? polla.entry_fee) || 0;
-  const phaseLabel = polla.current_phase_label ?? "entrada";
+  const phaseLabel =
+    polla.payment_target_phase_label ?? polla.current_phase_label ?? "entrada";
+  const fee =
+    parseFloat(polla.payment_target_entry_fee ?? polla.current_phase_entry_fee ?? polla.entry_fee) ||
+    0;
+  const isEarly = !!polla.early_enrollment_available;
+  const phaseKey = polla.payment_target_phase_key ?? undefined;
 
   async function copyPhone() {
     try {
@@ -106,11 +111,24 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
     <Modal
       open={open}
       onClose={onClose}
-      title={usePhaseUpload ? `Inscripción — ${phaseLabel}` : "Cómo pagar tu entrada"}
+      title={
+        usePhaseUpload
+          ? isEarly
+            ? `Inscripción anticipada — ${phaseLabel}`
+            : `Inscripción — ${phaseLabel}`
+          : "Cómo pagar tu entrada"
+      }
       description={`${polla.name} · ${currency} ${fee.toFixed(2)}`}
       size="md"
     >
       <div className="space-y-5 mt-2">
+        {isEarly && (
+          <p className="text-xs text-accent/90 bg-accent/10 border border-accent/30 rounded-lg px-3 py-2">
+            La fase de {polla.current_phase_label ?? "grupos"} sigue activa. Puedes inscribirte ya
+            en {phaseLabel} para estar listo cuando comience.
+          </p>
+        )}
+
         {isExample && (
           <p className="text-xs text-amber-200/90 bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2">
             Datos de ejemplo — el administrador actualizará el QR pronto.
@@ -171,7 +189,9 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
 
         <ol className="text-xs text-muted space-y-1.5 list-decimal list-inside">
           <li>Escanea el QR o transfiere al número indicado.</li>
-          <li>Paga el monto de entrada ({currency} {fee.toFixed(2)}).</li>
+          <li>
+            Paga el monto de inscripción ({currency} {fee.toFixed(2)}).
+          </li>
           <li>Sube tu comprobante abajo (opcional).</li>
         </ol>
 
@@ -179,7 +199,11 @@ export function PaymentInstructionsModal({ open, onClose, polla }: PaymentInstru
           hasUploaded={!!polla.has_uploaded_proof}
           disabled={upload.isPending}
           onUpload={async (file) => {
-            await upload.mutateAsync(file);
+            if (usePhaseUpload) {
+              await uploadPhase.mutateAsync({ file, phaseKey });
+            } else {
+              await uploadEntry.mutateAsync(file);
+            }
             toast("Comprobante enviado", "success");
           }}
         />

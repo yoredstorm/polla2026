@@ -22,13 +22,29 @@ from app.services.gamification_service import compute_badges
 logger = structlog.get_logger(__name__)
 
 
-async def compute_confirmed_prize_pool(db: AsyncSession, group_id: uuid.UUID) -> Decimal:
-    """Sum confirmed phase entry fees and confirmed extra bet amounts (source of truth)."""
+async def compute_confirmed_prize_pool(
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    *,
+    phase_key: str | None = None,
+) -> Decimal:
+    """Sum confirmed entry fees for the active phase and confirmed extra bets."""
+    if phase_key is None:
+        group_row = await db.execute(select(Group).where(Group.id == group_id))
+        group = group_row.scalar_one_or_none()
+        if group:
+            from app.services.prize_structure_service import get_effective_phases
+
+            phase_key = group.current_phase_key or get_effective_phases(group)[0]
+        else:
+            phase_key = "groups"
+
     enr_sum = (
         await db.execute(
             select(func.coalesce(func.sum(GroupPhaseEnrollment.entry_fee_paid), 0)).where(
                 and_(
                     GroupPhaseEnrollment.group_id == group_id,
+                    GroupPhaseEnrollment.phase_key == phase_key,
                     GroupPhaseEnrollment.status == "confirmed",
                 )
             )

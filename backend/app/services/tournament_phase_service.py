@@ -189,7 +189,11 @@ async def close_phase(
     return record
 
 
-async def try_close_completed_phases(db: AsyncSession, group_id: uuid.UUID) -> list[str]:
+async def try_close_completed_phases(
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    redis=None,
+) -> list[str]:
     """
     Close every consecutive completed phase starting from the first unclosed.
     Returns list of phase keys that were closed in this run.
@@ -210,6 +214,14 @@ async def try_close_completed_phases(db: AsyncSession, group_id: uuid.UUID) -> l
         await db.refresh(group)
         closed_keys.append(phase_key)
         closed.add(phase_key)
+        if redis and group.current_phase_key:
+            from app.services.phase_enrollment_service import (
+                notify_members_needing_phase_enrollment,
+            )
+
+            await notify_members_needing_phase_enrollment(
+                db, redis, group, group.current_phase_key
+            )
 
     return closed_keys
 

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useActivePolla } from "@/hooks/useGroups";
 import { PaymentPendingBanner } from "@/components/features/payment/PaymentPendingBanner";
+import { pollaNeedsPaymentAction } from "@/lib/prizeStructure";
 
 const HIDDEN_PREFIXES = ["/login", "/register", "/admin"];
 
@@ -42,10 +43,8 @@ export function PaymentGlobalNotice() {
     );
   }
 
-  const enrolled =
-    polla.is_member &&
-    (!polla.phase_enrollment_status || polla.phase_enrollment_status === "confirmed");
-  if (enrolled) return null;
+  const needsAction = !polla.is_member || pollaNeedsPaymentAction(polla);
+  if (!needsAction) return null;
 
   return <PaymentPendingBanner />;
 }

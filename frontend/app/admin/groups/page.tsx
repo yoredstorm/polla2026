@@ -3,6 +3,7 @@ import {
   useAdminGroups,
   useNonMembers,
   usePendingExtras,
+  useAdminPhasePendingEntries,
 } from "@/hooks/useAdmin";
 import { CreatePollaForm } from "@/components/features/admin/groups/CreatePollaForm";
 import { PollaSettingsCard } from "@/components/features/admin/groups/PollaSettingsCard";
@@ -16,6 +17,7 @@ import { PhasePendingEntriesPanel } from "@/components/features/admin/groups/Pha
 import {
   phaseWinnersDescription,
   showsReinscriptionPanel,
+  showsEarlyEnrollmentPanel,
 } from "@/lib/prizeStructure";
 import { useAdminPhaseFees } from "@/hooks/useAdmin";
 
@@ -37,6 +39,16 @@ export default function AdminPollaPage() {
     polla?.prize_structure_mode,
     polla?.current_phase_key,
   );
+  const showEarlyEnrollment = showsEarlyEnrollmentPanel(
+    polla?.prize_structure_mode,
+    polla?.current_phase_key,
+  );
+  const knockoutPhaseFee = phaseFeesData?.fees?.find((f) => f.phase_key === "knockout");
+  const { data: earlyPendingData } = useAdminPhasePendingEntries(
+    showEarlyEnrollment ? (polla?.id ?? null) : null,
+    "knockout",
+  );
+  const earlyPendingCount = earlyPendingData?.pending?.length ?? 0;
 
   return (
     <div className="space-y-8">
@@ -98,6 +110,27 @@ export default function AdminPollaPage() {
             </p>
             <PhaseFeesPanel pollaId={polla.id} currency={currency} />
           </div>
+
+          {showEarlyEnrollment && (
+            <div className="rounded-2xl border border-accent/30 bg-accent/5 p-6">
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="font-display text-lg text-white">
+                  Inscripciones anticipadas — Eliminatorias
+                </h2>
+                <PollaBadge count={earlyPendingCount} />
+              </div>
+              <p className="text-xs text-muted mb-4">
+                Miembros que ya pagaron eliminatorias mientras la fase de grupos sigue activa.
+                Confirma el pago para que puedan apostar cuando comience la fase eliminatoria.
+              </p>
+              <PhasePendingEntriesPanel
+                pollaId={polla.id}
+                currency={currency}
+                phaseKey="knockout"
+                phaseLabel={knockoutPhaseFee?.label ?? "Eliminatorias"}
+              />
+            </div>
+          )}
 
           {showReinscription && polla.current_phase_key && (
             <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6">

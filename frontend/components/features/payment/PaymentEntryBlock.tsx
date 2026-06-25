@@ -4,6 +4,7 @@ import { AlertCircle, Check } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { usePaymentFlow } from "@/components/providers/PaymentFlowProvider";
 import type { ActivePolla } from "@/types/api";
+import { pollaNeedsPaymentAction } from "@/lib/prizeStructure";
 import { cn } from "@/lib/utils";
 
 const STEPS = [
@@ -20,25 +21,44 @@ export function PaymentEntryBlock({
   currency: string;
 }) {
   const { openPaymentModal } = usePaymentFlow();
-  const fee = parseFloat(polla.current_phase_entry_fee ?? polla.entry_fee) || 0;
-  const enrolled =
-    polla.is_member &&
-    (!polla.phase_enrollment_status || polla.phase_enrollment_status === "confirmed");
+  const fee =
+    parseFloat(polla.payment_target_entry_fee ?? polla.current_phase_entry_fee ?? polla.entry_fee) ||
+    0;
+  const needsPayment = pollaNeedsPaymentAction(polla);
+  const enrolled = polla.is_member && !needsPayment;
   const stepIndex = enrolled ? 2 : polla.has_uploaded_proof ? 1 : 0;
-  const phaseLabel = polla.current_phase_label ?? "esta fase";
+  const phaseLabel =
+    polla.payment_target_phase_label ?? polla.current_phase_label ?? "esta fase";
+  const isEarly = !!polla.early_enrollment_available;
 
   return (
-    <div className="rounded-xl border border-danger/40 bg-danger/10 p-5 space-y-4">
+    <div
+      className={cn(
+        "rounded-xl border p-5 space-y-4",
+        isEarly
+          ? "border-accent/40 bg-accent/10"
+          : "border-danger/40 bg-danger/10",
+      )}
+    >
       <div className="flex items-start gap-3">
-        <AlertCircle className="w-6 h-6 text-danger shrink-0 mt-0.5" aria-hidden />
+        <AlertCircle
+          className={cn("w-6 h-6 shrink-0 mt-0.5", isEarly ? "text-accent" : "text-danger")}
+          aria-hidden
+        />
         <div>
-          <p className="text-danger font-semibold">
-            {polla.is_member ? `Inscripción — ${phaseLabel}` : "Pago de entrada pendiente"}
+          <p className={cn("font-semibold", isEarly ? "text-accent" : "text-danger")}>
+            {!polla.is_member
+              ? "Pago de entrada pendiente"
+              : isEarly
+                ? `Inscripción anticipada — ${phaseLabel}`
+                : `Inscripción — ${phaseLabel}`}
           </p>
           <p className="text-white/80 text-sm mt-0.5">
-            {polla.is_member
-              ? `Paga el hito ${phaseLabel} para participar en los partidos de esta etapa.`
-              : "Confirma tu pago para poder apostar en la polla."}
+            {!polla.is_member
+              ? "Confirma tu pago para poder apostar en la polla."
+              : isEarly
+                ? `Paga ya ${phaseLabel} para estar listo cuando termine ${polla.current_phase_label ?? "la fase actual"}.`
+                : `Paga el hito ${phaseLabel} para participar en los partidos de esta etapa.`}
           </p>
         </div>
       </div>

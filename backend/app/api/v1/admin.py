@@ -238,7 +238,7 @@ async def update_fixture_result(
 
     polla = await get_active_polla(db)
     if polla:
-        closed_phases = await try_close_completed_phases(db, polla.id)
+        closed_phases = await try_close_completed_phases(db, polla.id, redis)
         if closed_phases:
             await broadcast_polla_updated(db, redis)
     from app.services.badge_notify_service import notify_new_badges_for_fixture

@@ -66,6 +66,10 @@ export interface ActivePolla {
   current_phase_extra_per_match?: string | null;
   phase_enrollment_status?: "confirmed" | "pending" | "none";
   prize_structure_mode?: PrizeStructureMode;
+  payment_target_phase_key?: string | null;
+  payment_target_phase_label?: string | null;
+  payment_target_entry_fee?: string | null;
+  early_enrollment_available?: boolean;
 }
 
 export type PrizeStructureMode =

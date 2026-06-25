@@ -71,6 +71,10 @@ class ActivePollaOut(BaseModel):
     current_phase_extra_per_match: str | None = None
     phase_enrollment_status: str = "none"
     prize_structure_mode: str = "full_milestones"
+    payment_target_phase_key: str | None = None
+    payment_target_phase_label: str | None = None
+    payment_target_entry_fee: str | None = None
+    early_enrollment_available: bool = False
 
 
 async def _get_active_group(db: DBSession) -> Group | None:
@@ -100,10 +104,10 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
     """Returns the first active group (the 'polla') and whether current user is a member."""
     from app.services.phase_enrollment_service import (
         ensure_phase_fees_for_group,
-        enrollment_status_for_user,
+        resolve_payment_target_phase,
         get_phase_fee,
     )
-    from app.services.prize_structure_service import get_effective_phases, phase_label
+    from app.services.prize_structure_service import get_effective_phases, phase_label, is_effective_phase
 
     group = await _get_active_group(db)
     if not group:
@@ -126,35 +130,34 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         per_match = group.fixed_bet_amount
 
     contact_name, phone, qr_url = _active_polla_payment_fields(group)
-    phase_key = group.current_phase_key or "groups"
+    phase_key = group.current_phase_key or get_effective_phases(group)[0]
     phase_fee = await get_phase_fee(db, group.id, phase_key)
     phase_entry = phase_fee.entry_fee if phase_fee else group.entry_fee
     phase_extra = phase_fee.extra_per_match if phase_fee else group.fixed_bet_amount
-    first_phase = get_effective_phases(group)[0]
-    enroll_status = (
-        await enrollment_status_for_user(db, group, current_user.id)
-        if is_member
-        else "none"
+
+    payment_target = await resolve_payment_target_phase(
+        db, group, current_user.id, is_member=is_member
     )
+
     has_proof = False
+    enroll_status = "confirmed"
     qr_data_url: str | None = None
-    if not is_member and phase_key == first_phase:
-        has_proof = await _user_has_proof(db, group.id, current_user.id)
+    payment_target_key: str | None = None
+    payment_target_label: str | None = None
+    payment_target_fee: str | None = None
+    early_enrollment = False
+
+    if payment_target:
+        has_proof = payment_target.has_uploaded_proof
+        enroll_status = payment_target.enrollment_status
+        payment_target_key = payment_target.phase_key
+        payment_target_label = payment_target.label
+        payment_target_fee = str(payment_target.entry_fee)
+        early_enrollment = payment_target.is_early_enrollment
         if group.payment_qr_path:
             qr_data_url = payment_qr_data_url(group.payment_qr_path)
-    elif is_member and enroll_status != "confirmed":
-        proof_res = await db.execute(
-            select(GroupPhaseEntryProof).where(
-                and_(
-                    GroupPhaseEntryProof.group_id == group.id,
-                    GroupPhaseEntryProof.user_id == current_user.id,
-                    GroupPhaseEntryProof.phase_key == phase_key,
-                )
-            )
-        )
-        has_proof = proof_res.scalar_one_or_none() is not None
-        if group.payment_qr_path:
-            qr_data_url = payment_qr_data_url(group.payment_qr_path)
+    elif not is_member:
+        enroll_status = "none"
 
     confirmed_pool = await sync_group_prize_pool(db, group)
     await db.commit()
@@ -179,7 +182,11 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
         prize_structure_mode=group.prize_structure_mode,
         current_phase_entry_fee=str(phase_entry),
         current_phase_extra_per_match=str(phase_extra) if phase_extra else None,
-        phase_enrollment_status=enroll_status if is_member else "none",
+        phase_enrollment_status=enroll_status,
+        payment_target_phase_key=payment_target_key,
+        payment_target_phase_label=payment_target_label,
+        payment_target_entry_fee=payment_target_fee,
+        early_enrollment_available=early_enrollment,
     )
 
 
@@ -274,40 +281,74 @@ async def upload_phase_entry_proof(
     db: DBSession,
     redis: RedisClient,
     file: UploadFile = File(...),
+    phase_key: str | None = Query(None),
 ):
-    """Upload payment proof for the active tournament phase (re-enrollment)."""
-    from app.services.phase_enrollment_service import enrollment_status_for_user
-    from app.services.prize_structure_service import get_effective_phases, phase_label
+    """Upload payment proof for current or next tournament phase (re-enrollment)."""
+    from app.services.phase_enrollment_service import (
+        enrollment_status_for_phase,
+        is_allowed_proof_phase_key,
+        resolve_payment_target_phase,
+    )
+    from app.services.prize_structure_service import get_effective_phases, phase_label, is_effective_phase
 
     group = await _get_active_group(db)
     if not group:
         raise HTTPException(status_code=404, detail="No active polla")
 
     first_phase = get_effective_phases(group)[0]
-    phase_key = group.current_phase_key or first_phase
     member_res = await db.execute(
         select(GroupMember).where(
             and_(GroupMember.group_id == group.id, GroupMember.user_id == current_user.id)
         )
     )
     is_member = member_res.scalar_one_or_none() is not None
-    if phase_key != first_phase and not is_member:
+
+    payment_target = await resolve_payment_target_phase(
+        db, group, current_user.id, is_member=is_member
+    )
+    if not payment_target:
+        raise HTTPException(status_code=403, detail="Already enrolled in this phase")
+
+    current = group.current_phase_key or first_phase
+    current_status = (
+        await enrollment_status_for_phase(db, group.id, current_user.id, current)
+        if is_member
+        else "none"
+    )
+
+    if phase_key:
+        if not is_effective_phase(phase_key, group):
+            raise HTTPException(status_code=400, detail="Invalid phase key")
+        if not is_allowed_proof_phase_key(
+            group,
+            is_member=is_member,
+            current_status=current_status,
+            phase_key=phase_key,
+        ):
+            raise HTTPException(status_code=403, detail="Phase enrollment not allowed")
+        target_key = phase_key
+    else:
+        target_key = payment_target.phase_key
+
+    if not is_member and target_key != first_phase:
         raise HTTPException(
             status_code=403,
             detail="You must be a polla member before re-enrolling in a new phase",
         )
-    if is_member:
-        status = await enrollment_status_for_user(db, group, current_user.id)
-        if status == "confirmed":
-            raise HTTPException(status_code=403, detail="Already enrolled in this phase")
 
-    file_path = await save_phase_entry_proof(group.id, current_user.id, phase_key, file)
+    target_status = await enrollment_status_for_phase(
+        db, group.id, current_user.id, target_key
+    )
+    if target_status == "confirmed":
+        raise HTTPException(status_code=403, detail="Already enrolled in this phase")
+
+    file_path = await save_phase_entry_proof(group.id, current_user.id, target_key, file)
     existing = await db.execute(
         select(GroupPhaseEntryProof).where(
             and_(
                 GroupPhaseEntryProof.group_id == group.id,
                 GroupPhaseEntryProof.user_id == current_user.id,
-                GroupPhaseEntryProof.phase_key == phase_key,
+                GroupPhaseEntryProof.phase_key == target_key,
             )
         )
     )
@@ -320,7 +361,7 @@ async def upload_phase_entry_proof(
             GroupPhaseEntryProof(
                 group_id=group.id,
                 user_id=current_user.id,
-                phase_key=phase_key,
+                phase_key=target_key,
                 file_path=file_path,
             )
         )
@@ -331,13 +372,13 @@ async def upload_phase_entry_proof(
         action="phase_entry_proof_uploaded",
         detail={
             "group_id": str(group.id),
-            "phase_key": phase_key,
+            "phase_key": target_key,
             "username": current_user.username,
         },
         ip=request.client.host if request.client else None,
     )
-    title = f"Inscripción pendiente — {phase_label(phase_key, group)}"
-    body = f"{current_user.username} subió comprobante para la fase {phase_key}."
+    title = f"Inscripción pendiente — {phase_label(target_key, group)}"
+    body = f"{current_user.username} subió comprobante para la fase {target_key}."
     await notify_admins(
         db,
         redis,
@@ -347,12 +388,12 @@ async def upload_phase_entry_proof(
         payload={
             "group_id": str(group.id),
             "user_id": str(current_user.id),
-            "phase_key": phase_key,
+            "phase_key": target_key,
             "has_proof": True,
         },
     )
     await db.commit()
-    return {"ok": True, "phase_key": phase_key, "has_uploaded_proof": True}
+    return {"ok": True, "phase_key": target_key, "has_uploaded_proof": True}
 
 
 class WinnerEntry(BaseModel):

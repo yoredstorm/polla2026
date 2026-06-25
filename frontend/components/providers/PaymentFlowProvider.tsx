@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { useActivePolla } from "@/hooks/useGroups";
 import { PaymentInstructionsModal } from "@/components/features/payment/PaymentInstructionsModal";
+import { pollaNeedsPaymentAction } from "@/lib/prizeStructure";
 
 interface PaymentFlowContextValue {
   openPaymentModal: () => void;
@@ -14,9 +15,13 @@ export function PaymentFlowProvider({ children }: { children: React.ReactNode })
   const { data: polla } = useActivePolla();
   const [open, setOpen] = useState(false);
 
+  const showPaymentModal = polla
+    ? !polla.is_member || pollaNeedsPaymentAction(polla)
+    : false;
+
   const openPaymentModal = useCallback(() => {
-    if (polla && !polla.is_member) setOpen(true);
-  }, [polla]);
+    if (showPaymentModal) setOpen(true);
+  }, [showPaymentModal]);
 
   useEffect(() => {
     if (!polla || polla.is_member) return;
@@ -35,7 +40,7 @@ export function PaymentFlowProvider({ children }: { children: React.ReactNode })
   return (
     <PaymentFlowContext.Provider value={value}>
       {children}
-      {polla && !polla.is_member && (
+      {polla && showPaymentModal && (
         <PaymentInstructionsModal open={open} onClose={() => setOpen(false)} polla={polla} />
       )}
     </PaymentFlowContext.Provider>

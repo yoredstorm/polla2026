@@ -1,3 +1,5 @@
+import type { ActivePolla } from "@/types/api";
+
 export type PrizeStructureMode =
   | "single_tournament"
   | "groups_knockout"
@@ -47,6 +49,54 @@ export function showsReinscriptionPanel(
   if (!currentPhaseKey) return false;
   if (mode === "single_tournament") return false;
   return currentPhaseKey !== firstPhaseKeyForMode(mode);
+}
+
+/** Admin panel for next-phase proofs while the current phase is still active. */
+export function showsEarlyEnrollmentPanel(
+  mode: string | undefined,
+  currentPhaseKey: string | undefined,
+): boolean {
+  if (!currentPhaseKey) return false;
+  if (mode === "single_tournament") return false;
+  return currentPhaseKey === firstPhaseKeyForMode(mode);
+}
+
+export function pollaNeedsPaymentAction(polla: ActivePolla): boolean {
+  return (
+    !!polla.payment_target_phase_key &&
+    polla.phase_enrollment_status !== "confirmed"
+  );
+}
+
+export function fixtureEffectivePhaseKey(
+  fixture: { group_name?: string | null; round?: string | null },
+  mode: PrizeStructureMode | undefined,
+): string {
+  if (mode === "single_tournament") return "tournament";
+  if (mode === "groups_knockout") {
+    return fixture.group_name ? "groups" : "knockout";
+  }
+  if (fixture.group_name) return "groups";
+  const round = fixture.round ?? "";
+  if (round.includes("Round of 32") || round.includes("32")) return "round_of_32";
+  if (round.includes("Round of 16") || round.includes("16")) return "round_of_16";
+  if (round.includes("Quarter")) return "quarterfinal";
+  if (round.includes("Semi")) return "semifinal";
+  if (round.toLowerCase().includes("third")) return "third_place";
+  if (round === "Final") return "final";
+  return "groups";
+}
+
+export function needsPaymentBlockForFixture(
+  polla: ActivePolla,
+  fixture: { group_name?: string | null; round?: string | null },
+): boolean {
+  if (!polla.is_member) return true;
+  const fixturePhase = fixtureEffectivePhaseKey(fixture, polla.prize_structure_mode);
+  const currentPhase = polla.current_phase_key ?? firstPhaseKeyForMode(polla.prize_structure_mode);
+  if (fixturePhase !== currentPhase) return false;
+  if (!pollaNeedsPaymentAction(polla)) return false;
+  return polla.payment_target_phase_key === currentPhase;
 }
 
 export function phaseWinnersDescription(mode: string | undefined): string {

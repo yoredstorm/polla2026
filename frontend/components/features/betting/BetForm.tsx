@@ -1,6 +1,7 @@
 "use client";
 import type { Fixture } from "@/types/api";
 import { PaymentEntryBlock } from "@/components/features/payment/PaymentEntryBlock";
+import { needsPaymentBlockForFixture } from "@/lib/prizeStructure";
 import { cn } from "@/lib/utils";
 import { getBettingClosesAt } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
@@ -138,8 +139,8 @@ export function BetForm({ fixture }: BetFormProps) {
     );
   }
 
-  // ── Polla exists but user is not a confirmed member ──────────────
-  if (!polla.is_member) {
+  // ── Polla exists but user cannot bet (membership or phase enrollment) ──
+  if (!polla.is_member || needsPaymentBlockForFixture(polla, fixture)) {
     return <PaymentEntryBlock polla={polla} currency={currency} />;
   }
 

@@ -108,14 +108,18 @@ export function useJoinGroup() {
 export function useUploadPhaseEntryProof() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (file: File) => {
+    mutationFn: async ({ file, phaseKey }: { file: File; phaseKey?: string }) => {
       const fd = new FormData();
       fd.append("file", file);
-      const res = await fetch(`${getApiBase()}/api/v1/groups/pool/active/phase-entry-proof`, {
-        method: "POST",
-        body: fd,
-        credentials: "include",
-      });
+      const params = phaseKey ? `?phase_key=${encodeURIComponent(phaseKey)}` : "";
+      const res = await fetch(
+        `${getApiBase()}/api/v1/groups/pool/active/phase-entry-proof${params}`,
+        {
+          method: "POST",
+          body: fd,
+          credentials: "include",
+        },
+      );
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw err;
