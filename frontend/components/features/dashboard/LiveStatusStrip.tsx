@@ -1,20 +1,23 @@
 "use client";
 import Link from "next/link";
 import { Bell, Clock, Swords } from "lucide-react";
-import { useFixtures } from "@/hooks/useFixtures";
+import { useFixtures, useLiveFixtures } from "@/hooks/useFixtures";
 import { useMyChallenges } from "@/hooks/useChallenges";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useUnreadCount } from "@/hooks/useNotifications";
+import { LiveFixtureStripLink } from "@/components/features/dashboard/LiveFixturesPanel";
 import { getBettingClosesAt, formatDeadlineRemaining } from "@/lib/matchTiming";
 import { cn } from "@/lib/utils";
 
 export function LiveStatusStrip({ className }: { className?: string }) {
+  const { data: liveFixtures } = useLiveFixtures();
   const { data: fixtures } = useFixtures({ status: "scheduled", limit: 5 });
   const { data: challenges } = useMyChallenges();
   const { data: unread } = useUnreadCount();
   const { data: latestNotif } = useNotifications(1, 1, "unread");
 
   const nextFixture = fixtures?.data?.[0];
+  const firstLive = liveFixtures?.[0];
   const pendingChallenges =
     challenges?.filter(
       (c) =>
@@ -42,20 +45,25 @@ export function LiveStatusStrip({ className }: { className?: string }) {
       role="status"
       aria-live="polite"
     >
-      {nextFixture && bettingDeadline && (
-        <Link
-          href={`/fixtures/${nextFixture.id}`}
-          className="flex items-center gap-2 text-sm min-w-0 cursor-pointer hover:text-white transition-colors focus-ring rounded-md"
-        >
-          <Clock className="w-4 h-4 text-accent shrink-0" aria-hidden />
-          <span className="truncate text-muted">
-            <span className="text-white font-medium">
-              {nextFixture.home_team} vs {nextFixture.away_team}
+      {firstLive ? (
+        <LiveFixtureStripLink fixture={firstLive} />
+      ) : (
+        nextFixture &&
+        bettingDeadline && (
+          <Link
+            href={`/fixtures/${nextFixture.id}`}
+            className="flex items-center gap-2 text-sm min-w-0 cursor-pointer hover:text-white transition-colors focus-ring rounded-md"
+          >
+            <Clock className="w-4 h-4 text-accent shrink-0" aria-hidden />
+            <span className="truncate text-muted">
+              <span className="text-white font-medium">
+                {nextFixture.home_team} vs {nextFixture.away_team}
+              </span>
+              {" · "}
+              cierra {formatDeadlineRemaining(bettingDeadline)}
             </span>
-            {" · "}
-            cierra {formatDeadlineRemaining(bettingDeadline)}
-          </span>
-        </Link>
+          </Link>
+        )
       )}
       {pendingChallenges > 0 && (
         <Link

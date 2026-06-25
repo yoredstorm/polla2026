@@ -30,6 +30,7 @@ import { useChallengeAvailablePoints } from "@/hooks/useChallenges";
 import { ChallengeQuotaBars } from "@/components/features/betting/ChallengeQuotaBars";
 import { NeonPiggyBank } from "@/components/features/dashboard/NeonPiggyBank";
 import { LiveStatusStrip } from "@/components/features/dashboard/LiveStatusStrip";
+import { LiveFixturesPanel } from "@/components/features/dashboard/LiveFixturesPanel";
 import { StaggerItem } from "@/components/ui/StaggerItem";
 import { TournamentProgressTimeline } from "@/components/features/dashboard/TournamentProgressTimeline";
 import { PhaseHistoryPanel } from "@/components/features/dashboard/PhaseHistoryPanel";
@@ -86,6 +87,8 @@ export default function DashboardPage() {
       />
 
       <LiveStatusStrip className="mb-6" />
+
+      <LiveFixturesPanel />
 
       <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>

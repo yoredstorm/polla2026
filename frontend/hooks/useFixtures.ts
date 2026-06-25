@@ -41,6 +41,7 @@ export function useLiveFixtures() {
   return useQuery({
     queryKey: ["fixtures", "live"],
     queryFn: () => api.get<Fixture[]>("/fixtures/live"),
-    refetchInterval: 30 * 1000, // Refetch every 30 seconds for live
+    refetchInterval: 30_000,
+    staleTime: 15_000,
   });
 }
