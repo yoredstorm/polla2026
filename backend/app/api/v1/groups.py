@@ -668,20 +668,20 @@ async def group_fixture_standings(
             },
         )
 
-    result = await db.execute(
-        select(Bet, User.username, User.first_name, User.last_name)
-        .join(User, Bet.user_id == User.id)
-        .where(and_(Bet.group_id == group_id, Bet.fixture_id == fixture_id))
-        .order_by(nulls_last(desc(Bet.points_earned)), Bet.created_at.desc())
-    )
+    from app.services.fixture_predictions_service import list_polla_fixture_scoring_bets
+
+    scoring_rows = await list_polla_fixture_scoring_bets(db, group_id, fixture_id)
     rows = []
-    for bet, username, first_name, last_name in result.all():
+    for bet, user in sorted(
+        scoring_rows,
+        key=lambda pair: (-(pair[0].points_earned or 0), pair[0].created_at),
+    ):
         rows.append(
             GroupFixtureStandingEntry(
                 user_id=bet.user_id,
-                username=username,
-                first_name=first_name,
-                last_name=last_name,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name,
                 predicted_home_score=bet.predicted_home_score,
                 predicted_away_score=bet.predicted_away_score,
                 points_earned=bet.points_earned,

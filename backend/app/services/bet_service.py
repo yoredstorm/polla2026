@@ -454,6 +454,28 @@ def _pick_best_eligible_bet(bets: list[Bet]) -> Bet | None:
     return min(bets, key=lambda b: b.created_at)
 
 
+def pick_polla_fixture_bet(bets: list[Bet], group_id: uuid.UUID) -> Bet | None:
+    """
+    One row per member on the fixture board: paid extra in polla, then group zero bet, then global free.
+    """
+    paid_group = [
+        b for b in bets if b.group_id == group_id and b.amount is not None and b.amount > 0
+    ]
+    picked = _pick_best_eligible_bet(paid_group)
+    if picked:
+        return picked
+    free_group = [
+        b
+        for b in bets
+        if b.group_id == group_id and (b.amount is None or b.amount <= 0)
+    ]
+    picked = _pick_best_eligible_bet(free_group)
+    if picked:
+        return picked
+    global_free = [b for b in bets if b.group_id is None]
+    return _pick_best_eligible_bet(global_free)
+
+
 async def get_scoring_bet_for_fixture(
     db: AsyncSession,
     user_id: uuid.UUID,
@@ -486,27 +508,7 @@ async def get_challenge_scoring_bet(
         select(Bet).where(and_(Bet.user_id == user_id, Bet.fixture_id == fixture_id))
     )
     bets = [b for b in result.scalars().all() if bet_eligible_for_scoring(b)]
-    if not bets:
-        return None
-
-    paid_group = [
-        b for b in bets if b.group_id == group_id and b.amount is not None and b.amount > 0
-    ]
-    picked = _pick_best_eligible_bet(paid_group)
-    if picked:
-        return picked
-
-    free_group = [
-        b
-        for b in bets
-        if b.group_id == group_id and (b.amount is None or b.amount <= 0)
-    ]
-    picked = _pick_best_eligible_bet(free_group)
-    if picked:
-        return picked
-
-    global_free = [b for b in bets if b.group_id is None]
-    return _pick_best_eligible_bet(global_free)
+    return pick_polla_fixture_bet(bets, group_id)
 
 
 async def apply_deferred_non_duel_bet_points(

@@ -83,7 +83,9 @@ export default function FixtureDetailPage() {
 
   const primaryBet = myBets?.[0];
   const hasBet = (myBets?.length ?? 0) > 0;
-  const viewerHasGroupBet = (myBets ?? []).some((b) => b.group_id === polla?.id);
+  const viewerHasGroupBet = (myBets ?? []).some(
+    (b) => b.group_id === polla?.id || b.group_id == null,
+  );
 
   const showBetForm =
     fixture.status === "scheduled" &&

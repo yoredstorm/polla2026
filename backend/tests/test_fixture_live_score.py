@@ -110,10 +110,12 @@ async def _add_bet(
     db: AsyncSession,
     *,
     user_id: uuid.UUID,
-    group_id: uuid.UUID,
+    group_id: uuid.UUID | None,
     fixture_id: uuid.UUID,
     home: int,
     away: int,
+    amount: Decimal = Decimal("5"),
+    amount_confirmed: bool = True,
 ) -> Bet:
     bet = Bet(
         user_id=user_id,
@@ -121,8 +123,8 @@ async def _add_bet(
         group_id=group_id,
         predicted_home_score=home,
         predicted_away_score=away,
-        amount=Decimal("5"),
-        amount_confirmed=True,
+        amount=amount,
+        amount_confirmed=amount_confirmed,
     )
     db.add(bet)
     await db.flush()
@@ -246,6 +248,40 @@ async def test_predictions_board_blocked_when_scheduled(
 
 
 @pytest.mark.asyncio
+async def test_predictions_board_includes_free_bets(
+    client: AsyncClient, db_session: AsyncSession
+):
+    cookies, user_id = await _register(client, "live_free11")
+    group, fixture = await _seed_polla(db_session, user_id)
+    fixture.status = "live"
+    fixture.is_locked = True
+    fixture.home_score = 0
+    fixture.away_score = 0
+    await db_session.flush()
+
+    await _add_bet(
+        db_session,
+        user_id=user_id,
+        group_id=None,
+        fixture_id=fixture.id,
+        home=1,
+        away=0,
+        amount=Decimal("0"),
+        amount_confirmed=True,
+    )
+
+    resp = await client.get(
+        f"/api/v1/groups/{group.id}/fixtures/{fixture.id}/predictions-board",
+        cookies=cookies,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["participant_count"] == 1
+    assert body["entries"][0]["predicted_home_score"] == 1
+    assert body["entries"][0]["predicted_away_score"] == 0
+
+
+@pytest.mark.asyncio
 async def test_predictions_board_blurs_invite_only_for_other_viewer(
     client: AsyncClient, db_session: AsyncSession
 ):
@@ -290,7 +326,9 @@ async def test_predictions_board_projected_points_live(
     client: AsyncClient, db_session: AsyncSession
 ):
     cookies, user_id = await _register(client, "live_user6")
+    _, other_id = await _register(client, "live_user6b")
     group, fixture = await _seed_polla(db_session, user_id)
+    await _add_member(db_session, group, other_id)
     fixture.status = "live"
     fixture.is_locked = True
     fixture.home_score = 2
@@ -298,14 +336,7 @@ async def test_predictions_board_projected_points_live(
     await db_session.flush()
 
     await _add_bet(db_session, user_id=user_id, group_id=group.id, fixture_id=fixture.id, home=2, away=1)
-    await _add_bet(
-        db_session,
-        user_id=user_id,
-        group_id=group.id,
-        fixture_id=fixture.id,
-        home=2,
-        away=0,
-    )
+    await _add_bet(db_session, user_id=other_id, group_id=group.id, fixture_id=fixture.id, home=2, away=0)
 
     resp = await client.get(
         f"/api/v1/groups/{group.id}/fixtures/{fixture.id}/predictions-board",
