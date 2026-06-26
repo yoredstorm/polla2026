@@ -14,6 +14,10 @@ import {
 } from "@/hooks/useAdmin";
 import { useFixturePredictionsBoard } from "@/hooks/useGroups";
 import { useToast } from "@/components/ui/Toast";
+import {
+  handleGoalScoredEvent,
+  prepareGoalAudio,
+} from "@/lib/goalCelebration";
 import type { Fixture } from "@/types/api";
 import { cn, formatMatchDate } from "@/lib/utils";
 import {
@@ -69,11 +73,33 @@ export function FixtureAdminLivePanel({
   const beforeKickoff = kickoffMs > nowMs;
 
   async function recordGoal(team: "home" | "away") {
+    prepareGoalAudio();
+    const prevHome = savedHome;
+    const prevAway = savedAway;
     try {
-      await registerGoal.mutateAsync({ fixtureId: fixture.id, team });
+      const result = await registerGoal.mutateAsync({ fixtureId: fixture.id, team });
       toast(
         `Gol de ${team === "home" ? fixture.home_team : fixture.away_team} registrado`,
         "success",
+      );
+      void handleGoalScoredEvent(
+        {
+          fixture_id: fixture.id,
+          team,
+          scoring_team_name: team === "home" ? fixture.home_team : fixture.away_team,
+          home_team: fixture.home_team,
+          away_team: fixture.away_team,
+          home_score: result.home_score,
+          away_score: result.away_score,
+          previous_home_score: prevHome,
+          previous_away_score: prevAway,
+          minute: result.minute,
+          recorded_at: new Date().toISOString(),
+        },
+        {
+          fromLocalAction: true,
+          forceCelebrate: true,
+        },
       );
     } catch {
       toast("No se pudo registrar el gol", "error");

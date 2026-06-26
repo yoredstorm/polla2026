@@ -206,13 +206,13 @@ export async function handleRealtimeMessage(
     );
     return;
   }
+  if (msg.type === "goal_scored") {
+    void goalScoredHandler?.(msg.data);
+  }
   if (msg.type === "fixture_updated" || msg.type === "goal_scored") {
     const ok = await ensureFreshSession();
     if (!ok) return;
     invalidateKeys(queryClient, [...FIXTURE_LIVE_KEYS], { refetch: true });
-    if (msg.type === "goal_scored") {
-      goalScoredHandler?.(msg.data);
-    }
     return;
   }
   if (msg.type === "notification") {

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { PageShell } from "@/components/layout/PageShell";
 import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
@@ -22,7 +22,7 @@ import {
   useRejectChallenge,
 } from "@/hooks/useChallenges";
 import { LiveScoreDisplay } from "@/components/features/fixtures/LiveScoreDisplay";
-import { setGoalScoreAnchor } from "@/components/providers/GoalCelebrationProvider";
+import { setGoalScoreAnchor, setViewingFixtureId } from "@/lib/goalCelebration";
 import { formatMatchDate, getStatusLabel, cn } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
@@ -52,6 +52,11 @@ export default function FixtureDetailPage() {
     (fixture?.status === "live" || fixture?.status === "finished") &&
     !!polla?.is_member &&
     !!polla?.id;
+
+  useEffect(() => {
+    setViewingFixtureId(fixtureId);
+    return () => setViewingFixtureId(null);
+  }, [fixtureId]);
 
   if (isLoading) {
     return (

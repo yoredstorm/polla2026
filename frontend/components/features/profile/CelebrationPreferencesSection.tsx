@@ -7,6 +7,7 @@ import {
   setSoundEnabled,
   setVibrationEnabled,
 } from "@/lib/celebrationPrefs";
+import { prepareGoalAudio } from "@/lib/goalCelebration";
 import { useFixtures } from "@/hooks/useFixtures";
 
 export function CelebrationPreferencesSection() {
@@ -47,10 +48,25 @@ export function CelebrationPreferencesSection() {
           onChange={(e) => {
             setSound(e.target.checked);
             setSoundEnabled(e.target.checked);
+            if (e.target.checked) prepareGoalAudio();
           }}
           className="h-4 w-4 rounded border-white/20"
         />
       </label>
+      {sound && (
+        <button
+          type="button"
+          onClick={() => {
+            prepareGoalAudio();
+            const audio = new Audio("/sounds/goal.mp3");
+            audio.volume = 0.5;
+            void audio.play().catch(() => {});
+          }}
+          className="text-xs text-accent hover:underline"
+        >
+          Probar sonido de gol
+        </button>
+      )}
 
       <label className="flex items-center justify-between gap-4 cursor-pointer">
         <span className="text-sm text-white">Vibración en gol (móvil)</span>
