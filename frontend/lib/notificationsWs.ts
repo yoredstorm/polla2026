@@ -6,6 +6,7 @@ import {
   softInvalidateOnReconnect,
   type WsEvent,
 } from "@/lib/realtimeSync";
+import { showToastVariant } from "@/components/ui/Toast";
 import { ensureFreshSession } from "@/lib/api";
 
 function getWsUrl(): string {
@@ -68,6 +69,29 @@ function shouldShowNotificationToast(notificationType: string, title: string): b
   }
   recentToastKeys.set(key, now);
   return true;
+}
+
+function showNotificationToast(notificationType: string, title: string) {
+  if (
+    notificationType.includes("approved") ||
+    notificationType === "entry_confirmed" ||
+    notificationType === "extra_confirmed"
+  ) {
+    showToastVariant("approved", title);
+    return;
+  }
+  if (notificationType.includes("reject") || notificationType === "entry_rejected") {
+    showToastVariant("rejected", title);
+    return;
+  }
+  if (
+    notificationType.includes("betting_closed") ||
+    notificationType.includes("betting_soon")
+  ) {
+    showToastVariant("deadline", title);
+    return;
+  }
+  showToastVariant("info", title);
 }
 
 let socket: WebSocket | null = null;
@@ -180,10 +204,10 @@ export function connectNotificationsWs(
           }
           await handleRealtimeMessage(queryClient, msg);
           if (msg.type === "notification" && shouldShowNotificationToast(msg.data.type, msg.data.title)) {
-            showToast(msg.data.title, "info");
+            showNotificationToast(msg.data.type, msg.data.title);
           }
           if (msg.type === "polla_updated" && msg.data.reason === "entry_confirmed") {
-            showToast("El pozo global ha crecido", "info");
+            showToastVariant("info", "El pozo global ha crecido");
           }
         } catch {
           // ignore malformed messages

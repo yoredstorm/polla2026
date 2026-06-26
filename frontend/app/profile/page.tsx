@@ -15,6 +15,7 @@ import { getMe } from "@/lib/auth";
 import { BadgeGrid } from "@/components/features/gamification/BadgeGrid";
 import { AvatarPicker } from "@/components/features/profile/AvatarPicker";
 import { ChangePasswordSection } from "@/components/features/profile/ChangePasswordSection";
+import { CelebrationPreferencesSection } from "@/components/features/profile/CelebrationPreferencesSection";
 import { ProfileSecuritySection } from "@/components/features/profile/ProfileSecuritySection";
 import { useMyBadgeProgress } from "@/hooks/useBadgeCatalog";
 import { StaggerItem } from "@/components/ui/StaggerItem";
@@ -366,6 +367,8 @@ export default function ProfilePage() {
           </div>
 
           <ProfileSecuritySection />
+
+          <CelebrationPreferencesSection />
 
           <ChangePasswordSection />
 

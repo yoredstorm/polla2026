@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { MotionSafe, getMotionProps } from "@/components/ui/MotionSafe";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import type { ChallengeQuotaData } from "@/lib/challengeQuota";

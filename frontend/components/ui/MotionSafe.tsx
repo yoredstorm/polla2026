@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type MotionProps } from "framer-motion";
+import { motion, type MotionProps } from "motion/react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 
 type MotionElement = "div" | "section" | "span" | "li" | "tr";

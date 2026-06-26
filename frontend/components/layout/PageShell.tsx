@@ -1,6 +1,8 @@
 import { Footer } from "@/components/layout/Footer";
 import { Navbar } from "@/components/layout/Navbar";
 import { PromoMarquee } from "@/components/features/site/PromoMarquee";
+import { ResultsTicker } from "@/components/features/dashboard/ResultsTicker";
+import { MatchDayAmbient } from "@/components/layout/MatchDayAmbient";
 import { PaymentGlobalNotice } from "@/components/features/payment/PaymentGlobalNotice";
 import { PasswordChangeGuard } from "@/components/features/auth/PasswordChangeGuard";
 import { cn } from "@/lib/utils";
@@ -45,8 +47,13 @@ export function PageShell({
         className,
       )}
     >
-      {withNavbar && <Navbar />}
-      {withNavbar && <PromoMarquee />}
+      {withNavbar && (
+        <MatchDayAmbient>
+          <Navbar />
+          <PromoMarquee />
+          <ResultsTicker />
+        </MatchDayAmbient>
+      )}
       <main
         className={cn(
           "flex-1 mx-auto px-4 py-8 relative z-[1] w-full",

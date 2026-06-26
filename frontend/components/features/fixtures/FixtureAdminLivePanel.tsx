@@ -8,6 +8,7 @@ import { Modal } from "@/components/ui/Modal";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import {
   useSettleFixture,
+  useRegisterFixtureGoal,
   useUpdateFixtureLiveScore,
   useUpdateFixtureStatus,
 } from "@/hooks/useAdmin";
@@ -31,6 +32,7 @@ export function FixtureAdminLivePanel({
 }) {
   const toast = useToast((s) => s.add);
   const updateStatus = useUpdateFixtureStatus();
+  const registerGoal = useRegisterFixtureGoal();
   const updateLiveScore = useUpdateFixtureLiveScore();
   const settle = useSettleFixture();
 
@@ -59,12 +61,24 @@ export function FixtureAdminLivePanel({
   }, [fixture.status, fixture.match_date]);
 
   const isPending =
-    updateStatus.isPending || updateLiveScore.isPending || settle.isPending;
+    updateStatus.isPending || registerGoal.isPending || updateLiveScore.isPending || settle.isPending;
 
   const liveStartExpired = isAdminLiveStartExpired(fixture, nowMs);
   const canStartLive = canAdminStartLive(fixture, nowMs);
   const kickoffMs = getKickoffAt(fixture);
   const beforeKickoff = kickoffMs > nowMs;
+
+  async function recordGoal(team: "home" | "away") {
+    try {
+      await registerGoal.mutateAsync({ fixtureId: fixture.id, team });
+      toast(
+        `Gol de ${team === "home" ? fixture.home_team : fixture.away_team} registrado`,
+        "success",
+      );
+    } catch {
+      toast("No se pudo registrar el gol", "error");
+    }
+  }
 
   async function startMatch() {
     if (!canStartLive) {
@@ -194,6 +208,27 @@ export function FixtureAdminLivePanel({
                 Cambios sin publicar — guarda el marcador antes de liquidar
               </p>
             )}
+
+            <div className="flex flex-wrap gap-2 justify-center">
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isPending}
+                onClick={() => void recordGoal("home")}
+              >
+                ⚽ Gol {fixture.home_team}
+              </Button>
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                disabled={isPending}
+                onClick={() => void recordGoal("away")}
+              >
+                ⚽ Gol {fixture.away_team}
+              </Button>
+            </div>
 
             <div className="flex flex-wrap items-center justify-center gap-4">
               <ScoreStepper

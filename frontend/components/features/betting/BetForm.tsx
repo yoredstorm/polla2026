@@ -5,10 +5,13 @@ import { needsPaymentBlockForFixture } from "@/lib/prizeStructure";
 import { cn } from "@/lib/utils";
 import { getBettingClosesAt } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
+import { MatchCardSkeleton } from "@/components/ui/Skeleton";
 import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { DUPLICATE_PREDICTION_MESSAGE } from "@/lib/betPredictionUtils";
+import { CheckCircle2 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import { useBetForm } from "@/hooks/betting/useBetForm";
 import { MotionSafeSpan } from "@/components/ui/MotionSafe";
 import { entranceTransition } from "@/lib/motion";
@@ -91,6 +94,7 @@ export function BetForm({ fixture }: BetFormProps) {
     confirmMainBet,
     onExtraSubmit,
     confirmExtraBet,
+    showSaveSuccess,
   } = useBetForm(fixture);
 
   const betErrorMessage =
@@ -120,11 +124,7 @@ export function BetForm({ fixture }: BetFormProps) {
 
   // ── Wait for both polla and existing bets to resolve ─────────────
   if (pollaLoading || betsLoading) {
-    return (
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] p-6 text-center">
-        <p className="text-muted text-sm animate-pulse">Cargando...</p>
-      </div>
-    );
+    return <MatchCardSkeleton />;
   }
 
   // ── No active polla configured by admin ──────────────────────────
@@ -146,6 +146,20 @@ export function BetForm({ fixture }: BetFormProps) {
 
   return (
     <div className="space-y-4">
+      <AnimatePresence>
+        {showSaveSuccess && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="flex items-center justify-center gap-2 rounded-xl border border-success/30 bg-success/10 px-4 py-3 text-success"
+            role="status"
+          >
+            <CheckCircle2 className="h-5 w-5" aria-hidden />
+            <span className="text-sm font-medium">Apuesta guardada</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
       {/* ── Existing free bet ── */}
       {freeBet && (
         <Card glow className="border-accent/20 bg-accent/5 p-5 space-y-3">

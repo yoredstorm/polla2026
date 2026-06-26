@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Lock, MapPin } from "lucide-react";
 import type { Fixture } from "@/types/api";
 import { TeamAvatar } from "@/components/features/betting/TeamAvatar";
+import { LiveBadge } from "@/components/ui/LiveBadge";
 import { MotionSafe } from "@/components/ui/MotionSafe";
 import { entranceTransition, staggerDelay } from "@/lib/motion";
 import { cn, formatMatchDate, formatCountdown, isWithin24Hours, getStatusLabel } from "@/lib/utils";
@@ -37,6 +38,7 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
         href={`/fixtures/${fixture.id}`}
         className={cn(
           "relative block rounded-xl border border-white/10 bg-glass backdrop-blur-sm p-4 card-interactive",
+          "transition-[transform,box-shadow] duration-fast ease-entrance hover:-translate-y-0.5 hover:shadow-lg",
           isLive && "border-danger/50 shadow-glow-danger",
           highlightFinished && isFinished && "border-success/30 ring-1 ring-success/20",
         )}
@@ -84,15 +86,18 @@ export function MatchCard({ fixture, index = 0, highlightFinished }: MatchCardPr
             ) : (
               <div className="font-display text-lg text-muted">VS</div>
             )}
-            <div
-              className={cn(
-                "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
-                isLive ? "bg-danger/20 text-danger" : isFinished ? "bg-muted/20 text-muted" : "bg-accent/10 text-accent",
-              )}
-            >
-              {isLive && <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse" aria-hidden />}
-              {getStatusLabel(fixture.status)}
-            </div>
+            {isLive ? (
+              <LiveBadge className="text-[10px]" />
+            ) : (
+              <div
+                className={cn(
+                  "flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full",
+                  isFinished ? "bg-muted/20 text-muted" : "bg-accent/10 text-accent",
+                )}
+              >
+                {getStatusLabel(fixture.status)}
+              </div>
+            )}
             {isLocked && !isLive && !isFinished && (
               <span className="flex items-center gap-0.5 text-[10px] text-warning">
                 <Lock className="w-3 h-3" aria-hidden />

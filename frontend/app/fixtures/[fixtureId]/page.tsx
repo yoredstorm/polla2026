@@ -21,6 +21,8 @@ import {
   useAcceptChallenge,
   useRejectChallenge,
 } from "@/hooks/useChallenges";
+import { LiveScoreDisplay } from "@/components/features/fixtures/LiveScoreDisplay";
+import { setGoalScoreAnchor } from "@/components/providers/GoalCelebrationProvider";
 import { formatMatchDate, getStatusLabel, cn } from "@/lib/utils";
 import { getBettingClosesAt, isBettingWindowOpen } from "@/lib/matchTiming";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
@@ -29,6 +31,7 @@ import { ActivityFeed } from "@/components/features/activity/ActivityFeed";
 import { FixtureSocialSection } from "@/components/features/social/FixtureSocialSection";
 import { FixturePredictionsBoard } from "@/components/features/fixtures/FixturePredictionsBoard";
 import { FixtureAdminLivePanel } from "@/components/features/fixtures/FixtureAdminLivePanel";
+import { GoalCelebrationDevTools } from "@/components/dev/GoalCelebrationDevTools";
 
 export default function FixtureDetailPage() {
   const params = useParams();
@@ -128,17 +131,21 @@ export default function FixtureDetailPage() {
           </div>
           <div className="text-center">
             {fixture.status !== "scheduled" ? (
-              <div className="font-display text-5xl text-white">
-                {fixture.home_score ?? 0} – {fixture.away_score ?? 0}
-              </div>
+              <LiveScoreDisplay
+                homeScore={fixture.home_score ?? 0}
+                awayScore={fixture.away_score ?? 0}
+                isLive={fixture.status === "live"}
+                statusLabel={getStatusLabel(fixture.status)}
+                onAnchorRef={setGoalScoreAnchor}
+              />
             ) : (
               <div className="font-display text-3xl text-muted">VS</div>
             )}
-            <span
-              className={`mt-2 inline-block text-sm font-medium px-3 py-1 rounded-full ${fixture.status === "live" ? "bg-danger/20 text-danger" : "bg-white/10 text-muted"}`}
-            >
-              {getStatusLabel(fixture.status)}
-            </span>
+            {fixture.status === "scheduled" && (
+              <span className="mt-2 inline-block text-sm font-medium px-3 py-1 rounded-full bg-white/10 text-muted">
+                {getStatusLabel(fixture.status)}
+              </span>
+            )}
           </div>
           <div className="flex flex-col items-center gap-3">
             <TeamAvatar
@@ -156,6 +163,8 @@ export default function FixtureDetailPage() {
       {user?.is_admin && (
         <FixtureAdminLivePanel fixture={fixture} groupId={polla?.id} />
       )}
+
+      <GoalCelebrationDevTools fixtureId={fixtureId} />
 
       {showPredictionsBoard && polla && (
         <FixturePredictionsBoard

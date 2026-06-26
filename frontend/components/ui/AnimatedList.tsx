@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, motion } from "motion/react";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
 import { entranceTransition, exitTransition } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ interface AnimatedListItemProps {
   className?: string;
   highlight?: boolean;
   as?: "li" | "div";
+  layoutId?: string;
 }
 
 export function AnimatedListItem({
@@ -36,14 +37,15 @@ export function AnimatedListItem({
   className,
   highlight = false,
   as = "li",
+  layoutId,
 }: AnimatedListItemProps) {
   const reduced = useReducedMotion();
   const Component = motion[as];
 
   return (
     <Component
-      layout
-      key={id}
+      layout={!reduced}
+      layoutId={layoutId ?? id}
       initial={reduced ? false : { opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, height: 0, transition: exitTransition() }}

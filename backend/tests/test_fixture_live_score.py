@@ -26,6 +26,7 @@ def _noop_notifications(monkeypatch):
     monkeypatch.setattr("app.api.v1.auth.notify_admins", _noop)
     monkeypatch.setattr("app.api.v1.admin.notify_all_active_users", _noop)
     monkeypatch.setattr("app.api.v1.admin.broadcast_fixture_updated", _noop)
+    monkeypatch.setattr("app.api.v1.admin.broadcast_goal_scored", _noop)
     monkeypatch.setattr("app.api.v1.admin.broadcast_polla_updated", _noop)
     monkeypatch.setattr("app.api.v1.admin.resolve_actionable_notifications", _noop)
     monkeypatch.setattr("app.api.v1.admin.create_notification", _noop)
@@ -412,3 +413,43 @@ async def test_timeline_appends_on_score_change(client: AsyncClient, db_session:
         cookies=cookies,
     )
     assert len(same.json()["score_timeline"]) == len(second.json()["score_timeline"])
+
+
+@pytest.mark.asyncio
+async def test_register_goal_increments_home(client: AsyncClient, db_session: AsyncSession):
+    cookies, user_id = await _register(client, "goal_admin1")
+    await _make_admin(db_session, "goal_admin1")
+    group, fixture = await _seed_polla(db_session, user_id, minutes_from_now=-5)
+
+    await client.patch(
+        f"/api/v1/admin/fixtures/{fixture.id}/status",
+        json={"status": "live"},
+        cookies=cookies,
+    )
+
+    resp = await client.patch(
+        f"/api/v1/admin/fixtures/{fixture.id}/goal",
+        json={"team": "home"},
+        cookies=cookies,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["home_score"] == 1
+    assert body["away_score"] == 0
+    assert body["team"] == "home"
+    assert body["score_timeline"][-1]["event_type"] == "goal"
+    assert body["score_timeline"][-1]["scoring_team"] == "home"
+
+
+@pytest.mark.asyncio
+async def test_register_goal_requires_live(client: AsyncClient, db_session: AsyncSession):
+    cookies, user_id = await _register(client, "goal_admin2")
+    await _make_admin(db_session, "goal_admin2")
+    group, fixture = await _seed_polla(db_session, user_id, status="scheduled")
+
+    resp = await client.patch(
+        f"/api/v1/admin/fixtures/{fixture.id}/goal",
+        json={"team": "away"},
+        cookies=cookies,
+    )
+    assert resp.status_code == 400

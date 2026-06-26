@@ -48,6 +48,7 @@ from app.services.notification_service import (
     notify_all_active_users,
     broadcast_polla_updated,
     broadcast_fixture_updated,
+    broadcast_goal_scored,
     broadcast_site_marquee_updated,
     resolve_actionable_notifications,
     build_entry_confirmed,
@@ -78,6 +79,10 @@ class FixtureStatusIn(BaseModel):
 class FixtureLiveScoreIn(BaseModel):
     home_score: int = Field(ge=0)
     away_score: int = Field(ge=0)
+
+
+class FixtureGoalIn(BaseModel):
+    team: Literal["home", "away"]
 
 
 class SettleResponse(BaseModel):
@@ -401,6 +406,83 @@ async def update_fixture_live_score(
         "ok": True,
         "home_score": fixture.home_score,
         "away_score": fixture.away_score,
+        "score_timeline": timeline,
+    }
+
+
+def _fixture_match_minute(fixture: Fixture) -> int | None:
+    kickoff = fixture.match_date
+    if kickoff is None:
+        return None
+    if kickoff.tzinfo is None:
+        kickoff = kickoff.replace(tzinfo=timezone.utc)
+    elapsed = datetime.now(timezone.utc) - kickoff
+    minutes = int(elapsed.total_seconds() // 60)
+    if minutes < 0:
+        return None
+    return min(minutes, 120)
+
+
+@router.patch("/fixtures/{fixture_id}/goal")
+@limiter.limit(ADMIN_RATE)
+async def register_fixture_goal(
+    request: Request,
+    fixture_id: uuid.UUID,
+    body: FixtureGoalIn,
+    admin: CurrentAdmin,
+    db: DBSession,
+    redis: RedisClient,
+):
+    result = await db.execute(select(Fixture).where(Fixture.id == fixture_id))
+    fixture = result.scalar_one_or_none()
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    if fixture.status != "live":
+        raise HTTPException(status_code=400, detail="Fixture is not live")
+
+    from app.services.fixture_score_timeline_service import register_goal
+
+    timeline, home, away, prev_home, prev_away = register_goal(
+        fixture,
+        team=body.team,
+        recorded_by=admin.id,
+    )
+    recorded_at = timeline[-1]["recorded_at"] if timeline else datetime.now(timezone.utc).isoformat()
+    scoring_name = fixture.home_team if body.team == "home" else fixture.away_team
+    minute = _fixture_match_minute(fixture)
+
+    await db.commit()
+    await broadcast_fixture_updated(
+        db,
+        redis,
+        fixture_id=fixture.id,
+        status=fixture.status,
+        home_score=fixture.home_score,
+        away_score=fixture.away_score,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+    )
+    await broadcast_goal_scored(
+        db,
+        redis,
+        fixture_id=fixture.id,
+        team=body.team,
+        scoring_team_name=scoring_name,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+        home_score=home,
+        away_score=away,
+        previous_home_score=prev_home,
+        previous_away_score=prev_away,
+        minute=minute,
+        recorded_at=recorded_at,
+    )
+    return {
+        "ok": True,
+        "team": body.team,
+        "home_score": home,
+        "away_score": away,
+        "minute": minute,
         "score_timeline": timeline,
     }
 

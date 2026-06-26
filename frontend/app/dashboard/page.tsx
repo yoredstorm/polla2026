@@ -34,6 +34,7 @@ import { LiveFixturesPanel } from "@/components/features/dashboard/LiveFixturesP
 import { StaggerItem } from "@/components/ui/StaggerItem";
 import { TournamentProgressTimeline } from "@/components/features/dashboard/TournamentProgressTimeline";
 import { PhaseHistoryPanel } from "@/components/features/dashboard/PhaseHistoryPanel";
+import { DashboardFavoriteWelcome } from "@/components/features/dashboard/DashboardFavoriteWelcome";
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -80,6 +81,7 @@ export default function DashboardPage() {
 
   return (
     <PageShell maxWidth="xl">
+      <DashboardFavoriteWelcome />
       <HelpTourBanner
         visible={bannerVisible}
         onStart={startTour}

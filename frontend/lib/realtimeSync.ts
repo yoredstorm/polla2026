@@ -13,6 +13,20 @@ export type PollaUpdatedData = {
   reason: string;
 };
 
+export type GoalScoredData = {
+  fixture_id: string;
+  team: "home" | "away";
+  scoring_team_name: string;
+  home_team: string;
+  away_team: string;
+  home_score: number;
+  away_score: number;
+  previous_home_score: number;
+  previous_away_score: number;
+  minute: number | null;
+  recorded_at: string;
+};
+
 export type WsEvent =
   | { type: "snapshot"; unread_count: number }
   | { type: "unread_count"; count: number }
@@ -20,16 +34,27 @@ export type WsEvent =
   | { type: "notifications_resolved"; data: { types: string[]; count: number } }
   | { type: "polla_updated"; data: PollaUpdatedData }
   | { type: "fixture_updated"; data: Record<string, unknown> }
+  | { type: "goal_scored"; data: GoalScoredData }
   | { type: "pong" }
   | { type: "data_refresh"; data: { reason?: string } }
   | { type: "site_marquee_updated"; data: Record<string, never> };
 
 type PollaUpdatedHandler = (data: PollaUpdatedData) => void;
+type GoalScoredHandler = (data: GoalScoredData) => void;
 
 let pollaUpdatedHandler: PollaUpdatedHandler | null = null;
+let goalScoredHandler: GoalScoredHandler | null = null;
 
 export function setPollaUpdatedHandler(handler: PollaUpdatedHandler | null) {
   pollaUpdatedHandler = handler;
+}
+
+export function setGoalScoredHandler(handler: GoalScoredHandler | null) {
+  goalScoredHandler = handler;
+}
+
+export function triggerGoalScoredEvent(data: GoalScoredData) {
+  goalScoredHandler?.(data);
 }
 
 type InvalidateOpts = { refetch?: boolean };
@@ -57,15 +82,13 @@ const ADMIN_POLLA_KEYS = [
   ["admin", "groups"],
 ] as const;
 
-const FIXTURE_FINISHED_KEYS = [
+const FIXTURE_LIVE_KEYS = [
   ["fixtures"],
   ["fixture"],
   ["my-bets"],
-  ["my-change-requests"],
   ["leaderboard"],
-  ["pool", "active"],
-  ["group-fixture-standings"],
   ["fixture-predictions-board"],
+  ["group-fixture-standings"],
 ] as const;
 
 const DATA_REFRESH_KEYS = [
@@ -89,7 +112,11 @@ export function invalidateForNotificationType(
   invalidateKeys(queryClient, NOTIFICATION_KEYS, opts);
 
   if (notificationType === "fixture_finished" || notificationType === "fixture_betting_closed") {
-    invalidateKeys(queryClient, FIXTURE_FINISHED_KEYS, opts);
+    invalidateKeys(queryClient, [
+      ...FIXTURE_LIVE_KEYS,
+      ["my-change-requests"],
+      ["pool", "active"],
+    ], opts);
     return;
   }
 
@@ -179,21 +206,13 @@ export async function handleRealtimeMessage(
     );
     return;
   }
-  if (msg.type === "fixture_updated") {
+  if (msg.type === "fixture_updated" || msg.type === "goal_scored") {
     const ok = await ensureFreshSession();
     if (!ok) return;
-    invalidateKeys(
-      queryClient,
-      [
-        ["fixtures"],
-        ["fixture"],
-        ["my-bets"],
-        ["leaderboard"],
-        ["fixture-predictions-board"],
-        ["group-fixture-standings"],
-      ],
-      { refetch: true },
-    );
+    invalidateKeys(queryClient, [...FIXTURE_LIVE_KEYS], { refetch: true });
+    if (msg.type === "goal_scored") {
+      goalScoredHandler?.(msg.data);
+    }
     return;
   }
   if (msg.type === "notification") {

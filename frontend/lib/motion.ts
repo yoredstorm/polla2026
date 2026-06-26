@@ -9,7 +9,7 @@ export const MOTION = {
     entrance: [0, 0, 0.2, 1] as const,
     exit: [0.4, 0, 1, 1] as const,
   },
-  stagger: 0.03,
+  stagger: 0.035,
   tap: { scale: 0.98 },
   hover: { scale: 1.02 },
   spring: { type: "spring" as const, stiffness: 500, damping: 30 },

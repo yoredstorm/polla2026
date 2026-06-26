@@ -157,6 +157,32 @@ export function useUpdateFixtureStatus() {
   });
 }
 
+export function useRegisterFixtureGoal() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      fixtureId,
+      team,
+    }: {
+      fixtureId: string;
+      team: "home" | "away";
+    }) =>
+      api.patch<{
+        ok: boolean;
+        team: string;
+        home_score: number;
+        away_score: number;
+        minute: number | null;
+      }>(`/admin/fixtures/${fixtureId}/goal`, { team }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin"] });
+      qc.invalidateQueries({ queryKey: ["fixtures"] });
+      qc.invalidateQueries({ queryKey: ["fixture"] });
+      qc.invalidateQueries({ queryKey: ["fixture-predictions-board"] });
+    },
+  });
+}
+
 export function useUpdateFixtureLiveScore() {
   const qc = useQueryClient();
   return useMutation({

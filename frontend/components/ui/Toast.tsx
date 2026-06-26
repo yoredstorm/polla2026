@@ -1,104 +1,117 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
-import { create } from "zustand";
-import { CheckCircle2, XCircle, Info } from "lucide-react";
-import { useReducedMotion } from "@/hooks/useReducedMotion";
-import { entranceTransition, exitTransition } from "@/lib/motion";
-import { cn } from "@/lib/utils";
+import { sileo, Toaster, type SileoOptions } from "sileo";
+import { CheckCircle2, Clock, Info, Trophy, XCircle } from "lucide-react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
-type ToastType = "success" | "error" | "info";
+export type ToastType = "success" | "error" | "info";
+export type ToastVariant = ToastType | "goal" | "approved" | "rejected" | "deadline";
 
-interface Toast {
-  id: number;
-  message: string;
-  type: ToastType;
+const TOAST_DURATION = 4000;
+
+const VARIANT_OPTIONS: Record<ToastVariant, (title: string, extra?: Partial<SileoOptions>) => SileoOptions> = {
+  success: (title, extra) => ({
+    title,
+    fill: "#0f2a1a",
+    icon: <CheckCircle2 className="h-4 w-4 text-emerald-400" aria-hidden />,
+    duration: TOAST_DURATION,
+    ...extra,
+  }),
+  error: (title, extra) => ({
+    title,
+    fill: "#2a1215",
+    icon: <XCircle className="h-4 w-4 text-red-400" aria-hidden />,
+    duration: TOAST_DURATION,
+    ...extra,
+  }),
+  info: (title, extra) => ({
+    title,
+    fill: "#141820",
+    icon: <Info className="h-4 w-4 text-accent" aria-hidden />,
+    duration: TOAST_DURATION,
+    ...extra,
+  }),
+  goal: (title, extra) => ({
+    title,
+    type: "success",
+    fill: "#1a472a",
+    icon: <Trophy className="h-4 w-4 text-amber-400" aria-hidden />,
+    duration: 6000,
+    ...extra,
+  }),
+  approved: (title, extra) => ({
+    title,
+    fill: "#1e3a5f",
+    icon: <CheckCircle2 className="h-4 w-4 text-sky-400" aria-hidden />,
+    duration: TOAST_DURATION,
+    ...extra,
+  }),
+  rejected: (title, extra) => ({
+    title,
+    fill: "#3d1f24",
+    icon: <XCircle className="h-4 w-4 text-red-300" aria-hidden />,
+    duration: TOAST_DURATION,
+    ...extra,
+  }),
+  deadline: (title, extra) => ({
+    title,
+    fill: "#3d3214",
+    icon: <Clock className="h-4 w-4 text-amber-300" aria-hidden />,
+    duration: TOAST_DURATION,
+    ...extra,
+  }),
+};
+
+function dispatchToast(variant: ToastVariant, message: string, extra?: Partial<SileoOptions>) {
+  const opts = VARIANT_OPTIONS[variant](message, extra);
+  if (variant === "error" || variant === "rejected") return sileo.error(opts);
+  if (variant === "deadline") return sileo.warning(opts);
+  if (variant === "info") return sileo.info(opts);
+  if (variant === "goal") return sileo.show(opts);
+  if (extra?.button) return sileo.action(opts);
+  return sileo.success(opts);
 }
 
-interface ToastStore {
-  toasts: Toast[];
-  _nextId: number;
-  add: (message: string, type?: ToastType) => void;
-  remove: (id: number) => void;
-}
-
-export const useToast = create<ToastStore>((set, get) => ({
-  toasts: [],
-  _nextId: 1,
-  add: (message, type = "info") => {
-    const id = get()._nextId;
-    set((s) => ({ toasts: [...s.toasts, { id, message, type }], _nextId: id + 1 }));
-    setTimeout(() => get().remove(id), 4000);
+const toastStore = {
+  add: (message: string, type: ToastType = "info") => {
+    dispatchToast(type, message);
   },
-  remove: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
-}));
-
-const TYPE_STYLES: Record<ToastType, string> = {
-  success: "border-success/40 bg-success/15 text-emerald-200",
-  error: "border-danger/40 bg-danger/15 text-red-200",
-  info: "border-accent/40 bg-accent/15 text-accent",
 };
 
-const TYPE_ICONS: Record<ToastType, typeof Info> = {
-  success: CheckCircle2,
-  error: XCircle,
-  info: Info,
-};
-
-export function ToastContainer() {
-  const toasts = useToast((s) => s.toasts);
-  const remove = useToast((s) => s.remove);
-
-  return (
-    <div className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 max-w-sm toast-mobile-offset md:bottom-4">
-      <AnimatePresence mode="popLayout">
-        {toasts.map((t) => (
-          <ToastItem key={t.id} toast={t} onDismiss={() => remove(t.id)} />
-        ))}
-      </AnimatePresence>
-    </div>
-  );
+export function showToast(message: string, type: ToastType = "info") {
+  toastStore.add(message, type);
 }
 
-function ToastItem({ toast, onDismiss }: { toast: Toast; onDismiss: () => void }) {
-  const Icon = TYPE_ICONS[toast.type];
-  const reduced = useReducedMotion();
+export function showToastVariant(
+  variant: ToastVariant,
+  message: string,
+  extra?: Partial<SileoOptions>,
+) {
+  dispatchToast(variant, message, extra);
+}
+
+export function useToast<T>(selector: (s: typeof toastStore) => T): T {
+  return selector(toastStore);
+}
+
+/** @deprecated Use SileoToaster in providers instead */
+export function ToastContainer() {
+  return <SileoToaster />;
+}
+
+export function SileoToaster() {
+  const isMobile = useIsMobile();
 
   return (
-    <motion.div
-      layout
-      variants={{
-        initial: { opacity: 0, x: reduced ? 0 : 20 },
-        animate: {
-          opacity: 1,
-          x: 0,
-          transition: entranceTransition(),
-        },
-        exit: {
-          opacity: 0,
-          x: reduced ? 0 : 20,
-          transition: exitTransition(),
-        },
-      }}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className={cn(
-        "rounded-xl border px-4 py-3 text-sm shadow-lg backdrop-blur-md flex items-start gap-2",
-        TYPE_STYLES[toast.type],
-      )}
-      role="status"
-    >
-      <Icon className="w-4 h-4 shrink-0 mt-0.5" aria-hidden />
-      <span className="flex-1">{toast.message}</span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        className="opacity-60 hover:opacity-100 text-xs mt-0.5 cursor-pointer focus-ring rounded pressable"
-        aria-label="Cerrar"
-      >
-        &times;
-      </button>
-    </motion.div>
+    <Toaster
+      position={isMobile ? "top-center" : "top-right"}
+      theme="dark"
+      offset={
+        isMobile
+          ? { top: 16, left: 16, right: 16 }
+          : { top: 16, right: 16 }
+      }
+      options={{ duration: TOAST_DURATION, roundness: 16 }}
+    />
   );
 }

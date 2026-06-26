@@ -23,6 +23,7 @@ export function useBetForm(fixture: Fixture) {
   const [pendingValues, setPendingValues] = useState<BetFormValues | null>(null);
   const [showExtraForm, setShowExtraForm] = useState(false);
   const [showExtraConfirm, setShowExtraConfirm] = useState(false);
+  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
   const [extraPending, setExtraPending] = useState<BetFormValues | null>(null);
 
   const createBet = useCreateBet();
@@ -73,6 +74,8 @@ export function useBetForm(fixture: Fixture) {
       {
         onSuccess: () => {
           setShowConfirm(false);
+          setShowSaveSuccess(true);
+          window.setTimeout(() => setShowSaveSuccess(false), 2500);
           toast("Apuesta guardada correctamente", "success");
         },
         onError: (err: unknown) => {
@@ -157,5 +160,6 @@ export function useBetForm(fixture: Fixture) {
     confirmMainBet,
     onExtraSubmit,
     confirmExtraBet,
+    showSaveSuccess,
   };
 }

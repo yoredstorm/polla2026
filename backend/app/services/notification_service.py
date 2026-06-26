@@ -125,6 +125,44 @@ async def broadcast_fixture_updated(
     )
 
 
+async def broadcast_goal_scored(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    fixture_id: uuid.UUID,
+    team: str,
+    scoring_team_name: str,
+    home_team: str,
+    away_team: str,
+    home_score: int,
+    away_score: int,
+    previous_home_score: int,
+    previous_away_score: int,
+    minute: int | None,
+    recorded_at: str,
+) -> None:
+    await broadcast_event(
+        db,
+        redis,
+        {
+            "type": "goal_scored",
+            "data": {
+                "fixture_id": str(fixture_id),
+                "team": team,
+                "scoring_team_name": scoring_team_name,
+                "home_team": home_team,
+                "away_team": away_team,
+                "home_score": home_score,
+                "away_score": away_score,
+                "previous_home_score": previous_home_score,
+                "previous_away_score": previous_away_score,
+                "minute": minute,
+                "recorded_at": recorded_at,
+            },
+        },
+    )
+
+
 async def create_notification(
     db: AsyncSession,
     redis: aioredis.Redis | None,

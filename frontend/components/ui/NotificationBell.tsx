@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence } from "motion/react";
 import { useAuth } from "@/hooks/useAuth";
 import {
   useNotifications,
@@ -80,9 +80,15 @@ export function NotificationBell() {
           />
         </svg>
         {unread > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-accent text-background text-[10px] font-bold animate-pulse">
+          <motion.span
+            key={unread}
+            initial={{ scale: 0.6 }}
+            animate={{ scale: [1, 1.35, 1] }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center rounded-full bg-accent text-background text-[10px] font-bold"
+          >
             {unread > 99 ? "99+" : unread}
-          </span>
+          </motion.span>
         )}
       </button>
 

@@ -5,7 +5,8 @@ import { getBadgeChipClass } from "@/lib/badges";
 import type { BadgeOut, LeaderboardEntry } from "@/types/api";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
-import { StaggerItem } from "@/components/ui/StaggerItem";
+import { MotionSafe } from "@/components/ui/MotionSafe";
+import { entranceTransition, staggerDelay } from "@/lib/motion";
 
 function BadgeChip({ badge }: { badge: BadgeOut }) {
   const color = getBadgeChipClass(badge.id);
@@ -151,7 +152,17 @@ export function LeaderboardEntryCard({ entry, isMe, rankIndex, compact, animate 
   );
 
   if (animate) {
-    return <StaggerItem index={rankIndex}>{card}</StaggerItem>;
+    return (
+      <MotionSafe
+        layout
+        layoutId={`leaderboard-${entry.user_id}`}
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={entranceTransition(staggerDelay(rankIndex))}
+      >
+        {card}
+      </MotionSafe>
+    );
   }
 
   return card;
