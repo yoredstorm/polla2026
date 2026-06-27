@@ -7,6 +7,7 @@ import {
   buildGoalScoredPayload,
   isSingleGoalIncrement,
 } from "@/lib/goalCelebration";
+import type { FixtureCheerData } from "@/lib/teamCheer";
 
 export type PollaUpdatedData = {
   group_id: string;
@@ -39,15 +40,18 @@ export type WsEvent =
   | { type: "polla_updated"; data: PollaUpdatedData }
   | { type: "fixture_updated"; data: Record<string, unknown> }
   | { type: "goal_scored"; data: GoalScoredData }
+  | { type: "fixture_cheer"; data: FixtureCheerData }
   | { type: "pong" }
   | { type: "data_refresh"; data: { reason?: string } }
   | { type: "site_marquee_updated"; data: Record<string, never> };
 
 type PollaUpdatedHandler = (data: PollaUpdatedData) => void;
 type GoalScoredHandler = (data: GoalScoredData) => void;
+type FixtureCheerHandler = (data: FixtureCheerData) => void;
 
 let pollaUpdatedHandler: PollaUpdatedHandler | null = null;
 let goalScoredHandler: GoalScoredHandler | null = null;
+let fixtureCheerHandler: FixtureCheerHandler | null = null;
 
 export function setPollaUpdatedHandler(handler: PollaUpdatedHandler | null) {
   pollaUpdatedHandler = handler;
@@ -55,6 +59,10 @@ export function setPollaUpdatedHandler(handler: PollaUpdatedHandler | null) {
 
 export function setGoalScoredHandler(handler: GoalScoredHandler | null) {
   goalScoredHandler = handler;
+}
+
+export function setFixtureCheerHandler(handler: FixtureCheerHandler | null) {
+  fixtureCheerHandler = handler;
 }
 
 export function triggerGoalScoredEvent(data: GoalScoredData) {
@@ -245,6 +253,10 @@ export async function handleRealtimeMessage(
   }
   if (msg.type === "goal_scored") {
     void goalScoredHandler?.(msg.data);
+  }
+  if (msg.type === "fixture_cheer") {
+    void fixtureCheerHandler?.(msg.data);
+    return;
   }
   if (msg.type === "fixture_updated" || msg.type === "goal_scored") {
     if (msg.type === "fixture_updated") {

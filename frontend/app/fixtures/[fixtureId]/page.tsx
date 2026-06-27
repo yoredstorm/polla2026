@@ -31,6 +31,10 @@ import { ActivityFeed } from "@/components/features/activity/ActivityFeed";
 import { FixtureSocialSection } from "@/components/features/social/FixtureSocialSection";
 import { FixturePredictionsBoard } from "@/components/features/fixtures/FixturePredictionsBoard";
 import { FixtureAdminLivePanel } from "@/components/features/fixtures/FixtureAdminLivePanel";
+import {
+  TeamSupportButton,
+  TeamSupportHint,
+} from "@/components/features/fixtures/TeamSupportButtons";
 import { GoalCelebrationDevTools } from "@/components/dev/GoalCelebrationDevTools";
 
 export default function FixtureDetailPage() {
@@ -133,6 +137,14 @@ export default function FixtureDetailPage() {
             <span className="font-display text-2xl text-white text-center">
               {fixture.home_team}
             </span>
+            <TeamSupportButton
+              fixtureId={fixtureId}
+              homeTeam={fixture.home_team}
+              awayTeam={fixture.away_team}
+              isLive={fixture.status === "live"}
+              isLoggedIn={!!user}
+              team="home"
+            />
           </div>
           <div className="text-center">
             {fixture.status !== "scheduled" ? (
@@ -161,8 +173,17 @@ export default function FixtureDetailPage() {
             <span className="font-display text-2xl text-white text-center">
               {fixture.away_team}
             </span>
+            <TeamSupportButton
+              fixtureId={fixtureId}
+              homeTeam={fixture.home_team}
+              awayTeam={fixture.away_team}
+              isLive={fixture.status === "live"}
+              isLoggedIn={!!user}
+              team="away"
+            />
           </div>
         </div>
+        <TeamSupportHint isLive={fixture.status === "live"} isLoggedIn={!!user} />
       </div>
 
       {user?.is_admin && (

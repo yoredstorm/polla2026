@@ -2,7 +2,7 @@
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Literal
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -158,6 +158,30 @@ async def broadcast_goal_scored(
                 "previous_away_score": previous_away_score,
                 "minute": minute,
                 "recorded_at": recorded_at,
+            },
+        },
+    )
+
+
+async def broadcast_fixture_cheer(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    fixture_id: uuid.UUID,
+    team: Literal["home", "away"],
+    home_team: str,
+    away_team: str,
+) -> None:
+    await broadcast_event(
+        db,
+        redis,
+        {
+            "type": "fixture_cheer",
+            "data": {
+                "fixture_id": str(fixture_id),
+                "team": team,
+                "home_team": home_team,
+                "away_team": away_team,
             },
         },
     )

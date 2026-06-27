@@ -26,7 +26,12 @@ from app.services.comment_sanitizer import sanitize_comment_body, search_polla_m
 from app.services.social_comment_flow import create_comment_with_side_effects
 from app.services.social_spam_guard import ensure_not_social_muted, record_comment_burst
 from app.services.badge_notify_service import notify_new_badges_for_user_social
-from app.services.notification_service import build_social_follow, create_notification
+from app.services.fixture_cheer_guard import record_fixture_cheer
+from app.services.notification_service import (
+    broadcast_fixture_cheer,
+    build_social_follow,
+    create_notification,
+)
 
 router = APIRouter(prefix="/social", tags=["Social"])
 
@@ -41,6 +46,13 @@ class CommentIn(BaseModel):
 
 class ReactionIn(BaseModel):
     reaction_type: ReactionType
+
+
+CheerTeam = Literal["home", "away"]
+
+
+class CheerIn(BaseModel):
+    team: CheerTeam
 
 
 def _client_ip(request: Request) -> str | None:
@@ -502,6 +514,43 @@ async def get_fixture_reactions(
         "counts": {t: counts.get(t, 0) for t in REACTION_TYPES},
         "my_reaction": mine,
     }
+
+
+@router.post("/fixtures/{fixture_id}/cheer", status_code=200)
+@limiter.limit("30/minute")
+async def cheer_fixture_team(
+    request: Request,
+    fixture_id: uuid.UUID,
+    body: CheerIn,
+    current_user: CurrentUser,
+    db: DBSession,
+    redis: RedisClient,
+):
+    fixture = await db.get(Fixture, fixture_id)
+    if not fixture:
+        raise HTTPException(status_code=404, detail="Fixture not found")
+    if fixture.status != "live":
+        raise HTTPException(status_code=400, detail="Cheer is only available during live matches")
+
+    await record_fixture_cheer(redis, current_user.id, fixture_id)
+
+    await broadcast_fixture_cheer(
+        db,
+        redis,
+        fixture_id=fixture.id,
+        team=body.team,
+        home_team=fixture.home_team,
+        away_team=fixture.away_team,
+    )
+    await log_action(
+        db,
+        user_id=current_user.id,
+        action="fixture_cheer",
+        detail={"fixture_id": str(fixture_id), "team": body.team},
+        ip=_client_ip(request),
+    )
+    await db.commit()
+    return {"ok": True, "team": body.team}
 
 
 @router.put("/fixtures/{fixture_id}/reactions")

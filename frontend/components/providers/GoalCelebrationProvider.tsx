@@ -2,11 +2,10 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { handleGoalScoredEvent } from "@/lib/goalCelebration";
+import { handleFixtureCheerEvent, preloadTeamCheerAssets } from "@/lib/teamCheer";
 import {
-  handleGoalScoredEvent,
-  preloadGoalCelebrationAssets,
-} from "@/lib/goalCelebration";
-import {
+  setFixtureCheerHandler,
   setGoalScoredHandler,
   triggerGoalScoredEvent,
   type GoalScoredData,
@@ -22,17 +21,24 @@ export function GoalCelebrationProvider({ children }: { children: React.ReactNod
   const router = useRouter();
 
   useEffect(() => {
-    void preloadGoalCelebrationAssets();
+    void preloadTeamCheerAssets();
   }, []);
 
   useEffect(() => {
-    const handler = (data: GoalScoredData) =>
+    const goalHandler = (data: GoalScoredData) =>
       handleGoalScoredEvent(data, {
         navigate: (path) => router.push(path),
       });
 
-    setGoalScoredHandler(handler);
-    return () => setGoalScoredHandler(null);
+    const cheerHandler = (data: Parameters<typeof handleFixtureCheerEvent>[0]) =>
+      handleFixtureCheerEvent(data);
+
+    setGoalScoredHandler(goalHandler);
+    setFixtureCheerHandler(cheerHandler);
+    return () => {
+      setGoalScoredHandler(null);
+      setFixtureCheerHandler(null);
+    };
   }, [router]);
 
   useEffect(() => {
