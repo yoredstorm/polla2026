@@ -15,6 +15,22 @@ type ConfettiOptions = {
 
 type ConfettiFn = (options?: ConfettiOptions) => Promise<null> | null;
 
+type ConfettiModule = {
+  create: (
+    canvas?: HTMLCanvasElement | null,
+    globalOpts?: {
+      useWorker?: boolean;
+      resize?: boolean;
+      disableForReducedMotion?: boolean;
+    }
+  ) => ConfettiFn;
+};
+
+const CONFETTI_BASE: ConfettiOptions = {
+  disableForReducedMotion: true,
+  zIndex: 9999,
+};
+
 let goalAudio: HTMLAudioElement | null = null;
 let viewingFixtureId: string | null = null;
 let goalScoreAnchor: HTMLElement | null = null;
@@ -95,9 +111,14 @@ async function resolveConfetti(): Promise<ConfettiFn | null> {
   if (typeof window === "undefined") return null;
   if (confettiFire) return confettiFire;
   const mod = await import("canvas-confetti");
-  const fire = (mod.default ?? mod) as ConfettiFn;
-  confettiFire = fire;
-  return fire;
+  const pkg = (mod.default ?? mod) as ConfettiModule;
+  // Default export always uses a blob worker (blocked by CSP). create() lets us disable it.
+  confettiFire = pkg.create(null, {
+    useWorker: false,
+    resize: true,
+    disableForReducedMotion: true,
+  });
+  return confettiFire;
 }
 
 /** Preload confetti + audio once on app mount. */
@@ -127,12 +148,11 @@ async function fireConfetti(origin?: { x: number; y: number }) {
   const confetti = await resolveConfetti();
   if (!confetti) return;
   confetti({
+    ...CONFETTI_BASE,
     particleCount: origin ? 80 : 40,
     spread: origin ? 70 : 50,
     origin: origin ?? { x: 0.5, y: 0.35 },
     colors: ["#22c55e", "#fbbf24", "#ffffff"],
-    disableForReducedMotion: true,
-    zIndex: 9999,
   });
 }
 
@@ -141,11 +161,10 @@ export async function fireReducedConfetti() {
   const confetti = await resolveConfetti();
   if (!confetti) return;
   confetti({
+    ...CONFETTI_BASE,
     particleCount: 30,
     spread: 40,
     origin: { x: 0.5, y: 0.2 },
-    disableForReducedMotion: true,
-    zIndex: 9999,
   });
 }
 
