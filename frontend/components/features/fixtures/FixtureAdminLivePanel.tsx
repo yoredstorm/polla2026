@@ -15,7 +15,10 @@ import {
 import { useFixturePredictionsBoard } from "@/hooks/useGroups";
 import { useToast } from "@/components/ui/Toast";
 import {
+  buildGoalScoredPayload,
   handleGoalScoredEvent,
+  isSingleGoalIncrement,
+  playGoalSoundInline,
   prepareGoalAudio,
 } from "@/lib/goalCelebration";
 import type { Fixture } from "@/types/api";
@@ -78,24 +81,17 @@ export function FixtureAdminLivePanel({
     const prevAway = savedAway;
     try {
       const result = await registerGoal.mutateAsync({ fixtureId: fixture.id, team });
-      toast(
-        `Gol de ${team === "home" ? fixture.home_team : fixture.away_team} registrado`,
-        "success",
-      );
+      playGoalSoundInline(true);
       void handleGoalScoredEvent(
-        {
-          fixture_id: fixture.id,
+        buildGoalScoredPayload(
+          fixture,
           team,
-          scoring_team_name: team === "home" ? fixture.home_team : fixture.away_team,
-          home_team: fixture.home_team,
-          away_team: fixture.away_team,
-          home_score: result.home_score,
-          away_score: result.away_score,
-          previous_home_score: prevHome,
-          previous_away_score: prevAway,
-          minute: result.minute,
-          recorded_at: new Date().toISOString(),
-        },
+          result.home_score,
+          result.away_score,
+          prevHome,
+          prevAway,
+          result.minute,
+        ),
         {
           fromLocalAction: true,
           forceCelebrate: true,
@@ -125,13 +121,25 @@ export function FixtureAdminLivePanel({
   }
 
   async function saveLiveScore() {
+    prepareGoalAudio();
+    const prevHome = savedHome;
+    const prevAway = savedAway;
     try {
       await updateLiveScore.mutateAsync({
         fixtureId: fixture.id,
         homeScore,
         awayScore,
       });
-      toast("Marcador actualizado", "success");
+      const scoringTeam = isSingleGoalIncrement(prevHome, prevAway, homeScore, awayScore);
+      if (scoringTeam) {
+        playGoalSoundInline(true);
+        void handleGoalScoredEvent(
+          buildGoalScoredPayload(fixture, scoringTeam, homeScore, awayScore, prevHome, prevAway),
+          { fromLocalAction: true, forceCelebrate: true },
+        );
+      } else {
+        toast("Marcador actualizado", "success");
+      }
     } catch {
       toast("No se pudo guardar el marcador", "error");
     }
@@ -234,6 +242,11 @@ export function FixtureAdminLivePanel({
                 Cambios sin publicar — guarda el marcador antes de liquidar
               </p>
             )}
+
+            <p className="text-xs text-muted text-center max-w-md mx-auto">
+              Para registrar un gol +1 usa ⚽ Gol. Los botones +/- sirven para corregir el marcador
+              manualmente.
+            </p>
 
             <div className="flex flex-wrap gap-2 justify-center">
               <Button

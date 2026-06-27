@@ -2,7 +2,10 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { handleGoalScoredEvent } from "@/lib/goalCelebration";
+import {
+  handleGoalScoredEvent,
+  preloadGoalCelebrationAssets,
+} from "@/lib/goalCelebration";
 import {
   setGoalScoredHandler,
   triggerGoalScoredEvent,
@@ -17,6 +20,10 @@ export function mockGoalScored(data: GoalScoredData) {
 
 export function GoalCelebrationProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+
+  useEffect(() => {
+    void preloadGoalCelebrationAssets();
+  }, []);
 
   useEffect(() => {
     const handler = (data: GoalScoredData) =>

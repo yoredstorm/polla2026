@@ -1,8 +1,12 @@
 "use client";
 import type { QueryClient } from "@tanstack/react-query";
-import type { ActivePolla } from "@/types/api";
+import type { ActivePolla, Fixture } from "@/types/api";
 import { ensureFreshSession } from "@/lib/api";
 import { siteMarqueeQueryKey } from "@/hooks/useSiteMarquee";
+import {
+  buildGoalScoredPayload,
+  isSingleGoalIncrement,
+} from "@/lib/goalCelebration";
 
 export type PollaUpdatedData = {
   group_id: string;
@@ -55,6 +59,39 @@ export function setGoalScoredHandler(handler: GoalScoredHandler | null) {
 
 export function triggerGoalScoredEvent(data: GoalScoredData) {
   goalScoredHandler?.(data);
+}
+
+type FixtureUpdatedPayload = {
+  fixture_id: string;
+  home_score: number | null;
+  away_score: number | null;
+  home_team: string;
+  away_team: string;
+};
+
+function tryEmitGoalFromFixtureUpdated(
+  queryClient: QueryClient,
+  data: FixtureUpdatedPayload,
+) {
+  const fixtureId = data.fixture_id;
+  const prev = queryClient.getQueryData<Fixture>(["fixture", fixtureId]);
+  const prevHome = prev?.home_score ?? 0;
+  const prevAway = prev?.away_score ?? 0;
+  const newHome = data.home_score ?? 0;
+  const newAway = data.away_score ?? 0;
+  const team = isSingleGoalIncrement(prevHome, prevAway, newHome, newAway);
+  if (!team) return;
+
+  goalScoredHandler?.(
+    buildGoalScoredPayload(
+      { id: fixtureId, home_team: data.home_team, away_team: data.away_team },
+      team,
+      newHome,
+      newAway,
+      prevHome,
+      prevAway,
+    ),
+  );
 }
 
 type InvalidateOpts = { refetch?: boolean };
@@ -210,6 +247,12 @@ export async function handleRealtimeMessage(
     void goalScoredHandler?.(msg.data);
   }
   if (msg.type === "fixture_updated" || msg.type === "goal_scored") {
+    if (msg.type === "fixture_updated") {
+      tryEmitGoalFromFixtureUpdated(
+        queryClient,
+        msg.data as FixtureUpdatedPayload,
+      );
+    }
     const ok = await ensureFreshSession();
     if (!ok) return;
     invalidateKeys(queryClient, [...FIXTURE_LIVE_KEYS], { refetch: true });
