@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     VAPID_PRIVATE_KEY: str = ""
     VAPID_CLAIMS_SUB: str = "mailto:admin@redcardtech.uk"
 
+    # Google live sync scraper
+    GOOGLE_SYNC_USE_PLAYWRIGHT: bool = False
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors(cls, v: str) -> str:

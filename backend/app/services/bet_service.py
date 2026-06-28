@@ -67,18 +67,19 @@ def calculate_points(
     predicted_away: int,
     real_home: int,
     real_away: int,
+    *,
+    exact: int = 2,
+    winner: int = 1,
+    wrong: int = 0,
 ) -> int:
     """
-    Scoring rules:
-    - Exact score (goals + winner): 2 points
-    - Correct winner only (home/away/draw): 1 point
-    - Wrong: 0 points
+    Scoring rules (defaults 2/1/0; override per competition via scoring_rules table).
     """
     if predicted_home == real_home and predicted_away == real_away:
-        return 2
+        return exact
     if _winner(predicted_home, predicted_away) == _winner(real_home, real_away):
-        return 1
-    return 0
+        return winner
+    return wrong
 
 
 @dataclass
@@ -433,11 +434,20 @@ async def settle_single_bet(db: AsyncSession, bet: Bet, fixture: Fixture) -> boo
     if not bet_eligible_for_scoring(bet):
         return False
 
+    scoring = None
+    if fixture.competition_id:
+        from app.services.competition_service import get_scoring_points
+
+        scoring = await get_scoring_points(db, fixture.competition_id)
+
     pts = calculate_points(
         bet.predicted_home_score,
         bet.predicted_away_score,
         fixture.home_score,
         fixture.away_score,
+        exact=scoring.exact if scoring else 2,
+        winner=scoring.winner if scoring else 1,
+        wrong=scoring.wrong if scoring else 0,
     )
     bet.points_earned = pts
     await _apply_settled_points_to_member(db, bet, fixture, pts)

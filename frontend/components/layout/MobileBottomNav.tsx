@@ -6,13 +6,14 @@ import { useUnreadCount } from "@/hooks/useNotifications";
 import { useAuth } from "@/hooks/useAuth";
 import { MotionSafe } from "@/components/ui/MotionSafe";
 import { MOTION } from "@/lib/motion";
+import { DEFAULT_COMPETITION_SLUG, competitionPath } from "@/lib/competitionPaths";
 
-const tabs = [
-  { href: "/dashboard", label: "Inicio", icon: HomeIcon },
-  { href: "/fixtures", label: "Partidos", icon: FixturesIcon },
-  { href: "/my-bets", label: "Apuestas", icon: BetsIcon },
-  { href: "/notifications", label: "Avisos", icon: BellIcon },
-  { href: "/leaderboard", label: "Ranking", icon: TrophyIcon },
+const tabSegments = [
+  { segment: "dashboard", label: "Inicio", icon: HomeIcon },
+  { segment: "fixtures", label: "Partidos", icon: FixturesIcon },
+  { segment: "my-bets", label: "Apuestas", icon: BetsIcon },
+  { segment: "notifications", label: "Avisos", icon: BellIcon, global: true },
+  { segment: "leaderboard", label: "Ranking", icon: TrophyIcon },
 ];
 
 function HomeIcon({ active }: { active: boolean }) {
@@ -60,6 +61,10 @@ export function MobileBottomNav() {
   const { user } = useAuth();
   const { data: unreadData } = useUnreadCount(!!user);
   const unread = unreadData?.count ?? 0;
+  const slugMatch = pathname.match(/^\/c\/([^/]+)/);
+  const slug = slugMatch?.[1] ?? DEFAULT_COMPETITION_SLUG;
+  const tabHref = (segment: string, global?: boolean) =>
+    global ? `/${segment}` : competitionPath(slug, segment);
 
   if (pathname.startsWith("/admin") || pathname.startsWith("/login") || pathname.startsWith("/register")) {
     return null;
@@ -68,14 +73,18 @@ export function MobileBottomNav() {
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-white/10 bg-surface/95 backdrop-blur-md safe-area-pb">
       <div className="flex items-stretch justify-around h-14">
-        {tabs.map((tab) => {
-          const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+        {tabSegments.map((tab) => {
+          const href = tabHref(tab.segment, tab.global);
+          const active =
+            pathname === href ||
+            pathname.startsWith(`${href}/`) ||
+            (!tab.global && pathname.startsWith(`/c/${slug}/${tab.segment}`));
           const Icon = tab.icon;
-          const showBadge = tab.href === "/notifications" && unread > 0;
+          const showBadge = tab.segment === "notifications" && unread > 0;
           return (
             <Link
-              key={tab.href}
-              href={tab.href}
+              key={tab.segment}
+              href={href}
               className={cn(
                 "relative flex flex-1 flex-col items-center justify-center gap-0.5 text-[10px] font-medium pressable cursor-pointer focus-ring",
                 "transition-colors duration-fast ease-entrance",

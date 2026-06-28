@@ -10,7 +10,9 @@ import { cn } from "@/lib/utils";
 
 const adminTabs = [
   { href: "/admin", label: "Dashboard", badgeKey: null as string | null },
+  { href: "/admin/competitions", label: "Competencias", badgeKey: null },
   { href: "/admin/fixtures", label: "Partidos", badgeKey: null },
+  { href: "/admin/live-sync", label: "Sync en vivo", badgeKey: null },
   { href: "/admin/users", label: "Usuarios", badgeKey: null },
   { href: "/admin/groups", label: "Polla Global", badgeKey: "entries" as const },
   { href: "/admin/marquee", label: "Marquesina", badgeKey: null },

@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.cors_utils import cors_headers_for_request
 from app.core.middlewares import SecurityHeadersMiddleware, RequestLoggingMiddleware
 from app.core.rate_limiter import limiter
-from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges, social, site
+from app.api.v1 import admin, auth, fixtures, bets, groups, users, leaderboard, notifications, ws, challenges, activity, badges, social, site, competitions, c_scoped, admin_live_sync
 from app.db.session import get_redis
 from app.services.ws_manager import ws_manager
 
@@ -110,6 +110,33 @@ async def _change_request_expiry_loop() -> None:
             raise
 
 
+async def _fixture_live_sync_loop() -> None:
+    from app.db.session import AsyncSessionLocal
+    from app.services.fixture_live_sync_service import run_live_sync_tick
+
+    while True:
+        try:
+            redis = await get_redis()
+            async with AsyncSessionLocal() as db:
+                try:
+                    n = await run_live_sync_tick(db, redis)
+                    if n:
+                        await db.commit()
+                    else:
+                        await db.commit()
+                except Exception:
+                    await db.rollback()
+                    logger.exception("fixture_live_sync_tick_failed")
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("fixture_live_sync_loop_failed")
+        try:
+            await asyncio.sleep(15)
+        except asyncio.CancelledError:
+            raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("app_starting", env=settings.APP_ENV)
@@ -122,9 +149,19 @@ async def lifespan(app: FastAPI):
         from app.api.v1.fixtures import _upsert_fixture
 
         async with AsyncSessionLocal() as db:
+            from app.services.competition_service import get_default_competition
+
+            default_comp = await get_default_competition(db)
             count_result = await db.execute(select(func.count()).select_from(Fixture))
             total = count_result.scalar()
-            if total == 0:
+            if total == 0 and default_comp:
+                logger.info("seeding_worldcup_fixtures", competition_id=str(default_comp.id))
+                records = load_fixtures(competition_id=default_comp.id)
+                for data in records:
+                    await _upsert_fixture(db, data)
+                await db.commit()
+                logger.info("worldcup_fixtures_seeded", count=len(records))
+            elif total == 0:
                 logger.info("seeding_worldcup_fixtures")
                 records = load_fixtures()
                 for data in records:
@@ -155,13 +192,15 @@ async def lifespan(app: FastAPI):
     listener_task = asyncio.create_task(_redis_notification_listener())
     expiry_task = asyncio.create_task(_change_request_expiry_loop())
     betting_close_task = asyncio.create_task(_fixture_betting_close_loop())
+    live_sync_task = asyncio.create_task(_fixture_live_sync_loop())
     jwt_rotation_task = asyncio.create_task(jwt_key_rotation_loop())
     yield
     jwt_rotation_task.cancel()
+    live_sync_task.cancel()
     betting_close_task.cancel()
     expiry_task.cancel()
     listener_task.cancel()
-    for task in (jwt_rotation_task, betting_close_task, expiry_task, listener_task):
+    for task in (jwt_rotation_task, live_sync_task, betting_close_task, expiry_task, listener_task):
         try:
             await task
         except asyncio.CancelledError:
@@ -254,6 +293,7 @@ app.include_router(groups.router, prefix=PREFIX)
 app.include_router(users.router, prefix=PREFIX)
 app.include_router(leaderboard.router, prefix=PREFIX)
 app.include_router(admin.router, prefix=PREFIX)
+app.include_router(admin_live_sync.router, prefix=PREFIX)
 app.include_router(notifications.router, prefix=PREFIX)
 app.include_router(ws.router, prefix=PREFIX)
 app.include_router(challenges.router, prefix=PREFIX)
@@ -261,6 +301,8 @@ app.include_router(activity.router, prefix=PREFIX)
 app.include_router(badges.router, prefix=PREFIX)
 app.include_router(social.router, prefix=PREFIX)
 app.include_router(site.router, prefix=PREFIX)
+app.include_router(competitions.router, prefix=PREFIX)
+app.include_router(c_scoped.router, prefix=PREFIX)
 
 
 @app.get("/health")

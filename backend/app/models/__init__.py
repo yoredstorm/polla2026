@@ -11,7 +11,16 @@ from app.models.notification import Notification
 from app.models.jwt_signing_key import JwtSigningKey
 from app.models.challenge import Challenge
 from app.models.push_subscription import PushSubscription
+from app.models.competition import (
+    Competition,
+    CompetitionStage,
+    CompetitionAdmin,
+    ScoringRule,
+    PrizeDistribution,
+    PaymentSetting,
+)
 from app.models.site_marquee import SiteMarquee
+from app.models.live_sync import FixtureSyncLog, LiveSyncSettings
 
 __all__ = [
     "User", "RefreshToken", "Fixture", "Bet", "Group", "GroupMember", "GroupEntryProof",
@@ -20,4 +29,6 @@ __all__ = [
     "PhaseWinnerHistory",
     "GroupPhaseFee", "GroupPhaseEnrollment", "GroupPhaseEntryProof",
     "SiteMarquee",
+    "Competition", "CompetitionStage", "CompetitionAdmin", "ScoringRule", "PrizeDistribution", "PaymentSetting",
+    "FixtureSyncLog", "LiveSyncSettings",
 ]

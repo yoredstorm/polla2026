@@ -6,6 +6,7 @@ import type { AdminFixture } from "@/types/api";
 import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { formatMatchDate, getStatusLabel, getStatusColor } from "@/lib/utils";
+import { SyncStatusBadge } from "@/components/features/admin/SyncStatusBadge";
 
 // ── Settle Modal ────────────────────────────────────────────────────────────
 function SettleModal({
@@ -385,6 +386,7 @@ export default function AdminFixturesPage() {
                   <span className={cn("text-[10px] uppercase", getStatusColor(f.status))}>
                     {getStatusLabel(f.status)}
                   </span>
+                  <SyncStatusBadge syncMode={f.sync_mode} fixtureId={f.id} className="ml-1" />
                 </div>
                 <p className="text-xs text-muted">{formatMatchDate(f.match_date)}</p>
                 <div className="flex flex-wrap gap-2">
@@ -462,7 +464,10 @@ export default function AdminFixturesPage() {
                       {f.home_score !== null ? `${f.home_score} – ${f.away_score}` : "–"}
                     </td>
                     <td className={cn("px-4 py-3 text-center text-xs font-medium", getStatusColor(f.status))}>
-                      {getStatusLabel(f.status)}
+                      <div className="flex flex-col items-center gap-1">
+                        <span>{getStatusLabel(f.status)}</span>
+                        <SyncStatusBadge syncMode={f.sync_mode} fixtureId={f.id} />
+                      </div>
                     </td>
                     {/* Betting open badge */}
                     <td className="px-4 py-3 text-center">

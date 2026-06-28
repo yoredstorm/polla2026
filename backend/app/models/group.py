@@ -34,7 +34,12 @@ class Group(Base):
     prize_structure_mode: Mapped[str] = mapped_column(
         String(32), default="full_milestones", nullable=False
     )
+    competition_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("competitions.id", ondelete="CASCADE"), nullable=True, unique=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    competition: Mapped["Competition | None"] = relationship("Competition", back_populates="pool", lazy="select")
 
     owner: Mapped["User"] = relationship("User", back_populates="owned_groups")
     entry_proofs: Mapped[list["GroupEntryProof"]] = relationship(

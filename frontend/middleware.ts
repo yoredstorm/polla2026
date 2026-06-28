@@ -31,7 +31,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (accessToken && isAuthEntry) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/competitions", request.url));
   }
 
   if (accessToken && pathname.startsWith("/admin")) {

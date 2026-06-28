@@ -47,7 +47,7 @@ export function useAuth() {
       const target =
         variables.redirectTo && variables.redirectTo.startsWith("/") && !variables.redirectTo.startsWith("//")
           ? variables.redirectTo
-          : "/dashboard";
+          : "/competitions";
       router.push(target);
     },
   });

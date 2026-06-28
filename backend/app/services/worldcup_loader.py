@@ -87,6 +87,10 @@ def _flag_url(team_name: str) -> Optional[str]:
     return None
 
 
+def _team_known(team_name: str) -> bool:
+    return team_name in _FLAG_ISO2
+
+
 # ---------------------------------------------------------------------------
 # Date / time parsing
 # ---------------------------------------------------------------------------
@@ -131,7 +135,7 @@ def _parse_match_datetime(date_str: str, time_str: str) -> datetime:
 # Loader
 # ---------------------------------------------------------------------------
 
-def load_fixtures() -> list[dict]:
+def load_fixtures(competition_id=None) -> list[dict]:
     """
     Read worldcup.json and return a list of dicts ready to upsert into the
     `fixtures` table.  Each dict maps to Fixture model fields.
@@ -182,6 +186,9 @@ def load_fixtures() -> list[dict]:
                 "betting_open": teams_confirmed,
             }
         )
+        if competition_id is not None:
+            records[-1]["competition_id"] = competition_id
+            records[-1]["group_label"] = group
 
     logger.info("worldcup_fixtures_loaded", total=len(records))
     return records

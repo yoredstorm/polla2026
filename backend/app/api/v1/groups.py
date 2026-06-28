@@ -86,7 +86,16 @@ class ActivePollaOut(BaseModel):
     enrollment_choices: list[EnrollmentChoiceOut] = Field(default_factory=list)
 
 
-async def _get_active_group(db: DBSession) -> Group | None:
+async def _get_active_group(db: DBSession, competition_slug: str | None = None) -> Group | None:
+    from app.services.competition_service import get_competition_by_slug, get_default_competition, get_group_for_competition
+
+    comp = None
+    if competition_slug:
+        comp = await get_competition_by_slug(db, competition_slug)
+    if not comp:
+        comp = await get_default_competition(db)
+    if comp:
+        return await get_group_for_competition(db, comp.id)
     result = await db.execute(
         select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
     )
@@ -109,8 +118,13 @@ def _active_polla_payment_fields(group: Group) -> tuple[str | None, str | None, 
 
 @router.get("/pool/active", response_model=ActivePollaOut | None)
 @limiter.limit(GLOBAL_RATE_LIMIT)
-async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSession):
-    """Returns the first active group (the 'polla') and whether current user is a member."""
+async def get_active_polla(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    competition_slug: str | None = Query(None, alias="slug"),
+):
+    """Returns the quiniela pool for a competition (default: mundial-2026)."""
     from app.services.phase_enrollment_service import (
         ensure_phase_fees_for_group,
         resolve_payment_target_phase,
@@ -119,7 +133,7 @@ async def get_active_polla(request: Request, current_user: CurrentUser, db: DBSe
     )
     from app.services.prize_structure_service import get_effective_phases, phase_label, is_effective_phase
 
-    group = await _get_active_group(db)
+    group = await _get_active_group(db, competition_slug)
     if not group:
         return None
 
@@ -518,13 +532,15 @@ class TournamentProgressOut(BaseModel):
 
 @router.get("/pool/active/tournament-progress", response_model=TournamentProgressOut | None)
 @limiter.limit(GLOBAL_RATE_LIMIT)
-async def get_active_tournament_progress(request: Request, current_user: CurrentUser, db: DBSession):
+async def get_active_tournament_progress(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    competition_slug: str | None = Query(None, alias="slug"),
+):
     from app.services.tournament_phase_service import build_tournament_progress
 
-    result = await db.execute(
-        select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
-    )
-    group = result.scalar_one_or_none()
+    group = await _get_active_group(db, competition_slug)
     if not group:
         return None
     progress = await build_tournament_progress(db, group.id)

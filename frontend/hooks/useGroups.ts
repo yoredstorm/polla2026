@@ -1,6 +1,8 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api, { getApiBase } from "@/lib/api";
+import { useCompetitionSlug } from "@/components/providers/CompetitionProvider";
+import { DEFAULT_COMPETITION_SLUG } from "@/lib/competitionPaths";
 import type {
   ActivePolla,
   Group,
@@ -12,10 +14,13 @@ import type {
   TournamentProgress,
 } from "@/types/api";
 
-export function useActivePolla() {
+export function useActivePolla(explicitSlug?: string) {
+  const contextSlug = useCompetitionSlug();
+  const slug = explicitSlug ?? contextSlug ?? DEFAULT_COMPETITION_SLUG;
   return useQuery({
-    queryKey: ["pool", "active"],
-    queryFn: () => api.get<ActivePolla | null>("/groups/pool/active"),
+    queryKey: ["pool", "active", slug],
+    queryFn: () =>
+      api.get<ActivePolla | null>("/groups/pool/active", { slug }),
     staleTime: 5_000,
     refetchOnWindowFocus: true,
     refetchInterval: 30_000,
@@ -24,9 +29,12 @@ export function useActivePolla() {
 }
 
 export function useTournamentProgress() {
+  const contextSlug = useCompetitionSlug();
+  const slug = contextSlug ?? DEFAULT_COMPETITION_SLUG;
   return useQuery({
-    queryKey: ["pool", "tournament-progress"],
-    queryFn: () => api.get<TournamentProgress | null>("/groups/pool/active/tournament-progress"),
+    queryKey: ["pool", "tournament-progress", slug],
+    queryFn: () =>
+      api.get<TournamentProgress | null>(`/c/${slug}/tournament-progress`),
     staleTime: 10_000,
     refetchOnWindowFocus: true,
     refetchInterval: 30_000,

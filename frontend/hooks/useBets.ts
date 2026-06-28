@@ -1,12 +1,16 @@
 "use client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
+import { useCompetitionSlug } from "@/components/providers/CompetitionProvider";
+import { DEFAULT_COMPETITION_SLUG } from "@/lib/competitionPaths";
 import type { Bet, BetCreate, PaginatedResponse } from "@/types/api";
 
 export function useMyBets(page = 1, limit = 20) {
+  const slug = useCompetitionSlug() || DEFAULT_COMPETITION_SLUG;
   return useQuery({
-    queryKey: ["my-bets", page],
-    queryFn: () => api.get<PaginatedResponse<Bet>>("/bets/my-bets", { page, limit }),
+    queryKey: ["my-bets", slug, page],
+    queryFn: () =>
+      api.get<PaginatedResponse<Bet>>(`/c/${slug}/my-bets`, { page, limit }),
     refetchOnWindowFocus: true,
   });
 }

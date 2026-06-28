@@ -11,7 +11,9 @@ import {
   useRegisterFixtureGoal,
   useUpdateFixtureLiveScore,
   useUpdateFixtureStatus,
+  usePatchFixtureSyncMode,
 } from "@/hooks/useAdmin";
+import { SyncStatusBadge } from "@/components/features/admin/SyncStatusBadge";
 import { useFixturePredictionsBoard } from "@/hooks/useGroups";
 import { useToast } from "@/components/ui/Toast";
 import {
@@ -42,6 +44,7 @@ export function FixtureAdminLivePanel({
   const registerGoal = useRegisterFixtureGoal();
   const updateLiveScore = useUpdateFixtureLiveScore();
   const settle = useSettleFixture();
+  const patchSyncMode = usePatchFixtureSyncMode();
 
   const [homeScore, setHomeScore] = useState(fixture.home_score ?? 0);
   const [awayScore, setAwayScore] = useState(fixture.away_score ?? 0);
@@ -179,9 +182,37 @@ export function FixtureAdminLivePanel({
         className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 mb-6 space-y-4"
         aria-label="Control de partido (admin)"
       >
-        <p className="text-xs uppercase tracking-wide text-amber-300/90 font-medium">
-          Control admin del partido
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-xs uppercase tracking-wide text-amber-300/90 font-medium">
+            Control admin del partido
+          </p>
+          <div className="flex items-center gap-2">
+            <SyncStatusBadge syncMode={fixture.sync_mode} fixtureId={fixture.id} />
+            {fixture.sync_mode === "auto" ? (
+              <button
+                type="button"
+                onClick={() =>
+                  patchSyncMode.mutate({ fixtureId: fixture.id, sync_mode: "manual" })
+                }
+                disabled={patchSyncMode.isPending}
+                className="text-[10px] text-muted hover:text-white underline"
+              >
+                Desactivar sync
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() =>
+                  patchSyncMode.mutate({ fixtureId: fixture.id, sync_mode: "auto" })
+                }
+                disabled={patchSyncMode.isPending}
+                className="text-[10px] text-accent hover:underline"
+              >
+                Activar sync auto
+              </button>
+            )}
+          </div>
+        </div>
 
         {fixture.status === "scheduled" && (
           <div className="space-y-2">

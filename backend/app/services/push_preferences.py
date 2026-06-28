@@ -36,6 +36,9 @@ NOTIFICATION_CATEGORY_TYPES: dict[str, tuple[str, ...]] = {
         "password_reset_resolved",
         "fixture_betting_closed_admin",
         "fixture_betting_soon_admin",
+        "fixture_sync_failed_admin",
+        "fixture_sync_ambiguous_admin",
+        "fixture_sync_settled_admin",
     ),
 }
 

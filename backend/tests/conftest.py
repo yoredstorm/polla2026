@@ -18,10 +18,70 @@ from app.models.group_phase import (  # noqa: F401
     GroupPhaseEnrollment,
     GroupPhaseEntryProof,
 )
-from app.models.site_marquee import SiteMarquee  # noqa: F401 — register metadata
+from app.models.competition import (  # noqa: F401
+    Competition,
+    CompetitionStage,
+    CompetitionAdmin,
+    ScoringRule,
+    PrizeDistribution,
+    PaymentSetting,
+)
+from app.models.live_sync import FixtureSyncLog, LiveSyncSettings  # noqa: F401
 from app.core.rate_limiter import limiter
 
 # Use SQLite in-memory for tests (no PostgreSQL required)
+
+
+class _FakeRedis:
+    def __init__(self):
+        self._store: dict[str, str] = {}
+
+    async def publish(self, *_args, **_kwargs):
+        return 0
+
+    async def get(self, key, *_args, **_kwargs):
+        return self._store.get(key)
+
+    async def set(self, key, value, nx=False, ex=None, **_kwargs):
+        if nx and key in self._store:
+            return False
+        self._store[key] = value
+        return True
+
+    async def setex(self, key, _ttl, value, **_kwargs):
+        self._store[key] = value
+        return True
+
+    async def incr(self, *_args, **_kwargs):
+        return 1
+
+    async def expire(self, *_args, **_kwargs):
+        return True
+
+    async def delete(self, *_args, **_kwargs):
+        return 0
+
+    async def ttl(self, *_args, **_kwargs):
+        return -1
+
+
+@pytest.fixture(autouse=True)
+def _mock_redis(monkeypatch):
+    fake = _FakeRedis()
+
+    async def _get_redis():
+        return fake
+
+    async def _noop_publish(*_args, **_kwargs):
+        pass
+
+    import app.db.session as db_session_mod
+
+    db_session_mod._redis_client = None
+    monkeypatch.setattr(db_session_mod, "get_redis", _get_redis)
+    monkeypatch.setattr("app.api.deps.get_redis", _get_redis)
+    monkeypatch.setattr("app.services.notification_service.publish_to_user", _noop_publish)
+    monkeypatch.setattr("app.api.v1.notifications.publish_to_user", _noop_publish)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 

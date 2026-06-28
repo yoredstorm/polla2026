@@ -13,6 +13,10 @@ import type {
   PhasePendingEntry,
   PaginatedResponse,
   SiteMarqueeAdmin,
+  LiveSyncSettings,
+  LiveSyncStatusSummary,
+  LiveSyncFixtureRow,
+  FixtureSyncLogEntry,
 } from "@/types/api";
 import { siteMarqueeQueryKey, toPublicMarqueeView } from "@/hooks/useSiteMarquee";
 import { notifyMarqueeChanged } from "@/lib/marqueeSync";
@@ -38,6 +42,8 @@ export interface AdminActionQueue {
     away_score: number | null;
     urgency: string;
     betting_closes_at: string | null;
+    sync_mode?: "auto" | "manual" | "failed";
+    consecutive_sync_failures?: number;
   }[];
   recent_critical: {
     id: string;
@@ -742,6 +748,91 @@ export function useUpdateMarquee() {
       });
       qc.invalidateQueries({ queryKey: ["admin", "audit-log"] });
       qc.invalidateQueries({ queryKey: ["admin", "action-queue"] });
+    },
+  });
+}
+
+export function useLiveSyncSettings() {
+  return useQuery({
+    queryKey: ["admin", "live-sync", "settings"],
+    queryFn: () => api.get<LiveSyncSettings>("/admin/live-sync/settings"),
+    staleTime: 10_000,
+  });
+}
+
+export function useUpdateLiveSyncSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<LiveSyncSettings>) =>
+      api.patch<LiveSyncSettings>("/admin/live-sync/settings", data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "live-sync"] });
+    },
+  });
+}
+
+export function useLiveSyncStatus() {
+  return useQuery({
+    queryKey: ["admin", "live-sync", "status"],
+    queryFn: () => api.get<LiveSyncStatusSummary>("/admin/live-sync/status"),
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useLiveSyncFixtures() {
+  return useQuery({
+    queryKey: ["admin", "live-sync", "fixtures"],
+    queryFn: () => api.get<{ data: LiveSyncFixtureRow[] }>("/admin/live-sync/fixtures"),
+    staleTime: 10_000,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useFixtureSyncLogs(fixtureId: string | null, page = 1) {
+  return useQuery({
+    queryKey: ["admin", "live-sync", "logs", fixtureId, page],
+    queryFn: () =>
+      api.get<PaginatedResponse<FixtureSyncLogEntry>>(
+        `/admin/live-sync/fixtures/${fixtureId}/logs`,
+        { page, limit: 30 },
+      ),
+    enabled: !!fixtureId,
+    staleTime: 5_000,
+    refetchInterval: fixtureId ? 10_000 : false,
+  });
+}
+
+export function useRetryFixtureSync() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (fixtureId: string) =>
+      api.post<{ ok: boolean; sync_mode: string }>(`/admin/live-sync/fixtures/${fixtureId}/retry`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "live-sync"] });
+      qc.invalidateQueries({ queryKey: ["admin", "fixtures"] });
+    },
+  });
+}
+
+export function usePatchFixtureSyncMode() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      fixtureId,
+      sync_mode,
+    }: {
+      fixtureId: string;
+      sync_mode: "auto" | "manual" | "failed";
+    }) =>
+      api.patch<{ ok: boolean; sync_mode: string }>(
+        `/admin/live-sync/fixtures/${fixtureId}/sync-mode`,
+        { sync_mode },
+      ),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin", "live-sync"] });
+      qc.invalidateQueries({ queryKey: ["admin", "fixtures"] });
+      qc.invalidateQueries({ queryKey: ["fixture"] });
     },
   });
 }

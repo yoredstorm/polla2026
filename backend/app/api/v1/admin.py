@@ -194,6 +194,12 @@ async def list_fixtures(
                 "is_locked": f.is_locked,
                 "betting_open": f.betting_open,
                 "bet_count": bet_counts.get(f.id, 0),
+                "sync_mode": f.sync_mode,
+                "last_scraped_home": f.last_scraped_home,
+                "last_scraped_away": f.last_scraped_away,
+                "last_scraped_status": f.last_scraped_status,
+                "consecutive_sync_failures": f.consecutive_sync_failures,
+                "last_sync_at": f.last_sync_at.isoformat() if f.last_sync_at else None,
             }
             for f in rows
         ],
@@ -246,11 +252,28 @@ async def update_fixture_result(
     await settle_challenges_for_fixture(db, redis, fixture)
     from app.services.tournament_phase_service import get_active_polla, try_close_completed_phases
 
-    polla = await get_active_polla(db)
+    polla = await get_active_polla(db, competition_id=fixture.competition_id)
     if polla:
+        prev_pool = polla.prize_pool
         closed_phases = await try_close_completed_phases(db, polla.id, redis)
         if closed_phases:
-            await broadcast_polla_updated(db, redis)
+            await db.refresh(polla)
+            member_count = (
+                await db.execute(
+                    select(func.count())
+                    .select_from(GroupMember)
+                    .where(GroupMember.group_id == polla.id)
+                )
+            ).scalar() or 0
+            await broadcast_polla_updated(
+                db,
+                redis,
+                group_id=polla.id,
+                prize_pool=polla.prize_pool,
+                previous_prize_pool=prev_pool,
+                member_count=int(member_count),
+                reason="phase_closed",
+            )
     from app.services.badge_notify_service import notify_new_badges_for_fixture
 
     await notify_new_badges_for_fixture(db, redis, fixture_id)
@@ -754,6 +777,8 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
             urgency = "high"
         elif f.status == "finished" and (f.home_score is None or f.away_score is None):
             urgency = "high"
+        elif f.sync_mode == "failed":
+            urgency = "high"
         elif f.status == "scheduled" and f.betting_open:
             urgency = "medium"
         deadlines = fixture_deadline_fields(f)
@@ -774,6 +799,8 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
                     if deadlines.get("betting_closes_at")
                     else None
                 ),
+                "sync_mode": f.sync_mode,
+                "consecutive_sync_failures": f.consecutive_sync_failures,
             }
         )
 

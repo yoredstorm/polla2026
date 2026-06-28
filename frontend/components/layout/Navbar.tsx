@@ -14,12 +14,13 @@ import { HelpTooltip } from "@/components/features/help/HelpTooltip";
 import { MotionSafe } from "@/components/ui/MotionSafe";
 import { exitTransition, MOTION } from "@/lib/motion";
 import type { HelpKey } from "@/lib/systemHelp";
+import { DEFAULT_COMPETITION_SLUG, competitionPath } from "@/lib/competitionPaths";
 
-const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string }[] = [
-  { href: "/dashboard", label: "Inicio", helpKey: "nav.dashboard", tourId: "nav-dashboard" },
-  { href: "/fixtures", label: "Partidos", helpKey: "nav.fixtures", tourId: "nav-fixtures" },
-  { href: "/my-bets", label: "Mis Apuestas", helpKey: "nav.myBets", tourId: "nav-my-bets" },
-  { href: "/leaderboard", label: "Ranking", helpKey: "nav.leaderboard", tourId: "nav-leaderboard" },
+const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string; segment: string }[] = [
+  { href: "/dashboard", label: "Inicio", helpKey: "nav.dashboard", tourId: "nav-dashboard", segment: "dashboard" },
+  { href: "/fixtures", label: "Partidos", helpKey: "nav.fixtures", tourId: "nav-fixtures", segment: "fixtures" },
+  { href: "/my-bets", label: "Mis Apuestas", helpKey: "nav.myBets", tourId: "nav-my-bets", segment: "my-bets" },
+  { href: "/leaderboard", label: "Ranking", helpKey: "nav.leaderboard", tourId: "nav-leaderboard", segment: "leaderboard" },
 ];
 
 function DesktopNavLink({
@@ -60,6 +61,9 @@ function DesktopNavLink({
 
 export function Navbar() {
   const pathname = usePathname();
+  const slugMatch = pathname.match(/^\/c\/([^/]+)/);
+  const slug = slugMatch?.[1] ?? DEFAULT_COMPETITION_SLUG;
+  const navHref = (segment: string) => competitionPath(slug, segment);
   const { user, logout } = useAuth();
   const { data: unreadData } = useUnreadCount(!!user);
   const unreadCount = unreadData?.count ?? 0;
@@ -90,7 +94,7 @@ export function Navbar() {
         >
           <div className="px-4 h-14 flex items-center justify-between">
             <Link
-              href="/dashboard"
+              href="/competitions"
               className="font-display text-xl text-accent text-glow-accent focus-ring rounded-lg nav-link"
             >
               POLLA DEPORTIVA
@@ -99,13 +103,19 @@ export function Navbar() {
               {navLinks.map((link) => (
                 <DesktopNavLink
                   key={link.href}
-                  href={link.href}
+                  href={navHref(link.segment)}
                   label={link.label}
                   helpKey={link.helpKey}
                   tourId={link.tourId}
-                  active={pathname.startsWith(link.href)}
+                  active={pathname.startsWith(navHref(link.segment)) || pathname.startsWith(link.href)}
                 />
               ))}
+              <Link
+                href="/competitions"
+                className="nav-link text-sm text-muted hover:text-white focus-ring rounded-md px-2 py-1"
+              >
+                Competencias
+              </Link>
               <Link
                 href="/notifications"
                 className={cn(

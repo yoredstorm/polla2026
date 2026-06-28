@@ -136,11 +136,17 @@ async def my_bets(
     db: DBSession,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=200),
+    competition_slug: Optional[str] = Query(None, alias="slug"),
 ):
+    from app.services.competition_service import resolve_competition_for_query
+
+    comp = await resolve_competition_for_query(db, competition_slug)
+    comp_filter = [Fixture.competition_id == comp.id] if comp else []
+
     count_base = (
         select(Bet.id)
         .join(Fixture, Bet.fixture_id == Fixture.id)
-        .where(Bet.user_id == current_user.id)
+        .where(Bet.user_id == current_user.id, *comp_filter)
     )
     count_result = await db.execute(select(func.count()).select_from(count_base.subquery()))
     total = count_result.scalar()
@@ -148,7 +154,7 @@ async def my_bets(
     base = (
         select(Bet, Fixture)
         .join(Fixture, Bet.fixture_id == Fixture.id)
-        .where(Bet.user_id == current_user.id)
+        .where(Bet.user_id == current_user.id, *comp_filter)
     )
     result = await db.execute(
         base.order_by(Bet.created_at.desc()).offset((page - 1) * limit).limit(limit)

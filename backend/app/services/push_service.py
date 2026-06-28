@@ -76,6 +76,8 @@ def push_url_for_notification(n: Notification) -> str:
         return f"/fixtures/{p['fixture_id']}"
     if t in ("fixture_betting_closed_admin", "fixture_betting_soon_admin") and p.get("fixture_id"):
         return f"/admin/fixtures"
+    if t in ("fixture_sync_failed_admin", "fixture_sync_ambiguous_admin") and p.get("fixture_id"):
+        return f"/admin/live-sync"
     if t in ("change_request_resolved", "change_request_expired"):
         return "/my-bets?tab=pronosticos"
     if t == "change_request_expired_batch":

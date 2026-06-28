@@ -146,6 +146,65 @@ export interface Fixture {
   betting_closes_at?: string | null;
   change_request_closes_at?: string | null;
   admin_resolve_closes_at?: string | null;
+  sync_mode?: "auto" | "manual" | "failed";
+  last_scraped_home?: number | null;
+  last_scraped_away?: number | null;
+  last_scraped_status?: string | null;
+  consecutive_sync_failures?: number;
+  last_sync_at?: string | null;
+}
+
+export interface LiveSyncSettings {
+  poll_interval_seconds: number;
+  pre_kickoff_minutes: number;
+  max_concurrent_polls: number;
+  failure_threshold: number;
+  confirm_reads_required: number;
+  sync_enabled_globally: boolean;
+  updated_at: string | null;
+}
+
+export interface LiveSyncStatusSummary {
+  settings: LiveSyncSettings;
+  active_sync_count: number;
+  failed_sync_count: number;
+  manual_sync_count: number;
+  estimated_requests_per_minute: number;
+}
+
+export interface LiveSyncFixtureRow {
+  id: string;
+  home_team: string;
+  away_team: string;
+  match_date: string;
+  status: string;
+  sync_mode: "auto" | "manual" | "failed";
+  home_score: number | null;
+  away_score: number | null;
+  last_scraped_home: number | null;
+  last_scraped_away: number | null;
+  last_scraped_status: string | null;
+  consecutive_sync_failures: number;
+  sync_confirm_streak: number;
+  last_sync_at: string | null;
+  google_match_sie: string | null;
+  competition_id: string | null;
+}
+
+export interface FixtureSyncLogEntry {
+  id: string;
+  polled_at: string;
+  success: boolean;
+  search_url: string | null;
+  google_match_sie: string | null;
+  parsed_home: number | null;
+  parsed_away: number | null;
+  parsed_status: string | null;
+  parsed_minute: number | null;
+  raw_payload: Record<string, unknown> | null;
+  error_message: string | null;
+  action_taken: string;
+  response_ms: number | null;
 }
 
 export interface Bet {

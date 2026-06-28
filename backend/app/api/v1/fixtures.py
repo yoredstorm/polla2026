@@ -21,9 +21,12 @@ router = APIRouter(prefix="/fixtures", tags=["Fixtures"])
 
 async def _upsert_fixture(db: AsyncSession, data: dict) -> Fixture:
     """Insert or update a fixture row from a parsed dict."""
-    result = await db.execute(
-        select(Fixture).where(Fixture.external_id == data["external_id"])
-    )
+    competition_id = data.get("competition_id")
+    external_id = data["external_id"]
+    query = select(Fixture).where(Fixture.external_id == external_id)
+    if competition_id is not None:
+        query = query.where(Fixture.competition_id == competition_id)
+    result = await db.execute(query)
     fixture = result.scalar_one_or_none()
 
     if not fixture:
@@ -44,11 +47,18 @@ async def _upsert_fixture(db: AsyncSession, data: dict) -> Fixture:
 
 @router.get("/tournament-phases")
 @limiter.limit(GLOBAL_RATE_LIMIT)
-async def list_tournament_phases(request: Request, current_user: CurrentUser, db: DBSession):
+async def list_tournament_phases(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    competition_slug: str | None = Query(None, alias="slug"),
+):
     from app.services.tournament_phase_service import get_active_polla
     from app.services.prize_structure_service import list_tournament_phases_for_group
+    from app.services.competition_service import resolve_competition_for_query
 
-    polla = await get_active_polla(db)
+    comp = await resolve_competition_for_query(db, competition_slug)
+    polla = await get_active_polla(db, competition_id=comp.id if comp else None)
     if not polla:
         return []
     return list_tournament_phases_for_group(polla)
@@ -82,11 +92,17 @@ async def list_fixtures(
     tournament_phase: Optional[str] = Query(
         None, description="Canonical phase: groups, round_of_32, round_of_16, quarterfinal, semifinal, third_place, final"
     ),
+    competition_slug: Optional[str] = Query(None, alias="slug"),
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=200),
 ):
+    from app.services.competition_service import resolve_competition_for_query
+
     query = select(Fixture)
     filters = []
+    comp = await resolve_competition_for_query(db, competition_slug)
+    if comp:
+        filters.append(Fixture.competition_id == comp.id)
     if tournament_phase:
         from app.services.tournament_phase_service import get_active_polla
         from app.services.prize_structure_service import (
@@ -94,7 +110,7 @@ async def list_fixtures(
             is_effective_phase,
         )
 
-        polla = await get_active_polla(db)
+        polla = await get_active_polla(db, competition_id=comp.id if comp else None)
         if not polla or not is_effective_phase(tournament_phase, polla):
             raise HTTPException(status_code=400, detail="Invalid tournament_phase")
         filters.append(effective_phase_fixture_filter(tournament_phase, polla))
@@ -132,8 +148,19 @@ async def list_fixtures(
 
 @router.get("/live", response_model=list[FixtureOut])
 @limiter.limit(GLOBAL_RATE_LIMIT)
-async def live_fixtures(request: Request, current_user: CurrentUser, db: DBSession):
-    result = await db.execute(select(Fixture).where(Fixture.status == "live"))
+async def live_fixtures(
+    request: Request,
+    current_user: CurrentUser,
+    db: DBSession,
+    competition_slug: Optional[str] = Query(None, alias="slug"),
+):
+    from app.services.competition_service import resolve_competition_for_query
+
+    filters = [Fixture.status == "live"]
+    comp = await resolve_competition_for_query(db, competition_slug)
+    if comp:
+        filters.append(Fixture.competition_id == comp.id)
+    result = await db.execute(select(Fixture).where(and_(*filters)))
     return [fixture_to_out(f) for f in result.scalars().all()]
 
 

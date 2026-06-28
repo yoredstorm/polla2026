@@ -232,7 +232,15 @@ async def try_close_completed_phases(
     return closed_keys
 
 
-async def get_active_polla(db: AsyncSession) -> Group | None:
+async def get_active_polla(
+    db: AsyncSession,
+    *,
+    competition_id: uuid.UUID | None = None,
+) -> Group | None:
+    if competition_id is not None:
+        from app.services.competition_service import get_group_for_competition
+
+        return await get_group_for_competition(db, competition_id)
     result = await db.execute(
         select(Group).where(Group.is_active == True).order_by(Group.created_at.asc()).limit(1)  # noqa: E712
     )
