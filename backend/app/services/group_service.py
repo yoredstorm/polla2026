@@ -47,6 +47,64 @@ async def count_phase_enrolled_members(
     )
 
 
+async def count_admin_pending_entries(db: AsyncSession, group: Group) -> int:
+    """Users with uploaded payment proof awaiting admin approval (group + phase)."""
+    from app.models.group import GroupEntryProof
+    from app.models.group_phase import GroupPhaseEntryProof
+    from app.services.prize_structure_service import get_effective_phases
+
+    gid = group.id
+    pk = group.current_phase_key or get_effective_phases(group)[0]
+    member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == gid)
+    pending_ids: set[uuid.UUID] = set()
+
+    group_proof_ids = select(GroupEntryProof.user_id).where(GroupEntryProof.group_id == gid)
+    group_rows = (
+        await db.execute(
+            select(User.id).where(
+                User.is_active == True,  # noqa: E712
+                User.id.not_in(member_ids_q),
+                User.id.in_(group_proof_ids),
+            )
+        )
+    ).all()
+    pending_ids.update(r[0] for r in group_rows)
+
+    confirmed_enr = select(GroupPhaseEnrollment.user_id).where(
+        GroupPhaseEnrollment.group_id == gid,
+        GroupPhaseEnrollment.phase_key == pk,
+        GroupPhaseEnrollment.status == "confirmed",
+    )
+    phase_proof_users = select(GroupPhaseEntryProof.user_id).where(
+        GroupPhaseEntryProof.group_id == gid,
+        GroupPhaseEntryProof.phase_key == pk,
+    )
+    member_rows = (
+        await db.execute(
+            select(GroupMember.user_id).where(
+                GroupMember.group_id == gid,
+                GroupMember.user_id.in_(phase_proof_users),
+                GroupMember.user_id.not_in(confirmed_enr),
+            )
+        )
+    ).all()
+    pending_ids.update(r[0] for r in member_rows)
+
+    if pk == "knockout":
+        ko_rows = (
+            await db.execute(
+                select(User.id).where(
+                    User.is_active == True,  # noqa: E712
+                    User.id.not_in(member_ids_q),
+                    User.id.in_(phase_proof_users),
+                )
+            )
+        ).all()
+        pending_ids.update(r[0] for r in ko_rows)
+
+    return len(pending_ids)
+
+
 async def compute_confirmed_prize_pool(
     db: AsyncSession,
     group_id: uuid.UUID,

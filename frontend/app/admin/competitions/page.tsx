@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { PageShell } from "@/components/layout/PageShell";
 import { Button } from "@/components/ui/Button";
 import {
   useAdminCompetitions,
@@ -122,8 +121,8 @@ export default function AdminCompetitionsPage() {
   }
 
   return (
-    <PageShell maxWidth="lg">
-      <h1 className="font-display text-2xl text-white mb-6">Competencias (Super Admin)</h1>
+    <div className="space-y-6">
+      <h1 className="font-display text-2xl text-white">Competencias (Super Admin)</h1>
 
       <form onSubmit={(e) => void handleCreate(e)} className="mb-8 rounded-xl border border-white/10 bg-glass p-4 space-y-3">
         <h2 className="text-sm font-medium text-white">Nueva competencia</h2>
@@ -259,6 +258,6 @@ export default function AdminCompetitionsPage() {
           )}
         </div>
       )}
-    </PageShell>
+    </div>
   );
 }

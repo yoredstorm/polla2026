@@ -64,7 +64,7 @@ export function AdminCommandCenter() {
         </h2>
         {fixtures_attention.length === 0 ? (
           <p className="text-sm text-muted rounded-xl border border-white/10 bg-glass p-4">
-            No hay partidos urgentes en las proximas 2 horas.
+            No hay partidos pendientes de gestión en este momento.
           </p>
         ) : (
           <ul className="space-y-3">

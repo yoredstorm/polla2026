@@ -742,16 +742,10 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
     pending_extras = 0
     group_id = None
     if group:
+        from app.services.group_service import count_admin_pending_entries
+
         group_id = str(group.id)
-        member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group.id)
-        pending_entries = (
-            await db.execute(
-                select(func.count()).select_from(User).where(
-                    User.is_active == True,  # noqa: E712
-                    User.id.not_in(member_ids_q),
-                )
-            )
-        ).scalar() or 0
+        pending_entries = await count_admin_pending_entries(db, group)
         pending_extras = (
             await db.execute(
                 select(func.count())
@@ -793,6 +787,8 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
             urgency = "high"
         elif f.status == "scheduled" and f.betting_open:
             urgency = "medium"
+        if urgency == "normal":
+            continue
         deadlines = fixture_deadline_fields(f)
         fixtures_attention.append(
             {
