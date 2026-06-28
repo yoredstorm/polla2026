@@ -160,7 +160,9 @@ export function useCompetitionAdminAuditLog(page = 1, limit = 50, action?: strin
           action: string;
           action_label: string;
           detail_summary: string;
+          detail?: string | null;
           username: string | null;
+          ip_address?: string | null;
           created_at: string;
         }>;
         pagination: { total: number; page: number; limit: number; total_pages: number };

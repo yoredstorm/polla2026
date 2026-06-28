@@ -481,6 +481,10 @@ async def competition_audit_log(
     from app.models.audit_log import AuditLog
     from app.api.v1.admin import AuditLogOut
     from app.services.audit_formatter import enrich_audit_rows
+    from app.services.competition_audit_service import competition_audit_log_filter
+
+    group = await _pool_group(db, comp)
+    scope = competition_audit_log_filter(comp, group.id)
 
     base = (
         select(
@@ -494,7 +498,7 @@ async def competition_audit_log(
         )
         .select_from(AuditLog)
         .outerjoin(User, AuditLog.user_id == User.id)
-        .where(AuditLog.competition_id == comp.id)
+        .where(scope)
     )
     if action:
         base = base.where(AuditLog.action == action)

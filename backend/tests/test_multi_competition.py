@@ -12,7 +12,7 @@ from app.models.fixture import Fixture
 from app.models.group import Group
 from app.models.user import User
 from app.services.competition_admin_service import create_competition
-from app.services.competition_service import get_competition_by_slug, user_is_competition_admin
+from app.services.competition_service import get_competition_by_slug, get_group_for_competition, user_is_competition_admin
 from app.schemas.competition import CompetitionCreateIn
 from tests.conftest import register_payload
 
@@ -279,6 +279,35 @@ async def test_super_admin_list_all_and_context_bypass(
 
     scoped = await client.get(f"/api/v1/c/{slug_b}/admin/action-queue")
     assert scoped.status_code == 200
+
+
+async def test_competition_audit_log_includes_legacy_rows(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    from app.models.audit_log import AuditLog
+    from app.services.audit import log_action
+
+    _, _, slug_a, _, super_username = await _setup_cups_with_admin(client, db_session)
+    comp_a = await get_competition_by_slug(db_session, slug_a)
+    assert comp_a is not None
+    group = await get_group_for_competition(db_session, comp_a.id)
+
+    await log_action(
+        db_session,
+        user_id=None,
+        action="admin_settle",
+        detail={"fixture_id": str(uuid.uuid4()), "group_id": str(group.id) if group else "x"},
+    )
+    await db_session.commit()
+
+    await client.post(
+        "/api/v1/auth/login",
+        json={"username": super_username, "password": "MultiComp1!"},
+    )
+    resp = await client.get(f"/api/v1/c/{slug_a}/admin/audit-log")
+    assert resp.status_code == 200
+    assert resp.json()["pagination"]["total"] >= 1
 
 
 async def test_super_admin_assigns_competition_admin(
