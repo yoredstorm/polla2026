@@ -27,6 +27,7 @@ from app.models.competition import (  # noqa: F401
     PaymentSetting,
 )
 from app.models.live_sync import FixtureSyncLog, LiveSyncSettings  # noqa: F401
+from app.models.competition_marquee import CompetitionMarquee  # noqa: F401
 from app.core.rate_limiter import limiter
 
 # Use SQLite in-memory for tests (no PostgreSQL required)

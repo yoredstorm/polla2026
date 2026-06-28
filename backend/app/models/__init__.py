@@ -20,6 +20,7 @@ from app.models.competition import (
     PaymentSetting,
 )
 from app.models.site_marquee import SiteMarquee
+from app.models.competition_marquee import CompetitionMarquee
 from app.models.live_sync import FixtureSyncLog, LiveSyncSettings
 
 __all__ = [
@@ -29,6 +30,7 @@ __all__ = [
     "PhaseWinnerHistory",
     "GroupPhaseFee", "GroupPhaseEnrollment", "GroupPhaseEntryProof",
     "SiteMarquee",
+    "CompetitionMarquee",
     "Competition", "CompetitionStage", "CompetitionAdmin", "ScoringRule", "PrizeDistribution", "PaymentSetting",
     "FixtureSyncLog", "LiveSyncSettings",
 ]

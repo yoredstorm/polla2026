@@ -54,6 +54,7 @@ export default function CompetitionAdminLayout({ children }: { children: React.R
     { href: competitionAdminPath(slug, "members"), label: "Miembros y pagos", badge: membersBadge, exact: false },
     { href: competitionAdminPath(slug, "requests"), label: "Solicitudes", badge: requestsBadge, exact: false },
     { href: competitionAdminPath(slug, "activity"), label: "Actividad", badge: 0, exact: false },
+    { href: competitionAdminPath(slug, "marquee"), label: "Marquesina", badge: 0, exact: false },
   ];
 
   return (

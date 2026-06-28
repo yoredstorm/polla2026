@@ -18,6 +18,8 @@ from app.api.v1.admin import (
     FixtureLiveScoreIn,
     FixtureResultIn,
     FixtureStatusIn,
+    MarqueeAdminOut,
+    MarqueeUpdateIn,
     SettleResponse,
     _group_payment_dict,
 )
@@ -716,3 +718,58 @@ async def competition_upload_payment_qr(
     from app.api.v1.admin import upload_group_payment_qr
 
     return await upload_group_payment_qr(request, group.id, admin, db, file)
+
+
+@router.get("/marquee", response_model=MarqueeAdminOut)
+@limiter.limit(ADMIN_RATE)
+async def get_competition_admin_marquee(
+    request: Request,
+    comp: CompetitionAdminContext,
+    db: DBSession,
+):
+    from app.services.marquee_service import admin_marquee_payload, get_competition_marquee
+
+    marquee = await get_competition_marquee(db, comp.id)
+    return MarqueeAdminOut(**admin_marquee_payload(marquee))
+
+
+@router.put("/marquee", response_model=MarqueeAdminOut)
+@limiter.limit(ADMIN_RATE)
+async def update_competition_admin_marquee(
+    request: Request,
+    body: MarqueeUpdateIn,
+    comp: CompetitionAdminContext,
+    admin: CurrentUser,
+    db: DBSession,
+    redis: RedisClient,
+):
+    from app.services.marquee_service import (
+        MarqueeValidationError,
+        admin_marquee_payload,
+        get_competition_marquee,
+        update_competition_marquee,
+    )
+    from app.services.notification_service import broadcast_competition_marquee_updated
+
+    try:
+        marquee = await update_competition_marquee(
+            db,
+            competition_id=comp.id,
+            competition_slug=comp.slug,
+            admin=admin,
+            message=body.message,
+            is_enabled=body.enabled,
+            ip=request.client.host if request.client else None,
+        )
+    except MarqueeValidationError as exc:
+        code = str(exc)
+        if code == "MARQUEE_MESSAGE_TOO_LONG":
+            detail = "El mensaje no puede superar 280 caracteres"
+        else:
+            detail = "El mensaje contiene caracteres no permitidos"
+        raise HTTPException(status_code=400, detail=detail) from exc
+
+    await db.commit()
+    marquee = await get_competition_marquee(db, comp.id)
+    await broadcast_competition_marquee_updated(db, redis, competition_slug=comp.slug)
+    return MarqueeAdminOut(**admin_marquee_payload(marquee))

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useAdminMarquee, useUpdateMarquee } from "@/hooks/useAdmin";
+import {
+  useCompetitionAdminMarquee,
+  useUpdateCompetitionMarquee,
+} from "@/hooks/useCompetitionAdmin";
 import { PromoMarquee } from "@/components/features/site/PromoMarquee";
-import { toPublicMarqueeView } from "@/hooks/useSiteMarquee";
+import { toPublicMarqueeView } from "@/hooks/useCompetitionMarquee";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { useToast } from "@/components/ui/Toast";
@@ -12,9 +15,9 @@ import { parseApiError } from "@/lib/apiError";
 
 const MAX_LENGTH = 280;
 
-export default function AdminMarqueePage() {
-  const { data, isLoading, isError, refetch } = useAdminMarquee();
-  const updateMarquee = useUpdateMarquee();
+export function MarqueeAdminEditor() {
+  const { data, isLoading, isError, refetch } = useCompetitionAdminMarquee();
+  const updateMarquee = useUpdateCompetitionMarquee();
   const toast = useToast((s) => s.add);
 
   const [message, setMessage] = useState("");
@@ -52,8 +55,8 @@ export default function AdminMarqueePage() {
       setMessage(result.message ?? "");
       toast(
         result.enabled && result.message.trim()
-          ? "Marquesina activada en la web"
-          : "Marquesina desactivada en la web",
+          ? "Marquesina activada en esta competencia"
+          : "Marquesina desactivada en esta competencia",
         "success",
       );
     } catch (err) {
@@ -90,9 +93,8 @@ export default function AdminMarqueePage() {
         <div>
           <h1 className="font-display text-3xl text-white">Marquesina promocional</h1>
           <p className="text-muted text-sm mt-2 max-w-2xl">
-            El interruptor solo prepara el cambio. Debes pulsar{" "}
-            <strong className="text-white font-medium">Guardar cambios</strong> para que se aplique
-            en la web.
+            Anuncio visible solo dentro de esta competencia. El interruptor prepara el cambio;
+            pulsa <strong className="text-white font-medium">Guardar cambios</strong> para aplicarlo.
           </p>
         </div>
         {savedLive && (
@@ -104,7 +106,7 @@ export default function AdminMarqueePage() {
                 : "bg-white/5 border-white/15 text-muted",
             )}
           >
-            En la web: {savedLive.enabled ? "Visible" : "Oculta"}
+            En la competencia: {savedLive.enabled ? "Visible" : "Oculta"}
           </span>
         )}
       </div>
@@ -114,8 +116,8 @@ export default function AdminMarqueePage() {
           className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200/90"
           role="status"
         >
-          Tienes cambios sin guardar. Pulsa Guardar para que los usuarios los vean (o no vean) la
-          marquesina.
+          Tienes cambios sin guardar. Pulsa Guardar para que los miembros los vean en esta
+          competencia.
         </div>
       )}
 
@@ -124,7 +126,7 @@ export default function AdminMarqueePage() {
           <div>
             <p className="text-white font-medium">Activar marquesina</p>
             <p className="text-xs text-muted mt-1">
-              Apagado = no se muestra a nadie, aunque el texto siga guardado.
+              Apagado = no se muestra a nadie en esta competencia, aunque el texto siga guardado.
             </p>
           </div>
           <button
@@ -170,7 +172,7 @@ export default function AdminMarqueePage() {
             </span>
             {showEmptyWarning && (
               <span className="text-amber-300">
-                Activa pero sin texto: no se mostrara en la web
+                Activa pero sin texto: no se mostrara en la competencia
               </span>
             )}
           </div>
@@ -204,7 +206,7 @@ export default function AdminMarqueePage() {
                 void handleSave(false);
               }}
             >
-              Desactivar en la web
+              Desactivar en la competencia
             </Button>
           )}
         </div>
@@ -212,14 +214,12 @@ export default function AdminMarqueePage() {
 
       <section className="space-y-3">
         <h2 className="font-display text-lg text-white">Vista previa</h2>
-        <p className="text-xs text-muted">
-          Muestra como quedaria al guardar (interruptor + texto).
-        </p>
+        <p className="text-xs text-muted">Muestra como quedaria al guardar (interruptor + texto).</p>
         <div className="rounded-xl overflow-hidden border border-white/10 bg-[#0a0c10]">
           <PromoMarquee preview={{ enabled, message: trimmed }} embedded />
           {(!enabled || !trimmed) && (
             <div className="px-4 py-8 text-center text-sm text-muted bg-white/[0.02]">
-              La marquesina no se mostraria en la web con esta configuracion.
+              La marquesina no se mostraria en esta competencia con esta configuracion.
             </div>
           )}
         </div>

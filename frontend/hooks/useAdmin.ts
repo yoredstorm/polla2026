@@ -12,14 +12,11 @@ import type {
   GroupPhaseFeeRow,
   PhasePendingEntry,
   PaginatedResponse,
-  SiteMarqueeAdmin,
   LiveSyncSettings,
   LiveSyncStatusSummary,
   LiveSyncFixtureRow,
   FixtureSyncLogEntry,
 } from "@/types/api";
-import { siteMarqueeQueryKey, toPublicMarqueeView } from "@/hooks/useSiteMarquee";
-import { notifyMarqueeChanged } from "@/lib/marqueeSync";
 
 export interface AdminActionQueue {
   pending: {
@@ -722,33 +719,6 @@ export function useRejectPasswordResetRequest() {
       qc.invalidateQueries({ queryKey: ["admin", "password-reset-requests"] });
       qc.invalidateQueries({ queryKey: ["admin", "password-reset-count"] });
       qc.invalidateQueries({ queryKey: ["notifications"] });
-    },
-  });
-}
-
-export function useAdminMarquee() {
-  return useQuery({
-    queryKey: ["admin", "marquee"],
-    queryFn: () => api.get<SiteMarqueeAdmin>("/admin/marquee"),
-    staleTime: 10_000,
-  });
-}
-
-export function useUpdateMarquee() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: { message: string; enabled: boolean }) =>
-      api.put<SiteMarqueeAdmin>("/admin/marquee", data),
-    onSuccess: async (data) => {
-      qc.setQueryData(["admin", "marquee"], data);
-      qc.setQueryData(siteMarqueeQueryKey(), toPublicMarqueeView(data));
-      notifyMarqueeChanged();
-      await qc.invalidateQueries({
-        queryKey: siteMarqueeQueryKey(),
-        refetchType: "active",
-      });
-      qc.invalidateQueries({ queryKey: ["admin", "audit-log"] });
-      qc.invalidateQueries({ queryKey: ["admin", "action-queue"] });
     },
   });
 }

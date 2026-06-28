@@ -5,11 +5,13 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select, and_, func, desc, or_
 
 from app.api.competition_deps import (
     CompetitionAdminContext,
     CompetitionMemberContext,
+    ResolvedCompetition,
     VisibleCompetition,
 )
 from app.api.deps import CurrentUser, DBSession
@@ -58,6 +60,23 @@ async def get_competition_context(
         "is_admin": is_admin,
         "member_count": count,
     }
+
+
+@router.get("/marquee")
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def get_competition_marquee_public(
+    request: Request,
+    comp: ResolvedCompetition,
+    db: DBSession,
+):
+    from app.services.marquee_service import get_competition_marquee, public_marquee_payload
+
+    marquee = await get_competition_marquee(db, comp.id)
+    payload = public_marquee_payload(marquee)
+    return JSONResponse(
+        content=payload,
+        headers={"Cache-Control": "no-store, must-revalidate"},
+    )
 
 
 async def _user_is_competition_admin(db, user, competition_id):

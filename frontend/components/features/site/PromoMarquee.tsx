@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useSiteMarquee } from "@/hooks/useSiteMarquee";
+import { competitionMarqueeQueryKey, useRouteCompetitionSlug, useCompetitionMarquee } from "@/hooks/useCompetitionMarquee";
 
 export interface PromoMarqueePreview {
   enabled: boolean;
@@ -46,12 +46,14 @@ function MarqueeContent({ message }: { message: string }) {
 }
 
 export function PromoMarquee({ preview, className, embedded = false }: PromoMarqueeProps) {
-  const query = useSiteMarquee();
+  const routeSlug = useRouteCompetitionSlug();
+  const query = useCompetitionMarquee(preview ? null : routeSlug);
 
   const enabled = preview ? preview.enabled : (query.data?.enabled ?? false);
   const message = (preview ? preview.message : query.data?.message ?? "").trim();
 
   if (!preview) {
+    if (!routeSlug) return null;
     if (query.isLoading) return null;
     if (query.isError) return null;
   }

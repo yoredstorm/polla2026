@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/lib/api";
 import { useCompetitionSlug } from "@/components/providers/CompetitionProvider";
 import { DEFAULT_COMPETITION_SLUG } from "@/lib/competitionPaths";
+import { competitionMarqueeQueryKey, toPublicMarqueeView } from "@/hooks/useCompetitionMarquee";
+import { notifyMarqueeChanged } from "@/lib/marqueeSync";
 import type {
   AdminStats,
   SettleResult,
@@ -14,6 +16,7 @@ import type {
   PhasePendingEntry,
   PaginatedResponse,
   AdminNonMember,
+  SiteMarqueeAdmin,
 } from "@/types/api";
 import type { AdminActionQueue } from "@/hooks/useAdmin";
 
@@ -289,6 +292,35 @@ export function useCompetitionEditFixture(slug?: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["competition-admin", s, "fixtures"] });
       qc.invalidateQueries({ queryKey: ["fixtures"] });
+    },
+  });
+}
+
+export function useCompetitionAdminMarquee(slug?: string) {
+  const s = useSlug(slug);
+  return useQuery({
+    queryKey: ["competition-admin", s, "marquee"],
+    queryFn: () => api.get<SiteMarqueeAdmin>(`${adminBase(s)}/marquee`),
+    staleTime: 10_000,
+  });
+}
+
+export function useUpdateCompetitionMarquee(slug?: string) {
+  const s = useSlug(slug);
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { message: string; enabled: boolean }) =>
+      api.put<SiteMarqueeAdmin>(`${adminBase(s)}/marquee`, data),
+    onSuccess: async (data) => {
+      qc.setQueryData(["competition-admin", s, "marquee"], data);
+      qc.setQueryData(competitionMarqueeQueryKey(s), toPublicMarqueeView(data));
+      notifyMarqueeChanged(s);
+      await qc.invalidateQueries({
+        queryKey: competitionMarqueeQueryKey(s),
+        refetchType: "active",
+      });
+      qc.invalidateQueries({ queryKey: ["competition-admin", s, "audit-log"] });
+      qc.invalidateQueries({ queryKey: ["competition-admin", s, "action-queue"] });
     },
   });
 }

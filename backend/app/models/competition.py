@@ -68,6 +68,9 @@ class Competition(Base):
         "Group", back_populates="competition", uselist=False, lazy="select"
     )
     fixtures: Mapped[list["Fixture"]] = relationship("Fixture", back_populates="competition", lazy="select")
+    marquee: Mapped["CompetitionMarquee | None"] = relationship(
+        "CompetitionMarquee", back_populates="competition", uselist=False, lazy="select"
+    )
 
 
 class CompetitionStage(Base):

@@ -85,11 +85,28 @@ async def broadcast_polla_updated(
     )
 
 
+async def broadcast_competition_marquee_updated(
+    db: AsyncSession,
+    redis: aioredis.Redis | None,
+    *,
+    competition_slug: str,
+) -> None:
+    """Notify connected clients to refetch a competition promo marquee."""
+    await broadcast_event(
+        db,
+        redis,
+        {
+            "type": "competition_marquee_updated",
+            "data": {"competition_slug": competition_slug},
+        },
+    )
+
+
 async def broadcast_site_marquee_updated(
     db: AsyncSession,
     redis: aioredis.Redis | None,
 ) -> None:
-    """Notify connected clients to refetch the public promo marquee."""
+    """Deprecated — kept for backward compatibility with older clients."""
     await broadcast_event(
         db,
         redis,

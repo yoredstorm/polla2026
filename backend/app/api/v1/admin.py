@@ -49,7 +49,6 @@ from app.services.notification_service import (
     broadcast_polla_updated,
     broadcast_fixture_updated,
     broadcast_goal_scored,
-    broadcast_site_marquee_updated,
     resolve_actionable_notifications,
     build_entry_confirmed,
     build_extra_confirmed,
@@ -643,55 +642,6 @@ async def admin_stats(request: Request, admin: CurrentAdmin, db: DBSession):
         finished_fixtures=finished_fixtures,
         total_prize_pools=str(pools),
     )
-
-
-@router.get("/marquee", response_model=MarqueeAdminOut)
-@limiter.limit(ADMIN_RATE)
-async def get_admin_marquee(request: Request, admin: CurrentAdmin, db: DBSession):
-    from app.services.marquee_service import admin_marquee_payload, get_marquee
-
-    marquee = await get_marquee(db)
-    return MarqueeAdminOut(**admin_marquee_payload(marquee))
-
-
-@router.put("/marquee", response_model=MarqueeAdminOut)
-@limiter.limit(ADMIN_RATE)
-async def update_admin_marquee(
-    request: Request,
-    body: MarqueeUpdateIn,
-    admin: CurrentAdmin,
-    db: DBSession,
-    redis: RedisClient,
-):
-    from app.services.marquee_service import (
-        MarqueeValidationError,
-        admin_marquee_payload,
-        update_marquee,
-    )
-
-    try:
-        marquee = await update_marquee(
-            db,
-            admin=admin,
-            message=body.message,
-            is_enabled=body.enabled,
-            ip=request.client.host if request.client else None,
-        )
-    except MarqueeValidationError as exc:
-        code = str(exc)
-        if code == "MARQUEE_MESSAGE_TOO_LONG":
-            detail = "El mensaje no puede superar 280 caracteres"
-        else:
-            detail = "El mensaje contiene caracteres no permitidos"
-        raise HTTPException(status_code=400, detail=detail) from exc
-
-    await db.commit()
-    from app.services.marquee_service import get_marquee
-
-    marquee = await get_marquee(db)
-    await broadcast_site_marquee_updated(db, redis)
-    logger.info("admin_marquee_updated", admin=str(admin.id), enabled=body.enabled)
-    return MarqueeAdminOut(**admin_marquee_payload(marquee))
 
 
 CRITICAL_AUDIT_ACTIONS = (

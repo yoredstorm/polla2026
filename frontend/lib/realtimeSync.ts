@@ -2,7 +2,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { ActivePolla, Fixture } from "@/types/api";
 import { ensureFreshSession } from "@/lib/api";
-import { siteMarqueeQueryKey } from "@/hooks/useSiteMarquee";
+import { competitionMarqueeQueryKey } from "@/hooks/useCompetitionMarquee";
 import {
   buildGoalScoredPayload,
   isSingleGoalIncrement,
@@ -43,7 +43,8 @@ export type WsEvent =
   | { type: "fixture_cheer"; data: FixtureCheerData }
   | { type: "pong" }
   | { type: "data_refresh"; data: { reason?: string } }
-  | { type: "site_marquee_updated"; data: Record<string, never> };
+  | { type: "site_marquee_updated"; data: Record<string, never> }
+  | { type: "competition_marquee_updated"; data: { competition_slug: string } };
 
 type PollaUpdatedHandler = (data: PollaUpdatedData) => void;
 type GoalScoredHandler = (data: GoalScoredData) => void;
@@ -300,7 +301,21 @@ export async function handleRealtimeMessage(
     return;
   }
   if (msg.type === "site_marquee_updated") {
-    invalidateKeys(queryClient, [siteMarqueeQueryKey()], { refetch: true });
+    queryClient.invalidateQueries({
+      predicate: (q) =>
+        Array.isArray(q.queryKey) &&
+        q.queryKey.length === 3 &&
+        q.queryKey[0] === "competition" &&
+        q.queryKey[2] === "marquee",
+      refetchType: "active",
+    });
+    return;
+  }
+  if (msg.type === "competition_marquee_updated") {
+    const slug = msg.data.competition_slug;
+    if (slug) {
+      invalidateKeys(queryClient, [competitionMarqueeQueryKey(slug)], { refetch: true });
+    }
     return;
   }
   if (msg.type === "data_refresh") {
@@ -329,8 +344,16 @@ export function softInvalidateOnReconnect(queryClient: QueryClient) {
       ["my-bets"],
       ["leaderboard"],
       ["admin"],
-      siteMarqueeQueryKey(),
+      ["competition"],
     ],
     { refetch: true },
   );
+  queryClient.invalidateQueries({
+    predicate: (q) =>
+      Array.isArray(q.queryKey) &&
+      q.queryKey.length === 3 &&
+      q.queryKey[0] === "competition" &&
+      q.queryKey[2] === "marquee",
+    refetchType: "active",
+  });
 }

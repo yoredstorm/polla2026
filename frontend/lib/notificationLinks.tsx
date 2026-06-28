@@ -39,6 +39,9 @@ export function notificationHref(n: Notification): string | null {
     if (n.type === "entry_pending" || n.type === "extra_bet_pending") {
       return competitionAdminPath(compSlug, "members");
     }
+    if (n.type === "password_reset_pending") {
+      return "/admin/password-resets";
+    }
     return `/notifications?focus=${n.id}`;
   }
   switch (n.type) {
@@ -105,7 +108,7 @@ export function notificationLinkLabel(n: Notification): string {
     case "change_request_pending":
       return "Gestionar en notificaciones";
     case "password_reset_pending":
-      return "Gestionar en notificaciones";
+      return "Ir a recuperación de clave";
     case "password_reset_resolved":
       return "Iniciar sesión";
     case "comment_mention":

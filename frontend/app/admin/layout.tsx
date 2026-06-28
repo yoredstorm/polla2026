@@ -3,13 +3,14 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
+import { usePendingPasswordResetCount } from "@/hooks/useAdmin";
 import { PageShell } from "@/components/layout/PageShell";
 import { cn } from "@/lib/utils";
 
 const platformTabs = [
   { href: "/admin/competitions", label: "Competencias" },
   { href: "/admin/users", label: "Usuarios" },
-  { href: "/admin/marquee", label: "Marquesina" },
+  { href: "/admin/password-resets", label: "Recuperar clave", badgeKey: "password-resets" as const },
 ];
 
 const LEGACY_OPERATIONAL_PREFIXES = [
@@ -24,6 +25,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const { data: pwdPending } = usePendingPasswordResetCount();
+  const pwdBadge = pwdPending?.count ?? 0;
 
   useEffect(() => {
     if (!isLoading && (!user || !user.is_admin)) {
@@ -67,6 +70,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 )}
               >
                 {tab.label}
+                {tab.badgeKey === "password-resets" && pwdBadge > 0 && (
+                  <span className="ml-1.5 inline-flex min-w-[18px] h-[18px] px-1 rounded-full bg-accent text-background text-[10px] font-bold items-center justify-center">
+                    {pwdBadge > 99 ? "99+" : pwdBadge}
+                  </span>
+                )}
               </Link>
             );
           })}

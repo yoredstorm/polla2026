@@ -3,6 +3,7 @@ import Link from "next/link";
 import { AlertTriangle, Clock, FileCheck, Zap } from "lucide-react";
 import { useAdminActionQueue } from "@/hooks/useAdmin";
 import { useCompetitionAdminActionQueue } from "@/hooks/useCompetitionAdmin";
+import { useAuth } from "@/hooks/useAuth";
 import { competitionAdminPath, competitionFixturesPath } from "@/lib/competitionPaths";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
 import { cn } from "@/lib/utils";
@@ -14,9 +15,11 @@ function urgencyStyles(urgency: string) {
 }
 
 export function AdminCommandCenter({ competitionSlug }: { competitionSlug?: string }) {
+  const { user } = useAuth();
   const globalQueue = useAdminActionQueue();
   const scopedQueue = useCompetitionAdminActionQueue(competitionSlug);
   const { data, isLoading } = competitionSlug ? scopedQueue : globalQueue;
+  const passwordResetCount = globalQueue.data?.pending.password_resets ?? 0;
 
   const adminPath = (segment: string) =>
     competitionSlug ? competitionAdminPath(competitionSlug, segment) : `/admin/${segment}`;
@@ -45,11 +48,11 @@ export function AdminCommandCenter({ competitionSlug }: { competitionSlug?: stri
             count={pending.change_requests}
             href={adminPath("requests")}
           />
-          {!competitionSlug && (
+          {user?.is_admin && (
             <QueueCard
               label="Recuperar clave"
-              count={pending.password_resets}
-              href="/admin/requests?tab=passwords"
+              count={passwordResetCount}
+              href="/admin/password-resets"
             />
           )}
           <QueueCard
