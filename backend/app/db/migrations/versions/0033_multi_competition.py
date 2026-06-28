@@ -14,6 +14,15 @@ depends_on = None
 DEFAULT_SLUG = "mundial-2026"
 
 
+def _drop_fixture_external_id_unique() -> None:
+    """Drop legacy global unique on external_id (index or constraint name varies by migration history)."""
+    conn = op.get_bind()
+    conn.execute(sa.text("DROP INDEX IF EXISTS ix_fixtures_external_id"))
+    conn.execute(
+        sa.text("ALTER TABLE fixtures DROP CONSTRAINT IF EXISTS fixtures_external_id_key")
+    )
+
+
 def upgrade() -> None:
     op.create_table(
         "competitions",
@@ -189,7 +198,7 @@ def upgrade() -> None:
         sa.text(
             """
             INSERT INTO competition_admins (id, competition_id, user_id, role)
-            SELECT :aid, :cid, u.id, 'owner'
+            SELECT gen_random_uuid(), :cid, u.id, 'owner'
             FROM users u
             WHERE u.is_admin = true
             AND NOT EXISTS (
@@ -197,17 +206,18 @@ def upgrade() -> None:
             )
             """
         ),
-        {"aid": uuid.uuid4(), "cid": comp_id},
+        {"cid": comp_id},
     )
 
-    # Drop global unique on external_id; add per-competition unique
-    op.drop_constraint("fixtures_external_id_key", "fixtures", type_="unique")
-    op.create_unique_constraint("uq_fixtures_competition_external", "fixtures", ["competition_id", "external_id"])
+    _drop_fixture_external_id_unique()
+    op.create_unique_constraint(
+        "uq_fixtures_competition_external", "fixtures", ["competition_id", "external_id"]
+    )
 
 
 def downgrade() -> None:
     op.drop_constraint("uq_fixtures_competition_external", "fixtures", type_="unique")
-    op.create_unique_constraint("fixtures_external_id_key", "fixtures", ["external_id"])
+    op.create_index("ix_fixtures_external_id", "fixtures", ["external_id"], unique=True)
 
     op.drop_index("ix_notifications_competition_id", "notifications")
     op.drop_constraint("fk_notifications_competition_id", "notifications", type_="foreignkey")
