@@ -1,10 +1,12 @@
 "use client";
 import { useQueryClient } from "@tanstack/react-query";
+import api from "@/lib/api";
 import {
   useApproveChangeRequest,
   useRejectChangeRequest,
   useConfirmExtra,
   useAddGroupMember,
+  useConfirmPhaseEnrollment,
   useResolvePasswordResetRequest,
   useRejectPasswordResetRequest,
 } from "@/hooks/useAdmin";
@@ -21,6 +23,7 @@ export function useNotificationAdminActions() {
   const rejectCr = useRejectChangeRequest();
   const confirmExtra = useConfirmExtra();
   const addMember = useAddGroupMember();
+  const confirmPhase = useConfirmPhaseEnrollment();
   const resolvePasswordReset = useResolvePasswordResetRequest();
   const rejectPasswordReset = useRejectPasswordResetRequest();
 
@@ -98,8 +101,14 @@ export function useNotificationAdminActions() {
 
   async function handleConfirmExtra(n: Notification, p: NotificationPayload) {
     if (!p.group_id || !p.bet_id) return;
+    const slug = p.competition_slug;
     try {
-      await confirmExtra.mutateAsync({ groupId: p.group_id, betId: p.bet_id });
+      if (slug) {
+        await api.post(`/c/${slug}/admin/pool/confirm-extra/${p.bet_id}`);
+        qc.invalidateQueries({ queryKey: ["competition-admin", slug] });
+      } else {
+        await confirmExtra.mutateAsync({ groupId: p.group_id, betId: p.bet_id });
+      }
       await afterAction(n);
     } catch (e) {
       if (isAlreadyResolvedError(e)) {
@@ -112,8 +121,13 @@ export function useNotificationAdminActions() {
 
   async function handleConfirmEntry(n: Notification, p: NotificationPayload) {
     if (!p.group_id || !p.user_id) return;
+    const slug = p.competition_slug;
     try {
-      await addMember.mutateAsync({ groupId: p.group_id, userId: p.user_id });
+      if (slug) {
+        await api.post(`/c/${slug}/admin/pool/members`, { user_id: p.user_id });
+      } else {
+        await addMember.mutateAsync({ groupId: p.group_id, userId: p.user_id });
+      }
       await afterAction(n);
     } catch (e) {
       if (isAlreadyResolvedError(e)) {
@@ -124,17 +138,53 @@ export function useNotificationAdminActions() {
     }
   }
 
+  async function handleConfirmPhaseEntry(n: Notification, p: NotificationPayload) {
+    if (!p.group_id || !p.user_id || !p.phase_key) return;
+    const slug = p.competition_slug;
+    try {
+      if (slug) {
+        if (p.is_member === false) {
+          await api.post(`/c/${slug}/admin/pool/members`, {
+            user_id: p.user_id,
+            phase_key: p.phase_key,
+          });
+        } else {
+          await api.post(`/c/${slug}/admin/pool/phase-enrollments`, {
+            user_id: p.user_id,
+            phase_key: p.phase_key,
+          });
+        }
+        qc.invalidateQueries({ queryKey: ["competition-admin", slug] });
+        } else {
+          await confirmPhase.mutateAsync({
+            groupId: p.group_id,
+            userId: p.user_id,
+            phaseKey: p.phase_key,
+          });
+        }
+      await afterAction(n);
+    } catch (e) {
+      if (isAlreadyResolvedError(e)) {
+        await afterAction(n, true);
+        return;
+      }
+      toast("Error al confirmar pago de fase", "error");
+    }
+  }
+
   return {
     approveCr,
     rejectCr,
     confirmExtra,
     addMember,
+    confirmPhase,
     resolvePasswordReset,
     rejectPasswordReset,
     handleApproveChange,
     handleReject,
     handleConfirmExtra,
     handleConfirmEntry,
+    handleConfirmPhaseEntry,
     handleResolvePasswordReset,
     handleRejectPasswordReset,
   };

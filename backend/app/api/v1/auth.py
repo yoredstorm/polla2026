@@ -140,13 +140,32 @@ async def register(request: Request, data: UserRegister, db: DBSession, redis: R
             )
         )
         if not member_res.scalar_one_or_none():
+            comp_id, comp_extra = None, {}
+            if active_polla.competition_id:
+                from app.models.competition import Competition
+
+                comp = await db.get(Competition, active_polla.competition_id)
+                if comp:
+                    comp_id = comp.id
+                    comp_extra = {
+                        "competition_id": str(comp.id),
+                        "competition_slug": comp.slug,
+                    }
             title, body, payload = build_entry_pending(
                 username=user.username,
                 user_id=str(user.id),
                 group_id=str(active_polla.id),
+                competition_id=comp_extra.get("competition_id"),
+                competition_slug=comp_extra.get("competition_slug"),
             )
             await notify_admins(
-                db, redis, type="entry_pending", title=title, body=body, payload=payload,
+                db,
+                redis,
+                type="entry_pending",
+                title=title,
+                body=body,
+                payload=payload,
+                competition_id=comp_id,
             )
 
     logger.info("user_registered", user_id=str(user.id))

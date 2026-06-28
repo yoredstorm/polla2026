@@ -22,7 +22,7 @@ function formatTime(iso: string, compact?: boolean) {
 
 export interface NotificationItemProps {
   notification: Notification;
-  isAdmin: boolean;
+  adminOpts: { isSuperAdmin: boolean; administeredSlugs: Set<string> };
   onRead: () => void;
   onRejectClick?: (n: Notification) => void;
   layout?: "page" | "bell";
@@ -33,7 +33,7 @@ export interface NotificationItemProps {
 
 export function NotificationItem({
   notification: n,
-  isAdmin,
+  adminOpts,
   onRead,
   onRejectClick,
   layout = "page",
@@ -43,7 +43,7 @@ export function NotificationItem({
   const p = n.payload ?? {};
   const href = notificationHref(n);
   const label = notificationLinkLabel(n);
-  const isAdminActionable = isAdminActionableNotification(n, isAdmin);
+  const isAdminActionable = isAdminActionableNotification(n, adminOpts);
   const compact = layout === "bell";
 
   const handleLinkClick = () => {
@@ -69,7 +69,7 @@ export function NotificationItem({
       <NotificationAdminActions
         notification={n}
         payload={p}
-        isAdmin={isAdmin}
+        adminOpts={adminOpts}
         layout={layout === "page" ? "stack" : "compact"}
         onRejectClick={onRejectClick}
       />

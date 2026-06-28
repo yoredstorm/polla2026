@@ -12,6 +12,7 @@ import {
   type NotificationCategory,
 } from "@/hooks/useNotifications";
 import { useAuth } from "@/hooks/useAuth";
+import { useNotificationAdminSlugs } from "@/hooks/useNotificationAdminCapability";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
 import { NotificationItem } from "@/components/features/notifications/NotificationItem";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,11 @@ const CATEGORIES: { id: NotificationCategory; label: string }[] = [
 
 function NotificationsPageContent() {
   const { user } = useAuth();
+  const administeredSlugs = useNotificationAdminSlugs();
+  const adminOpts = {
+    isSuperAdmin: !!user?.is_admin,
+    administeredSlugs,
+  };
   const searchParams = useSearchParams();
   const focusId = searchParams.get("focus");
   const [tab, setTab] = useState<NotificationFilter>(focusId ? "all" : "unread");
@@ -143,7 +149,7 @@ function NotificationsPageContent() {
             <div id={`notification-${n.id}`}>
               <NotificationItem
                 notification={n}
-                isAdmin={!!user?.is_admin}
+                adminOpts={adminOpts}
                 layout="page"
                 contentOnly
                 onRead={() => {

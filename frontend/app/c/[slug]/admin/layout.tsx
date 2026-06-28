@@ -43,7 +43,10 @@ export default function CompetitionAdminLayout({ children }: { children: React.R
 
   const pending = actionQueue?.pending;
   const requestsBadge = pending?.change_requests ?? 0;
-  const membersBadge = (pending?.entries ?? 0) + (pending?.extras ?? 0);
+  const membersBadge =
+    (pending?.entries ?? 0) +
+    (pending?.extras ?? 0) +
+    (pending?.phase_enrollments ?? 0);
 
   const adminTabs = [
     { href: competitionAdminPath(slug), label: "Dashboard", badge: 0, exact: true },

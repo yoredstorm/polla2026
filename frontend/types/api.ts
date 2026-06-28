@@ -535,6 +535,11 @@ export interface NotificationPayload {
   group_id?: string;
   user_id?: string;
   competition_slug?: string;
+  competition_id?: string;
+  phase_key?: string;
+  phase_label?: string;
+  is_member?: boolean;
+  has_proof?: boolean;
   fixture_id?: string;
   username?: string;
   status?: string;

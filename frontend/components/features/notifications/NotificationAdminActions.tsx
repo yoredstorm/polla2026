@@ -2,31 +2,30 @@
 import { useState } from "react";
 import type { Notification, NotificationPayload } from "@/types/api";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
+import { canActOnAdminNotification } from "@/hooks/useNotificationAdminCapability";
 import { Modal } from "@/components/ui/Modal";
+
+type AdminNotifyOpts = {
+  isSuperAdmin: boolean;
+  administeredSlugs: Set<string>;
+};
 
 interface NotificationAdminActionsProps {
   notification: Notification;
   payload: NotificationPayload;
-  isAdmin: boolean;
+  adminOpts: AdminNotifyOpts;
   onRejectClick?: (n: Notification) => void;
   layout?: "compact" | "stack";
 }
 
-export function isAdminActionableNotification(n: Notification, isAdmin: boolean) {
-  return (
-    isAdmin &&
-    !n.read_at &&
-    (n.type === "change_request_pending" ||
-      n.type === "extra_bet_pending" ||
-      n.type === "entry_pending" ||
-      n.type === "password_reset_pending")
-  );
+export function isAdminActionableNotification(n: Notification, adminOpts: AdminNotifyOpts) {
+  return canActOnAdminNotification(n, adminOpts);
 }
 
 export function NotificationAdminActions({
   notification: n,
   payload: p,
-  isAdmin,
+  adminOpts,
   onRejectClick,
   layout = "compact",
 }: NotificationAdminActionsProps) {
@@ -34,17 +33,19 @@ export function NotificationAdminActions({
     approveCr,
     addMember,
     confirmExtra,
+    confirmPhase,
     resolvePasswordReset,
     handleApproveChange,
     handleConfirmExtra,
     handleConfirmEntry,
+    handleConfirmPhaseEntry,
     handleResolvePasswordReset,
     handleRejectPasswordReset,
   } = useNotificationAdminActions();
 
   const [tempPasswordModal, setTempPasswordModal] = useState<string | null>(null);
 
-  if (!isAdminActionableNotification(n, isAdmin)) return null;
+  if (!isAdminActionableNotification(n, adminOpts)) return null;
 
   const approveCls =
     "text-xs py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 font-medium disabled:opacity-50";
@@ -95,6 +96,20 @@ export function NotificationAdminActions({
         className={`w-full ${approveCls} mt-1`}
       >
         Confirmar entrada
+      </button>
+    );
+  }
+
+  if (n.type === "phase_entry_pending") {
+    const phaseLabel = p.phase_label ?? p.phase_key ?? "fase";
+    return (
+      <button
+        type="button"
+        onClick={() => handleConfirmPhaseEntry(n, p)}
+        disabled={confirmPhase.isPending || addMember.isPending}
+        className={`w-full ${approveCls} mt-1`}
+      >
+        Confirmar pago — {phaseLabel}
       </button>
     );
   }

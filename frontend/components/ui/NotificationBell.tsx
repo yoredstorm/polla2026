@@ -9,6 +9,7 @@ import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
 } from "@/hooks/useNotifications";
+import { useNotificationAdminSlugs } from "@/hooks/useNotificationAdminCapability";
 import { useNotificationAdminActions } from "@/hooks/useNotificationAdminActions";
 import { useRealtimeSync } from "@/components/providers/RealtimeSyncProvider";
 import type { Notification } from "@/types/api";
@@ -32,6 +33,11 @@ export function NotificationBell() {
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
   const { handleReject, rejectCr, rejectPasswordReset } = useNotificationAdminActions();
+  const administeredSlugs = useNotificationAdminSlugs();
+  const adminOpts = {
+    isSuperAdmin: !!user?.is_admin,
+    administeredSlugs,
+  };
 
   const unread = unreadData?.count ?? 0;
   const notifications = notifPage?.data ?? [];
@@ -136,7 +142,7 @@ export function NotificationBell() {
                   >
                     <NotificationItem
                       notification={n}
-                      isAdmin={!!user.is_admin}
+                      adminOpts={adminOpts}
                       layout="bell"
                       contentOnly
                       onRead={() => {
@@ -154,7 +160,7 @@ export function NotificationBell() {
             )}
           </div>
 
-          {user.is_admin && (
+          {(user.is_admin || administeredSlugs.size > 0) && (
             <div className="px-4 py-2 border-t border-white/10">
               <Link
                 href="/admin/requests"

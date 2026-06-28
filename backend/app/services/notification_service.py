@@ -255,12 +255,30 @@ async def notify_admins(
     body: str,
     payload: dict[str, Any] | None = None,
     exclude_user_id: uuid.UUID | None = None,
+    competition_id: uuid.UUID | None = None,
 ) -> list[Notification]:
-    result = await db.execute(select(User.id).where(User.is_admin == True, User.is_active == True))
-    admin_ids = [row[0] for row in result.all()]
-    if exclude_user_id is not None and len(admin_ids) > 1:
-        admin_ids = [aid for aid in admin_ids if aid != exclude_user_id]
-    if not admin_ids:
+    admin_ids: set[uuid.UUID] = set(
+        row[0]
+        for row in (
+            await db.execute(select(User.id).where(User.is_admin == True, User.is_active == True))  # noqa: E712
+        ).all()
+    )
+    if competition_id is not None:
+        from app.models.competition import CompetitionAdmin
+
+        comp_rows = await db.execute(
+            select(CompetitionAdmin.user_id)
+            .join(User, User.id == CompetitionAdmin.user_id)
+            .where(
+                CompetitionAdmin.competition_id == competition_id,
+                User.is_active == True,  # noqa: E712
+            )
+        )
+        admin_ids.update(row[0] for row in comp_rows.all())
+    admin_id_list = list(admin_ids)
+    if exclude_user_id is not None and len(admin_id_list) > 1:
+        admin_id_list = [aid for aid in admin_id_list if aid != exclude_user_id]
+    if not admin_id_list:
         logger.warning(
             "notify_admins_no_recipients",
             type=type,
@@ -268,7 +286,7 @@ async def notify_admins(
         )
         return []
     created: list[Notification] = []
-    for admin_id in admin_ids:
+    for admin_id in admin_id_list:
         n = await create_notification(
             db, redis, user_id=admin_id, type=type, title=title, body=body, payload=payload,
         )
@@ -276,8 +294,9 @@ async def notify_admins(
     logger.info(
         "notify_admins_sent",
         type=type,
-        admin_count=len(admin_ids),
+        admin_count=len(admin_id_list),
         notification_count=len(created),
+        competition_id=str(competition_id) if competition_id else None,
     )
     return created
 
@@ -660,18 +679,24 @@ def build_entry_pending(
     user_id: str,
     group_id: str,
     has_proof: bool = False,
+    competition_id: str | None = None,
+    competition_slug: str | None = None,
 ) -> tuple[str, str, dict[str, Any]]:
     title = f"@{username}: entrada pendiente"
     if has_proof:
         body = "Usuario con comprobante subido. Revisa y confirma su pago de entrada."
     else:
         body = "Usuario registrado. Confirma su pago de entrada a la polla."
-    payload = {
+    payload: dict[str, Any] = {
         "user_id": user_id,
         "group_id": group_id,
         "username": username,
         "has_proof": has_proof,
     }
+    if competition_id:
+        payload["competition_id"] = competition_id
+    if competition_slug:
+        payload["competition_slug"] = competition_slug
     return title, body, payload
 
 

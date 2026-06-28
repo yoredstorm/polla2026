@@ -740,12 +740,14 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
     group = group_res.scalar_one_or_none()
     pending_entries = 0
     pending_extras = 0
+    pending_phase_enrollments = 0
     group_id = None
     if group:
-        from app.services.group_service import count_admin_pending_entries
+        from app.services.group_service import count_admin_pending_entries, count_all_phase_pending_entries
 
         group_id = str(group.id)
         pending_entries = await count_admin_pending_entries(db, group)
+        pending_phase_enrollments = await count_all_phase_pending_entries(db, group)
         pending_extras = (
             await db.execute(
                 select(func.count())
@@ -843,7 +845,13 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
         for r, (label, summary) in zip(audit_rows, enriched)
     ]
 
-    total_pending = int(pending_change) + int(pending_password) + int(pending_entries) + int(pending_extras)
+    total_pending = (
+        int(pending_change)
+        + int(pending_password)
+        + int(pending_entries)
+        + int(pending_extras)
+        + int(pending_phase_enrollments)
+    )
 
     return {
         "pending": {
@@ -851,6 +859,7 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
             "password_resets": int(pending_password),
             "entries": int(pending_entries),
             "extras": int(pending_extras),
+            "phase_enrollments": int(pending_phase_enrollments),
             "total": total_pending,
         },
         "group_id": group_id,
@@ -1851,12 +1860,18 @@ async def confirm_phase_enrollment_route(
         payload=n_payload,
     )
     await db.commit()
+    member_count = (
+        await db.execute(
+            select(func.count()).select_from(GroupMember).where(GroupMember.group_id == group_id)
+        )
+    ).scalar() or 0
     await broadcast_polla_updated(
         db,
         redis,
         group_id=group.id,
         prize_pool=group.prize_pool,
         previous_prize_pool=prev_pool,
+        member_count=int(member_count),
         reason="phase_enrollment_confirmed",
     )
     return {

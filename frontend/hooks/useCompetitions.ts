@@ -152,6 +152,7 @@ export function useUpdatePaymentSettings() {
 }
 
 export function useAssignCompetitionAdmin() {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: ({
       competitionId,
@@ -162,5 +163,23 @@ export function useAssignCompetitionAdmin() {
       user_id: string;
       role?: string;
     }) => api.post(`/competitions/${competitionId}/admins`, { user_id, role }),
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["competitions", vars.competitionId, "admins"] });
+    },
+  });
+}
+
+export interface CompetitionAdminRow {
+  user_id: string;
+  username: string;
+  role: string;
+}
+
+export function useCompetitionAdmins(competitionId: string | null) {
+  return useQuery({
+    queryKey: ["competitions", competitionId, "admins"],
+    queryFn: () => api.get<CompetitionAdminRow[]>(`/competitions/${competitionId}/admins`),
+    enabled: !!competitionId,
+    staleTime: 10_000,
   });
 }

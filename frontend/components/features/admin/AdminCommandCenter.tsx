@@ -39,7 +39,7 @@ export function AdminCommandCenter({ competitionSlug }: { competitionSlug?: stri
           <Zap className="w-5 h-5 text-accent" aria-hidden />
           Cola de decisiones
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
           <QueueCard
             label="Solicitudes apuesta"
             count={pending.change_requests}
@@ -60,9 +60,24 @@ export function AdminCommandCenter({ competitionSlug }: { competitionSlug?: stri
           <QueueCard
             label="Extras sin confirmar"
             count={pending.extras}
-            href={adminPath("members")}
+            href={`${adminPath("members")}#pending-extras`}
           />
+          {competitionSlug && (pending.phase_enrollments ?? 0) > 0 && (
+            <QueueCard
+              label="Inscripciones por fase"
+              count={pending.phase_enrollments ?? 0}
+              href={`${adminPath("members")}#phase-knockout`}
+            />
+          )}
         </div>
+        {competitionSlug && (pending.phase_enrollments ?? 0) > 0 && (
+          <p className="text-xs text-accent mt-2">
+            Tienes {pending.phase_enrollments} inscripción(es) por fase pendientes —{" "}
+            <Link href={`${adminPath("members")}#phase-knockout`} className="underline hover:text-white">
+              Ir a Miembros
+            </Link>
+          </p>
+        )}
         {pending.total > 0 && (
           <p className="text-xs text-muted mt-2">
             {pending.total} elemento(s) requieren tu atencion.

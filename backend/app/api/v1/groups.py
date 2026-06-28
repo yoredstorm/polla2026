@@ -102,6 +102,19 @@ async def _get_active_group(db: DBSession, competition_slug: str | None = None) 
     return result.scalar_one_or_none()
 
 
+async def _group_competition_notify(
+    db: DBSession, group: Group
+) -> tuple[uuid.UUID | None, dict[str, str]]:
+    if not group.competition_id:
+        return None, {}
+    from app.models.competition import Competition
+
+    comp = await db.get(Competition, group.competition_id)
+    if not comp:
+        return None, {}
+    return comp.id, {"competition_id": str(comp.id), "competition_slug": comp.slug}
+
+
 async def _user_has_proof(db: DBSession, group_id: uuid.UUID, user_id: uuid.UUID) -> bool:
     res = await db.execute(
         select(GroupEntryProof).where(
@@ -304,8 +317,17 @@ async def upload_entry_proof(
         group_id=str(group.id),
         has_proof=True,
     )
+    comp_id, comp_extra = await _group_competition_notify(db, group)
+    if comp_extra:
+        payload = {**payload, **comp_extra}
     await notify_admins(
-        db, redis, type="entry_pending", title=title, body=body, payload=payload,
+        db,
+        redis,
+        type="entry_pending",
+        title=title,
+        body=body,
+        payload=payload,
+        competition_id=comp_id,
     )
     await db.commit()
     return {"ok": True, "has_uploaded_proof": True}
@@ -414,18 +436,25 @@ async def upload_phase_entry_proof(
     )
     title = f"Inscripción pendiente — {phase_label(target_key, group)}"
     body = f"{current_user.username} subió comprobante para la fase {target_key}."
+    comp_id, comp_extra = await _group_competition_notify(db, group)
+    phase_payload: dict = {
+        "group_id": str(group.id),
+        "user_id": str(current_user.id),
+        "username": current_user.username,
+        "phase_key": target_key,
+        "phase_label": phase_label(target_key, group),
+        "has_proof": True,
+        "is_member": is_member,
+        **comp_extra,
+    }
     await notify_admins(
         db,
         redis,
         type="phase_entry_pending",
         title=title,
         body=body,
-        payload={
-            "group_id": str(group.id),
-            "user_id": str(current_user.id),
-            "phase_key": target_key,
-            "has_proof": True,
-        },
+        payload=phase_payload,
+        competition_id=comp_id,
     )
     await db.commit()
     return {"ok": True, "phase_key": target_key, "has_uploaded_proof": True}

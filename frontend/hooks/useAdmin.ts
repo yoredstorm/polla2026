@@ -27,6 +27,7 @@ export interface AdminActionQueue {
     password_resets: number;
     entries: number;
     extras: number;
+    phase_enrollments: number;
     total: number;
   };
   group_id: string | null;

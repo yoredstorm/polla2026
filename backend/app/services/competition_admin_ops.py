@@ -37,7 +37,7 @@ async def build_competition_action_queue(
     group: Group | None,
 ) -> dict:
     from app.core.match_timing import betting_close_at, fixture_deadline_fields
-    from app.services.group_service import count_admin_pending_entries
+    from app.services.group_service import count_admin_pending_entries, count_all_phase_pending_entries
 
     now = datetime.now(timezone.utc)
     attention_before = now + timedelta(hours=2)
@@ -57,10 +57,12 @@ async def build_competition_action_queue(
 
     pending_entries = 0
     pending_extras = 0
+    pending_phase_enrollments = 0
     group_id = None
     if group:
         group_id = str(group.id)
         pending_entries = await count_admin_pending_entries(db, group)
+        pending_phase_enrollments = await count_all_phase_pending_entries(db, group)
         pending_extras = (
             await db.execute(
                 select(func.count())
@@ -163,7 +165,12 @@ async def build_competition_action_queue(
         for r, (label, summary) in zip(audit_rows, enriched)
     ]
 
-    total_pending = int(pending_change) + int(pending_entries) + int(pending_extras)
+    total_pending = (
+        int(pending_change)
+        + int(pending_entries)
+        + int(pending_extras)
+        + int(pending_phase_enrollments)
+    )
 
     return {
         "pending": {
@@ -171,6 +178,7 @@ async def build_competition_action_queue(
             "password_resets": 0,
             "entries": int(pending_entries),
             "extras": int(pending_extras),
+            "phase_enrollments": int(pending_phase_enrollments),
             "total": total_pending,
         },
         "group_id": group_id,

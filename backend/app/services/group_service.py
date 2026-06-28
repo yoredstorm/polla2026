@@ -105,6 +105,65 @@ async def count_admin_pending_entries(db: AsyncSession, group: Group) -> int:
     return len(pending_ids)
 
 
+async def count_phase_pending_entries(
+    db: AsyncSession,
+    group: Group,
+    phase_key: str,
+) -> int:
+    """Users with phase entry proof awaiting confirmation for a specific phase."""
+    from app.models.group_phase import GroupPhaseEntryProof
+
+    gid = group.id
+    member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == gid)
+    confirmed_enr = select(GroupPhaseEnrollment.user_id).where(
+        GroupPhaseEnrollment.group_id == gid,
+        GroupPhaseEnrollment.phase_key == phase_key,
+        GroupPhaseEnrollment.status == "confirmed",
+    )
+    phase_proof_users = select(GroupPhaseEntryProof.user_id).where(
+        GroupPhaseEntryProof.group_id == gid,
+        GroupPhaseEntryProof.phase_key == phase_key,
+    )
+    member_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(GroupMember)
+            .where(
+                GroupMember.group_id == gid,
+                GroupMember.user_id.in_(phase_proof_users),
+                GroupMember.user_id.not_in(confirmed_enr),
+            )
+        )
+    ).scalar() or 0
+    if phase_key != "knockout":
+        return int(member_count)
+    non_member_count = (
+        await db.execute(
+            select(func.count())
+            .select_from(User)
+            .where(
+                User.is_active == True,  # noqa: E712
+                User.id.not_in(member_ids_q),
+                User.id.in_(phase_proof_users),
+            )
+        )
+    ).scalar() or 0
+    return int(member_count) + int(non_member_count)
+
+
+async def count_all_phase_pending_entries(db: AsyncSession, group: Group) -> int:
+    """Pending phase enrollments across knockout and current phase (deduped keys)."""
+    from app.services.prize_structure_service import get_effective_phases
+
+    pk = group.current_phase_key or get_effective_phases(group)[0]
+    phase_keys = list(dict.fromkeys([pk, "knockout"]))
+    total = 0
+    for phase_key in phase_keys:
+        if phase_key:
+            total += await count_phase_pending_entries(db, group, phase_key)
+    return total
+
+
 async def compute_confirmed_prize_pool(
     db: AsyncSession,
     group_id: uuid.UUID,

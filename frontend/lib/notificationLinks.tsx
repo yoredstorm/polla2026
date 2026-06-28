@@ -12,9 +12,18 @@ const CHALLENGE_TYPES = new Set([
 const ADMIN_ACTIONABLE = new Set([
   "extra_bet_pending",
   "entry_pending",
+  "phase_entry_pending",
   "change_request_pending",
   "password_reset_pending",
 ]);
+
+function phaseMembersHref(compSlug: string, phaseKey?: string) {
+  const base = competitionAdminPath(compSlug, "members");
+  if (phaseKey) {
+    return `${base}?focus=phase&phase_key=${encodeURIComponent(phaseKey)}#phase-${phaseKey}`;
+  }
+  return base;
+}
 
 export function notificationHref(n: Notification): string | null {
   const p: NotificationPayload = n.payload ?? {};
@@ -23,6 +32,9 @@ export function notificationHref(n: Notification): string | null {
   if (ADMIN_ACTIONABLE.has(n.type)) {
     if (n.type === "change_request_pending") {
       return competitionAdminPath(compSlug, "requests");
+    }
+    if (n.type === "phase_entry_pending") {
+      return phaseMembersHref(compSlug, p.phase_key);
     }
     if (n.type === "entry_pending" || n.type === "extra_bet_pending") {
       return competitionAdminPath(compSlug, "members");
@@ -89,6 +101,7 @@ export function notificationLinkLabel(n: Notification): string {
       return "Mis apuestas";
     case "extra_bet_pending":
     case "entry_pending":
+    case "phase_entry_pending":
     case "change_request_pending":
       return "Gestionar en notificaciones";
     case "password_reset_pending":

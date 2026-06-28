@@ -11,7 +11,9 @@ import {
   useUpdatePrizeDistribution,
   useUpdatePaymentSettings,
   useAssignCompetitionAdmin,
+  useCompetitionAdmins,
 } from "@/hooks/useCompetitions";
+import { useAdminAllUsers } from "@/hooks/useAdmin";
 import { competitionDashboardPath, competitionPath } from "@/lib/competitionPaths";
 import { useToast } from "@/components/ui/Toast";
 
@@ -30,11 +32,15 @@ export default function AdminCompetitionsPage() {
   const [logoUrl, setLogoUrl] = useState("");
   const [exactPts, setExactPts] = useState(2);
   const [winnerPts, setWinnerPts] = useState(1);
-  const [adminUserId, setAdminUserId] = useState("");
   const [paymentName, setPaymentName] = useState("");
   const [paymentPhone, setPaymentPhone] = useState("");
+  const [adminUsername, setAdminUsername] = useState("");
+  const [adminRole, setAdminRole] = useState<"owner" | "co_admin">("co_admin");
 
   const selected = comps?.find((c) => c.id === selectedId) ?? null;
+  const { data: competitionAdmins, refetch: refetchAdmins } = useCompetitionAdmins(selectedId);
+  const { data: allUsersData } = useAdminAllUsers();
+  const allUsers = allUsersData?.data ?? [];
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -110,13 +116,25 @@ export default function AdminCompetitionsPage() {
   }
 
   async function handleAssignAdmin() {
-    if (!selectedId || !adminUserId.trim()) return;
+    if (!selectedId || !adminUsername.trim()) return;
+    const user = allUsers.find(
+      (u) => u.username.toLowerCase() === adminUsername.trim().toLowerCase(),
+    );
+    if (!user) {
+      toast(`Usuario "${adminUsername.trim()}" no encontrado`, "error");
+      return;
+    }
     try {
-      await assignAdmin.mutateAsync({ competitionId: selectedId, user_id: adminUserId.trim() });
-      toast("Admin asignado", "success");
-      setAdminUserId("");
+      await assignAdmin.mutateAsync({
+        competitionId: selectedId,
+        user_id: user.id,
+        role: adminRole,
+      });
+      toast(`@${user.username} asignado como ${adminRole}`, "success");
+      setAdminUsername("");
+      void refetchAdmins();
     } catch {
-      toast("No se pudo asignar admin", "error");
+      toast("No se pudo asignar admin (puede que ya lo sea)", "error");
     }
   }
 
@@ -243,16 +261,61 @@ export default function AdminCompetitionsPage() {
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                <input
-                  className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white font-mono text-xs"
-                  placeholder="UUID del usuario admin"
-                  value={adminUserId}
-                  onChange={(e) => setAdminUserId(e.target.value)}
-                />
-                <Button type="button" size="sm" onClick={() => void handleAssignAdmin()}>
-                  Asignar competition admin
-                </Button>
+              <div className="space-y-3 rounded-xl border border-accent/20 bg-accent/5 p-4">
+                <div>
+                  <h3 className="text-sm font-medium text-white">Administradores</h3>
+                  <p className="text-xs text-muted mt-1 leading-relaxed">
+                    <strong className="text-white/80">Super admin (tú):</strong> menú Plataforma.
+                    {" "}
+                    <strong className="text-white/80">Admin de la polla:</strong> entra a la
+                    competencia → Admin → opera solo ese mundial.
+                  </p>
+                </div>
+                {(competitionAdmins ?? []).length === 0 ? (
+                  <p className="text-xs text-muted">Sin administradores asignados aún.</p>
+                ) : (
+                  <ul className="space-y-1" role="list">
+                    {(competitionAdmins ?? []).map((a) => (
+                      <li
+                        key={a.user_id}
+                        className="flex items-center justify-between text-sm rounded-lg bg-black/20 px-3 py-2"
+                      >
+                        <span className="text-white">@{a.username}</span>
+                        <span className="text-[10px] uppercase tracking-wide text-muted">
+                          {a.role === "owner" ? "Propietario" : "Co-admin"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      list="platform-admin-users"
+                      className="w-full rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                      placeholder="Buscar por username (ej. ppimentel)"
+                      value={adminUsername}
+                      onChange={(e) => setAdminUsername(e.target.value)}
+                    />
+                    <datalist id="platform-admin-users">
+                      {allUsers.map((u) => (
+                        <option key={u.id} value={u.username} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <select
+                    value={adminRole}
+                    onChange={(e) => setAdminRole(e.target.value as "owner" | "co_admin")}
+                    className="rounded-lg bg-white/5 border border-white/10 px-3 py-2 text-sm text-white"
+                    aria-label="Rol del administrador"
+                  >
+                    <option value="co_admin">Co-admin</option>
+                    <option value="owner">Propietario</option>
+                  </select>
+                  <Button type="button" size="sm" onClick={() => void handleAssignAdmin()}>
+                    Asignar
+                  </Button>
+                </div>
               </div>
             </div>
           )}
