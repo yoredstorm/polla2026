@@ -50,6 +50,7 @@ export function FixtureAdminLivePanel({
   const [awayScore, setAwayScore] = useState(fixture.away_score ?? 0);
   const [settleModalOpen, setSettleModalOpen] = useState(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [scoreDirty, setScoreDirty] = useState(false);
 
   const savedHome = fixture.home_score ?? 0;
   const savedAway = fixture.away_score ?? 0;
@@ -58,9 +59,10 @@ export function FixtureAdminLivePanel({
     (homeScore !== savedHome || awayScore !== savedAway);
 
   useEffect(() => {
+    if (scoreDirty) return;
     setHomeScore(fixture.home_score ?? 0);
     setAwayScore(fixture.away_score ?? 0);
-  }, [fixture.home_score, fixture.away_score, fixture.status]);
+  }, [fixture.home_score, fixture.away_score, fixture.status, scoreDirty]);
 
   useEffect(() => {
     if (fixture.status !== "scheduled") return;
@@ -133,6 +135,7 @@ export function FixtureAdminLivePanel({
         homeScore,
         awayScore,
       });
+      setScoreDirty(false);
       const scoringTeam = isSingleGoalIncrement(prevHome, prevAway, homeScore, awayScore);
       if (scoringTeam) {
         playGoalSoundInline(true);
@@ -155,6 +158,7 @@ export function FixtureAdminLivePanel({
         homeScore,
         awayScore,
       });
+      setScoreDirty(false);
       toast(
         `Partido liquidado — ${res.settled_count} apuesta(s) puntuadas`,
         "success",
@@ -304,14 +308,20 @@ export function FixtureAdminLivePanel({
               <ScoreStepper
                 label={fixture.home_team}
                 value={homeScore}
-                onChange={setHomeScore}
+                onChange={(value) => {
+                  setScoreDirty(true);
+                  setHomeScore(value);
+                }}
                 disabled={isPending}
               />
               <span className="text-muted font-display text-xl">–</span>
               <ScoreStepper
                 label={fixture.away_team}
                 value={awayScore}
-                onChange={setAwayScore}
+                onChange={(value) => {
+                  setScoreDirty(true);
+                  setAwayScore(value);
+                }}
                 disabled={isPending}
               />
             </div>

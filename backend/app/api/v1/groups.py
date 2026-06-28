@@ -146,15 +146,16 @@ async def get_active_polla(
     )
     is_member = member_res.scalar_one_or_none() is not None
 
-    count_res = await db.execute(select(func.count()).where(GroupMember.group_id == group.id))
-    member_count = int(count_res.scalar() or 0)
+    phase_key = group.current_phase_key or get_effective_phases(group)[0]
+    from app.services.group_service import count_phase_enrolled_members
+
+    member_count = await count_phase_enrolled_members(db, group.id, phase_key)
 
     per_match = None
     if group.fixed_bet_amount and group.fixed_bet_amount > 0:
         per_match = group.fixed_bet_amount
 
     contact_name, phone, qr_url = _active_polla_payment_fields(group)
-    phase_key = group.current_phase_key or get_effective_phases(group)[0]
     phase_fee = await get_phase_fee(db, group.id, phase_key)
     phase_entry = phase_fee.entry_fee if phase_fee else group.entry_fee
     phase_extra = phase_fee.extra_per_match if phase_fee else group.fixed_bet_amount

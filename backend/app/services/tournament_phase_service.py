@@ -187,6 +187,10 @@ async def close_phase(
     if nxt:
         group.current_phase_key = nxt
     await db.flush()
+    if nxt:
+        from app.services.group_service import sync_group_prize_pool
+
+        await sync_group_prize_pool(db, group)
     return record
 
 

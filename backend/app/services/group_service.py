@@ -13,6 +13,7 @@ import structlog
 from app.models.group import Group, GroupMember
 from app.models.group_phase import GroupPhaseEnrollment
 from app.models.bet import Bet
+from app.models.fixture import Fixture
 from app.models.user import User
 from app.schemas.group import GroupCreate, LeaderboardEntry, BadgeOut
 from app.services.avatar_service import avatar_display_path
@@ -22,16 +23,40 @@ from app.services.gamification_service import compute_badges
 logger = structlog.get_logger(__name__)
 
 
+async def count_phase_enrolled_members(
+    db: AsyncSession,
+    group_id: uuid.UUID,
+    phase_key: str,
+) -> int:
+    """Confirmed phase enrollments for participant count in the active phase."""
+    return int(
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(GroupPhaseEnrollment)
+                .where(
+                    and_(
+                        GroupPhaseEnrollment.group_id == group_id,
+                        GroupPhaseEnrollment.phase_key == phase_key,
+                        GroupPhaseEnrollment.status == "confirmed",
+                    )
+                )
+            )
+        ).scalar()
+        or 0
+    )
+
+
 async def compute_confirmed_prize_pool(
     db: AsyncSession,
     group_id: uuid.UUID,
     *,
     phase_key: str | None = None,
 ) -> Decimal:
-    """Sum confirmed entry fees for the active phase and confirmed extra bets."""
+    """Sum confirmed entry fees and confirmed extras for the given tournament phase."""
+    group_row = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_row.scalar_one_or_none()
     if phase_key is None:
-        group_row = await db.execute(select(Group).where(Group.id == group_id))
-        group = group_row.scalar_one_or_none()
         if group:
             from app.services.prize_structure_service import get_effective_phases
 
@@ -50,19 +75,35 @@ async def compute_confirmed_prize_pool(
             )
         )
     ).scalar()
-    extras_sum = (
-        await db.execute(
-            select(func.coalesce(func.sum(Bet.amount), 0)).where(
-                and_(
-                    Bet.group_id == group_id,
-                    Bet.amount > 0,
-                    Bet.amount_confirmed == True,  # noqa: E712
-                    Bet.cancelled_at.is_(None),
-                )
+
+    extras_sum = Decimal("0")
+    if group:
+        from app.services.prize_structure_service import effective_phase_fixture_filter
+
+        phase_cond = effective_phase_fixture_filter(phase_key, group)
+        extras_sum = Decimal(
+            str(
+                (
+                    await db.execute(
+                        select(func.coalesce(func.sum(Bet.amount), 0))
+                        .select_from(Bet)
+                        .join(Fixture, Bet.fixture_id == Fixture.id)
+                        .where(
+                            and_(
+                                Bet.group_id == group_id,
+                                Bet.amount > 0,
+                                Bet.amount_confirmed == True,  # noqa: E712
+                                Bet.cancelled_at.is_(None),
+                                phase_cond,
+                            )
+                        )
+                    )
+                ).scalar()
+                or 0
             )
         )
-    ).scalar()
-    return Decimal(str(enr_sum or 0)) + Decimal(str(extras_sum or 0))
+
+    return Decimal(str(enr_sum or 0)) + extras_sum
 
 
 async def sync_group_prize_pool(db: AsyncSession, group: Group) -> Decimal:
@@ -300,6 +341,9 @@ async def _fixture_level_bet_stats(
     db: AsyncSession,
     user_id: uuid.UUID,
     polla_bets,
+    *,
+    group: Group | None = None,
+    phase_key: str | None = None,
 ) -> tuple[int, int, int, int]:
     """
     Accuracy stats per fixture (best settled bet per match), not per bet row.
@@ -307,31 +351,70 @@ async def _fixture_level_bet_stats(
     Avoids counting global free + paid extra on the same match as 2 liquidadas.
     """
     scoring = _scoring_bet_sql_clause()
-    wager = int(
-        (
-            await db.execute(
-                select(func.count()).where(and_(Bet.user_id == user_id, polla_bets, scoring))
-            )
-        ).scalar()
-        or 0
-    )
-    rows = (
-        await db.execute(
-            select(
-                Bet.fixture_id,
-                func.max(Bet.points_earned).label("best_pts"),
-            )
-            .where(
-                and_(
-                    Bet.user_id == user_id,
-                    polla_bets,
-                    scoring,
-                    Bet.points_earned.isnot(None),
+    phase_cond = None
+    if group and phase_key:
+        from app.services.prize_structure_service import effective_phase_fixture_filter
+
+        phase_cond = effective_phase_fixture_filter(phase_key, group)
+
+    if phase_cond is not None:
+        wager = int(
+            (
+                await db.execute(
+                    select(func.count())
+                    .select_from(Bet)
+                    .join(Fixture, Bet.fixture_id == Fixture.id)
+                    .where(and_(Bet.user_id == user_id, polla_bets, scoring, phase_cond))
                 )
-            )
-            .group_by(Bet.fixture_id)
+            ).scalar()
+            or 0
         )
-    ).all()
+        rows = (
+            await db.execute(
+                select(
+                    Bet.fixture_id,
+                    func.max(Bet.points_earned).label("best_pts"),
+                )
+                .select_from(Bet)
+                .join(Fixture, Bet.fixture_id == Fixture.id)
+                .where(
+                    and_(
+                        Bet.user_id == user_id,
+                        polla_bets,
+                        scoring,
+                        Bet.points_earned.isnot(None),
+                        phase_cond,
+                    )
+                )
+                .group_by(Bet.fixture_id)
+            )
+        ).all()
+    else:
+        wager = int(
+            (
+                await db.execute(
+                    select(func.count()).where(and_(Bet.user_id == user_id, polla_bets, scoring))
+                )
+            ).scalar()
+            or 0
+        )
+        rows = (
+            await db.execute(
+                select(
+                    Bet.fixture_id,
+                    func.max(Bet.points_earned).label("best_pts"),
+                )
+                .where(
+                    and_(
+                        Bet.user_id == user_id,
+                        polla_bets,
+                        scoring,
+                        Bet.points_earned.isnot(None),
+                    )
+                )
+                .group_by(Bet.fixture_id)
+            )
+        ).all()
     settled = len(rows)
     correct = sum(1 for row in rows if int(row.best_pts or 0) > 0)
     wrong = sum(1 for row in rows if int(row.best_pts or 0) == 0)
@@ -354,10 +437,27 @@ async def get_group_leaderboard(
     sort: Literal["points", "accuracy", "bets"] = "points",
     min_bets: int = 1,
 ) -> list[LeaderboardEntry]:
-    min_bets = max(1, min(min_bets, 500))
+    group_res = await db.execute(select(Group).where(Group.id == group_id))
+    group = group_res.scalar_one_or_none()
+    if not group:
+        return []
+
+    from app.services.prize_structure_service import get_effective_phases
+
+    phase_key = group.current_phase_key or get_effective_phases(group)[0]
+
     result = await db.execute(
         select(GroupMember, User)
         .join(User, GroupMember.user_id == User.id)
+        .join(
+            GroupPhaseEnrollment,
+            and_(
+                GroupPhaseEnrollment.group_id == group_id,
+                GroupPhaseEnrollment.user_id == User.id,
+                GroupPhaseEnrollment.phase_key == phase_key,
+                GroupPhaseEnrollment.status == "confirmed",
+            ),
+        )
         .where(GroupMember.group_id == group_id)
     )
     rows = result.all()
@@ -365,15 +465,23 @@ async def get_group_leaderboard(
     entries: list[LeaderboardEntry] = []
     for member, user in rows:
         polla_bets = or_(Bet.group_id == group_id, Bet.group_id.is_(None))
-        wager, settled, correct, wrong = await _fixture_level_bet_stats(db, user.id, polla_bets)
-        if wager < min_bets:
-            continue
+        wager, settled, correct, wrong = await _fixture_level_bet_stats(
+            db,
+            user.id,
+            polla_bets,
+            group=group,
+            phase_key=phase_key,
+        )
         accuracy = round((correct / settled * 100) if settled > 0 else 0.0, 1)
         miss_pct = round((wrong / settled * 100) if settled > 0 else 0.0, 1)
         vis = _norm_visibility(user.bets_profile_visibility)
         ranking_pts = await _ranking_points_for_member(db, group_id, user.id, member)
-        cstats = await compute_challenge_stats(db, user.id, group_id)
-        bet_pts = await compute_bet_points_for_ranking(db, user.id, group_id)
+        cstats = await compute_challenge_stats(
+            db, user.id, group_id, group=group, phase_key=phase_key
+        )
+        bet_pts = await compute_bet_points_for_ranking(
+            db, user.id, group_id, group=group, phase_key=phase_key
+        )
         entries.append(
             LeaderboardEntry(
                 position=0,

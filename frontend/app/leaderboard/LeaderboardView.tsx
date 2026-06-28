@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { Trophy, Medal } from "lucide-react";
 import { PageShell } from "@/components/layout/PageShell";
 import { HelpSectionTitle } from "@/components/features/help/HelpSectionTitle";
 import { HelpTooltip } from "@/components/features/help/HelpTooltip";
@@ -23,17 +24,20 @@ import { TabPill } from "@/components/ui/TabPill";
 import { QueryState } from "@/components/ui/QueryState";
 
 const PAGE_SIZE = 20;
-const MIN_WAGERS = 1;
 
-// ÔöÇÔöÇ Podium card heights por posici├│n ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
-const PODIUM_CONFIG = [
-  { order: 2, height: "h-[160px]", medal: "­ƒÑç", ringColor: "ring-yellow-400/60 shadow-yellow-400/20", borderColor: "border-yellow-500/50", bg: "bg-yellow-500/8" },
-  { order: 1, height: "h-[130px]", medal: "­ƒÑê", ringColor: "ring-zinc-400/50 shadow-zinc-400/10", borderColor: "border-zinc-400/35", bg: "bg-white/[0.04]" },
-  { order: 3, height: "h-[110px]", medal: "­ƒÑë", ringColor: "ring-amber-600/50 shadow-amber-600/10", borderColor: "border-amber-700/40", bg: "bg-amber-900/10" },
-] as const;
+function RankBadge({ rank }: { rank: number }) {
+  if (rank === 1) {
+    return <Trophy className="h-4 w-4 text-yellow-400 shrink-0" aria-hidden />;
+  }
+  if (rank === 2) {
+    return <Medal className="h-4 w-4 text-zinc-300 shrink-0" aria-hidden />;
+  }
+  if (rank === 3) {
+    return <Medal className="h-4 w-4 text-amber-600 shrink-0" aria-hidden />;
+  }
+  return null;
+}
 
-
-// ÔöÇÔöÇ Tabla general paginada ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 function LeaderboardTable({
   entries,
   currentUserId,
@@ -63,8 +67,7 @@ function LeaderboardTable({
         {entries.map((entry, i) => {
           const rank = rankOffset + i + 1;
           const isMe = entry.user_id === currentUserId;
-          const rankEmoji =
-            rank === 1 ? "­ƒÑç" : rank === 2 ? "­ƒÑê" : rank === 3 ? "­ƒÑë" : null;
+          const rankBadge = rank <= 3 ? <RankBadge rank={rank} /> : null;
 
           return (
             <StaggerItem
@@ -77,10 +80,10 @@ function LeaderboardTable({
             >
               {/* Rank */}
               <span className={cn(
-                "font-display text-center text-sm shrink-0",
+                "font-display text-center text-sm shrink-0 inline-flex items-center justify-center",
                 rank === 1 ? "text-yellow-400" : rank === 2 ? "text-zinc-300" : rank === 3 ? "text-amber-600" : "text-muted/50",
               )}>
-                {rankEmoji ?? rank}
+                {rankBadge ?? rank}
               </span>
 
               {/* Player */}
@@ -101,7 +104,7 @@ function LeaderboardTable({
                   />
                 </Link>
                 {isMe && (
-                  <span className="text-[9px] text-accent bg-accent/15 px-1 py-0.5 rounded shrink-0">T├║</span>
+                  <span className="text-[9px] text-accent bg-accent/15 px-1 py-0.5 rounded shrink-0">Tú</span>
                 )}
               </div>
 
@@ -131,7 +134,7 @@ function LeaderboardTable({
   );
 }
 
-// ÔöÇÔöÇ Main page ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// Main page
 export default function LeaderboardPage() {
   const [view, setView] = useState<"global" | "weekly">("global");
   const [displayMode, setDisplayMode] = useState<"top3" | "tabla">("top3");
@@ -153,13 +156,13 @@ export default function LeaderboardPage() {
     isLoading: globalLoading,
     isError: globalError,
     refetch: refetchGlobal,
-  } = useGlobalLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
+  } = useGlobalLeaderboard(page, PAGE_SIZE, sort, 0);
   const {
     data: weekly,
     isLoading: weeklyLoading,
     isError: weeklyError,
     refetch: refetchWeekly,
-  } = useWeeklyLeaderboard(page, PAGE_SIZE, sort, MIN_WAGERS);
+  } = useWeeklyLeaderboard(page, PAGE_SIZE, sort, 0);
 
   const data = view === "global" ? global : weekly;
   const isLoading = view === "global" ? globalLoading : weeklyLoading;
@@ -197,13 +200,13 @@ export default function LeaderboardPage() {
         </Card>
       )}
 
-      {/* ÔöÇÔöÇ T├¡tulo + filtros per├¡odo ÔöÇÔöÇ */}
+      {/* Título + filtros período */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-4">
         <HelpSectionTitle as="h1" helpKey="page.leaderboard">
           Ranking
         </HelpSectionTitle>
         <div className="flex flex-wrap gap-2 items-center">
-          <HelpTooltip helpKey="page.leaderboard.period" label="Per├¡odo del ranking" />
+          <HelpTooltip helpKey="page.leaderboard.period" label="Período del ranking" />
           <Chip active={view === "global"} onClick={() => { setView("global"); setPage(1); }}>
             Global
           </Chip>
@@ -213,7 +216,7 @@ export default function LeaderboardPage() {
         </div>
       </div>
 
-      {/* ÔöÇÔöÇ Ordenar ÔöÇÔöÇ */}
+      {/* Ordenar */}
       <div className="flex flex-wrap gap-2 mb-2">
         <span className="text-xs text-muted self-center mr-2 inline-flex items-center gap-1">
           Ordenar por
@@ -226,25 +229,25 @@ export default function LeaderboardPage() {
           % acierto
         </Chip>
         <Chip active={sort === "bets"} onClick={() => { setSort("bets"); setPage(1); }} className="!px-3 !py-1.5 !text-xs">
-          M├ís apuestas
+          Más apuestas
         </Chip>
       </div>
       <p className="text-xs text-muted mb-5">
-        M├¡nimo {MIN_WAGERS} apuesta(s) registrada(s). El % acierto usa solo apuestas liquidadas.
+        Solo participantes inscritos en la fase activa. El % acierto usa apuestas liquidadas de esta fase.
       </p>
 
       <TabPill
         layoutId="leaderboard-display-mode"
         className="mb-6 w-fit"
         items={[
-          { id: "top3", label: "­ƒÅå Podio" },
+          { id: "top3", label: "Podio" },
           { id: "tabla", label: "Tabla general" },
         ]}
         value={displayMode}
         onChange={setDisplayMode}
       />
 
-      {/* ÔöÇÔöÇ Contenido ÔöÇÔöÇ */}
+      {/* Contenido */}
       <QueryState
         isLoading={isLoading}
         isError={isError}
@@ -252,7 +255,7 @@ export default function LeaderboardPage() {
         onRetry={() => refetchLeaderboard()}
         errorMessage="No se pudo cargar el ranking."
         loadingSlot={<LeaderboardListSkeleton count={6} />}
-        emptySlot={<p className="text-muted text-center py-20">Sin datos de ranking a├║n</p>}
+        emptySlot={<p className="text-muted text-center py-20">Sin datos de ranking aún</p>}
       >
       {displayMode === "top3" ? (
          <>
@@ -275,7 +278,7 @@ export default function LeaderboardPage() {
             >
               Anterior
             </Button>
-            <span className="px-4 py-2 text-muted self-center text-sm">P├ígina {page}</span>
+            <span className="px-4 py-2 text-muted self-center text-sm">Página {page}</span>
             <Button
               variant="secondary"
               size="sm"

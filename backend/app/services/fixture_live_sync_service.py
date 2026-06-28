@@ -27,6 +27,27 @@ LOCK_PREFIX = "fixture_sync:lock:"
 LOG_RETENTION_PER_FIXTURE = 200
 
 
+def apply_manual_score_control(
+    fixture: Fixture,
+    home_score: int,
+    away_score: int,
+    *,
+    scraped_status: str | None = None,
+) -> None:
+    """Prevent Google live sync from overwriting an admin-entered score."""
+    fixture.sync_mode = "manual"
+    fixture.consecutive_sync_failures = 0
+    fixture.sync_confirm_streak = 0
+    fixture.last_scraped_home = home_score
+    fixture.last_scraped_away = away_score
+    if scraped_status is not None:
+        fixture.last_scraped_status = scraped_status
+    elif fixture.status == "finished":
+        fixture.last_scraped_status = "finished"
+    elif fixture.status == "live":
+        fixture.last_scraped_status = "live"
+
+
 def _effective_poll_interval(base_seconds: int, consecutive_failures: int) -> int:
     if consecutive_failures >= 2:
         return min(base_seconds * (2 ** min(consecutive_failures - 1, 3)), 60)

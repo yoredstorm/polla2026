@@ -708,14 +708,25 @@ def duel_result_for_user(ch: Challenge, user_id: uuid.UUID) -> str:
 
 
 async def compute_challenge_stats(
-    db: AsyncSession, user_id: uuid.UUID, group_id: uuid.UUID
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    group_id: uuid.UUID,
+    *,
+    group: "Group | None" = None,
+    phase_key: str | None = None,
 ) -> dict[str, int]:
-    res = await db.execute(
-        select(Challenge).where(
-            Challenge.group_id == group_id,
-            or_(Challenge.challenger_id == user_id, Challenge.challenged_id == user_id),
-        )
+    query = select(Challenge).where(
+        Challenge.group_id == group_id,
+        or_(Challenge.challenger_id == user_id, Challenge.challenged_id == user_id),
     )
+    if group and phase_key:
+        from app.models.fixture import Fixture
+        from app.services.prize_structure_service import effective_phase_fixture_filter
+
+        phase_cond = effective_phase_fixture_filter(phase_key, group)
+        query = query.join(Fixture, Challenge.fixture_id == Fixture.id).where(phase_cond)
+
+    res = await db.execute(query)
     won = lost = active = 0
     pts_won = pts_lost = 0
     for ch in res.scalars().all():
@@ -741,27 +752,44 @@ async def compute_challenge_stats(
 
 
 async def compute_bet_points_for_ranking(
-    db: AsyncSession, user_id: uuid.UUID, group_id: uuid.UUID
+    db: AsyncSession,
+    user_id: uuid.UUID,
+    group_id: uuid.UUID,
+    *,
+    group: "Group | None" = None,
+    phase_key: str | None = None,
 ) -> int:
     """Sum fixture bet points that count toward ranking (excludes loser pts on challenge fixtures)."""
     polla_bets = or_(Bet.group_id == group_id, Bet.group_id.is_(None))
-    bets_res = await db.execute(
-        select(Bet).where(
-            Bet.user_id == user_id,
-            polla_bets,
-            Bet.points_earned.isnot(None),
-        )
+    bets_query = select(Bet).where(
+        Bet.user_id == user_id,
+        polla_bets,
+        Bet.points_earned.isnot(None),
     )
+    if group and phase_key:
+        from app.models.fixture import Fixture
+        from app.services.prize_structure_service import effective_phase_fixture_filter
+
+        phase_cond = effective_phase_fixture_filter(phase_key, group)
+        bets_query = (
+            bets_query.join(Fixture, Bet.fixture_id == Fixture.id).where(phase_cond)
+        )
+    bets_res = await db.execute(bets_query)
     bets = bets_res.scalars().all()
     lost_fixture_ids: set[uuid.UUID] = set()
-    ch_res = await db.execute(
-        select(Challenge).where(
-            Challenge.group_id == group_id,
-            Challenge.status == "settled",
-            Challenge.winner_id.isnot(None),  # noqa: E711
-            or_(Challenge.challenger_id == user_id, Challenge.challenged_id == user_id),
-        )
+    ch_query = select(Challenge).where(
+        Challenge.group_id == group_id,
+        Challenge.status == "settled",
+        Challenge.winner_id.isnot(None),  # noqa: E711
+        or_(Challenge.challenger_id == user_id, Challenge.challenged_id == user_id),
     )
+    if group and phase_key:
+        from app.models.fixture import Fixture
+        from app.services.prize_structure_service import effective_phase_fixture_filter
+
+        phase_cond = effective_phase_fixture_filter(phase_key, group)
+        ch_query = ch_query.join(Fixture, Challenge.fixture_id == Fixture.id).where(phase_cond)
+    ch_res = await db.execute(ch_query)
     for ch in ch_res.scalars().all():
         if ch.winner_id != user_id:
             lost_fixture_ids.add(ch.fixture_id)

@@ -227,6 +227,14 @@ async def update_fixture_result(
     fixture.status = body.status
     fixture.is_locked = True
     fixture.betting_open = False
+    from app.services.fixture_live_sync_service import apply_manual_score_control
+
+    apply_manual_score_control(
+        fixture,
+        body.home_score,
+        body.away_score,
+        scraped_status="finished" if body.status == "finished" else None,
+    )
     await db.flush()
     await cancel_unpaid_extras_for_fixture(db, fixture, reason="admin_settle")
 
@@ -407,6 +415,7 @@ async def update_fixture_live_score(
         raise HTTPException(status_code=400, detail="Fixture is not live")
 
     from app.services.fixture_score_timeline_service import append_score_event
+    from app.services.fixture_live_sync_service import apply_manual_score_control
 
     timeline = append_score_event(
         fixture,
@@ -414,6 +423,7 @@ async def update_fixture_live_score(
         away_score=body.away_score,
         recorded_by=admin.id,
     )
+    apply_manual_score_control(fixture, body.home_score, body.away_score, scraped_status="live")
     await db.commit()
     await broadcast_fixture_updated(
         db,
@@ -464,12 +474,14 @@ async def register_fixture_goal(
         raise HTTPException(status_code=400, detail="Fixture is not live")
 
     from app.services.fixture_score_timeline_service import register_goal
+    from app.services.fixture_live_sync_service import apply_manual_score_control
 
     timeline, home, away, prev_home, prev_away = register_goal(
         fixture,
         team=body.team,
         recorded_by=admin.id,
     )
+    apply_manual_score_control(fixture, home, away, scraped_status="live")
     recorded_at = timeline[-1]["recorded_at"] if timeline else datetime.now(timezone.utc).isoformat()
     scoring_name = fixture.home_team if body.team == "home" else fixture.away_team
     minute = _fixture_match_minute(fixture)

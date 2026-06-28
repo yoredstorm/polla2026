@@ -71,7 +71,7 @@ function MyBetsPageContent() {
               Mis Apuestas
             </HelpSectionTitle>
             <p className="text-sm text-muted mt-1">
-              Pron├│sticos y retos 1v1 con trazabilidad de puntos en el ranking.
+              Pronósticos y retos 1v1 con trazabilidad de puntos en el ranking.
             </p>
           </div>
           {polla && (
@@ -106,16 +106,16 @@ function MyBetsPageContent() {
         )}
 
         <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs text-muted">Pesta├▒as</span>
+          <span className="text-xs text-muted">Pestañas</span>
           {tab === "pronosticos" ? (
-            <HelpTooltip helpKey="page.myBets.predictions" label="Pron├│sticos" />
+            <HelpTooltip helpKey="page.myBets.predictions" label="Pronósticos" />
           ) : (
             <HelpTooltip helpKey="page.myBets.challenges" label="Retos 1v1" />
           )}
         </div>
         <TabPill
           items={[
-            { id: "pronosticos" as const, label: "Pron├│sticos" },
+            { id: "pronosticos" as const, label: "Pronósticos" },
             ...(challengesEnabled ? [{ id: "retos" as const, label: "Retos 1v1" }] : []),
           ]}
           value={tab}
@@ -132,7 +132,7 @@ function MyBetsPageContent() {
               <div className="text-center py-20">
                 <p className="text-muted mb-4">Aun no tienes apuestas</p>
                 <Link href="/fixtures" className="text-accent hover:underline">
-                  Ver partidos disponibles ÔåÆ
+                  Ver partidos disponibles →
                 </Link>
               </div>
             ) : (
@@ -157,7 +157,7 @@ function MyBetsPageContent() {
                       disabled={page === 1}
                       onClick={() => setPage((p) => p - 1)}
                     >
-                      ÔåÉ Anterior
+                      ← Anterior
                     </Button>
                     <span className="px-4 py-2 text-muted">
                       {page} / {data.pagination.total_pages}
@@ -169,7 +169,7 @@ function MyBetsPageContent() {
                       disabled={page >= data.pagination.total_pages}
                       onClick={() => setPage((p) => p + 1)}
                     >
-                      Siguiente ÔåÆ
+                      Siguiente →
                     </Button>
                   </div>
                 )}

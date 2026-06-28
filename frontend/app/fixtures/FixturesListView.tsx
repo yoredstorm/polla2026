@@ -153,7 +153,7 @@ export default function FixturesPage() {
           <div className="flex flex-col gap-4 mt-2">{filterPanel}</div>
         </Sheet>
 
-        <h2 className="text-sm font-medium text-white/90 mb-3">Pr├│ximos y en curso</h2>
+        <h2 className="text-sm font-medium text-white/90 mb-3">Próximos y en curso</h2>
 
         <QueryState
           isLoading={isLoading}
@@ -185,9 +185,9 @@ export default function FixturesPage() {
                   disabled={page === 1}
                   onClick={() => setPage((p) => p - 1)}
                   className="px-4 py-2 rounded-lg bg-white/5 text-muted hover:bg-white/10 disabled:opacity-30 min-h-11"
-                  aria-label="P├ígina anterior"
+                  aria-label="Página anterior"
                 >
-                  ÔåÉ Anterior
+                  ← Anterior
                 </button>
                 <span className="px-4 py-2 text-muted" aria-current="page">
                   {page} / {data.pagination.total_pages}
@@ -196,9 +196,9 @@ export default function FixturesPage() {
                   disabled={page >= data.pagination.total_pages}
                   onClick={() => setPage((p) => p + 1)}
                   className="px-4 py-2 rounded-lg bg-white/5 text-muted hover:bg-white/10 disabled:opacity-30 min-h-11"
-                  aria-label="P├ígina siguiente"
+                  aria-label="Página siguiente"
                 >
-                  Siguiente ÔåÆ
+                  Siguiente →
                 </button>
               </div>
             )}
@@ -212,7 +212,7 @@ export default function FixturesPage() {
         >
           <h2 className="font-display text-xl text-white mb-1">Partidos culminados</h2>
           <p className="text-muted text-sm mb-6">
-            Resultados finales cuando el administrador liquida el partido. Tambi├®n recibir├ís una notificaci├│n con el marcador.
+            Resultados finales cuando el administrador liquida el partido. También recibirás una notificación con el marcador.
           </p>
 
           <QueryState
@@ -230,7 +230,7 @@ export default function FixturesPage() {
             }
             emptySlot={
               <div className="text-center text-muted py-12 rounded-xl border border-white/5 bg-white/[0.02]">
-                A├║n no hay partidos finalizados para este filtro.
+                Aún no hay partidos finalizados para este filtro.
               </div>
             }
           >

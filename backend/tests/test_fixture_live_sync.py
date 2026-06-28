@@ -210,3 +210,67 @@ async def test_sync_failure_threshold(db_session, monkeypatch):
 
     assert fixture.sync_mode == "failed"
     assert "fixture_sync_failed_admin" in notified
+
+
+@pytest.mark.asyncio
+async def test_manual_score_control_prevents_google_overwrite(db_session, monkeypatch):
+    settings = LiveSyncSettings(id=1, confirm_reads_required=1)
+    db_session.add(settings)
+    now = datetime.now(timezone.utc)
+    fixture = Fixture(
+        id=uuid4(),
+        external_id=9004,
+        home_team="Argentina",
+        away_team="France",
+        league_name="Test",
+        league_id=1,
+        match_date=now - timedelta(minutes=30),
+        season=2026,
+        status="live",
+        home_score=3,
+        away_score=1,
+        sync_mode="auto",
+    )
+    db_session.add(fixture)
+    await db_session.flush()
+
+    from app.services.fixture_live_sync_service import apply_manual_score_control
+
+    apply_manual_score_control(fixture, 3, 1, scraped_status="live")
+    await db_session.flush()
+
+    auto_update = AsyncMock()
+    monkeypatch.setattr(
+        "app.services.fixture_live_sync_service.auto_update_live_score",
+        auto_update,
+    )
+
+    html = _load_html("colombia_portugal_finished.html")
+
+    async def fake_fetch(*_args, **_kwargs):
+        parsed = parse_google_sports_html(
+            html,
+            home_team="Argentina",
+            away_team="France",
+            search_url="https://example.com",
+        )
+        return parsed, 25
+
+    monkeypatch.setattr(
+        "app.services.fixture_live_sync_service.fetch_google_match",
+        fake_fetch,
+    )
+    monkeypatch.setattr("app.services.fixture_live_sync_service.notify_admins", lambda *a, **k: None)
+
+    settings_row = await get_live_sync_settings(db_session, redis=None)
+    await poll_fixture_sync(db_session, None, fixture, settings_row)
+
+    assert fixture.home_score == 3
+    assert fixture.away_score == 1
+    assert fixture.sync_mode == "manual"
+    auto_update.assert_not_called()
+    logs = (
+        await db_session.execute(select(FixtureSyncLog).where(FixtureSyncLog.fixture_id == fixture.id))
+    ).scalars().all()
+    assert len(logs) == 1
+    assert logs[0].action_taken == "skipped_manual"

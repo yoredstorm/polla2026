@@ -74,7 +74,7 @@ export default function DashboardPage() {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })
-      : "ÔÇö";
+      : "—";
 
   const { bannerVisible, dismissBanner, markTourDone } = useHelpTour();
   const { startTour } = useHelpTourRunner(markTourDone);
@@ -106,11 +106,11 @@ export default function DashboardPage() {
             Hola, {user?.first_name ?? user?.username}
           </HelpSectionTitle>
 
-          <p className="text-muted mt-1">Tu hub de pron├│sticos y competencia</p>
+          <p className="text-muted mt-1">Tu hub de pronósticos y competencia</p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
           <Button type="button" variant="ghost" size="sm" onClick={startTour}>
-            Ver gu├¡a del sistema
+            Ver guía del sistema
           </Button>
           <Link
             href="/profile"
@@ -156,7 +156,7 @@ export default function DashboardPage() {
             <span className="text-xs text-muted uppercase tracking-wide">
               Tu resumen
             </span>
-            <HelpTooltip helpKey="page.dashboard.stats" label="Estad├¡sticas" />
+            <HelpTooltip helpKey="page.dashboard.stats" label="Estadísticas" />
           </div>
           <StaggerItem index={0}>
           <Card className="p-4 text-center col-span-1 lg:col-span-1" glow>
@@ -176,13 +176,13 @@ export default function DashboardPage() {
           </StaggerItem>
           <StaggerItem index={2}>
           <Card className="p-4 col-span-2 lg:col-span-2 flex flex-col justify-center">
-            <p className="text-xs text-muted">Distancia al l├¡der</p>
+            <p className="text-xs text-muted">Distancia al líder</p>
             <p className="font-display text-xl text-white mt-1">
               {gapToLeader === 0
-                ? "Eres el l├¡der"
+                ? "Eres el líder"
                 : gapToLeader != null
                   ? `${gapToLeader} pts para alcanzar a ${leader?.username}`
-                  : "ÔÇö"}
+                  : "—"}
             </p>
           </Card>
           </StaggerItem>
@@ -199,9 +199,9 @@ export default function DashboardPage() {
                 className="font-display text-lg"
               />
               <p className="text-xs text-muted mt-1">
-                {rivalData.rival.wins}V ÔÇô {rivalData.rival.losses}D
+                {rivalData.rival.wins}V – {rivalData.rival.losses}D
                 {rivalData.rival.draws > 0
-                  ? ` ÔÇô ${rivalData.rival.draws}E`
+                  ? ` – ${rivalData.rival.draws}E`
                   : ""}
               </p>
             </Card>
@@ -217,7 +217,7 @@ export default function DashboardPage() {
             helpKey="page.dashboard.nextMatch"
             className="font-display text-lg text-white mb-3"
           >
-            Pr├│ximo partido
+            Próximo partido
           </HelpSectionTitle>
           <Link
             href={`/fixtures/${hero.id}`}
@@ -249,7 +249,7 @@ export default function DashboardPage() {
               helpKey="page.dashboard.upcoming"
               className="font-display text-xl text-white mb-4"
             >
-              Pr├│ximos partidos
+              Próximos partidos
             </HelpSectionTitle>
             {fixturesError ? (
               <div className="text-center py-8 space-y-2">
@@ -290,11 +290,11 @@ export default function DashboardPage() {
               helpKey="page.dashboard.scoring"
               className="font-display text-xl text-white mb-1"
             >
-              Reglas de puntuaci├│n
+              Reglas de puntuación
             </HelpSectionTitle>
 
             <p className="text-xs text-muted mb-4">
-              As├¡ se calculan los puntos al liquidar cada partido.
+              Así se calculan los puntos al liquidar cada partido.
             </p>
             <div className="grid grid-cols-3 gap-3">
               <Card
@@ -324,7 +324,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="space-y-6">
-          {/* --- SECCI├ôN ACTUALIZADA DEL POZO (CHANCHITO ROSA) --- */}
+          {/* --- SECCIÓN ACTUALIZADA DEL POZO (CHANCHITO ROSA) --- */}
           {polla ? (
             <div data-help-tour="prize-pool" className="relative">
               <div className="flex items-center justify-center gap-2 mb-2">
@@ -360,7 +360,7 @@ export default function DashboardPage() {
           ) : (
             <Card className="p-5 flex items-center gap-3">
               <div className="w-16 h-10 rounded-full border border-dashed border-muted/50 bg-muted/5"></div>
-              <p className="text-sm text-muted">Pozo no configurado a├║n.</p>
+              <p className="text-sm text-muted">Pozo no configurado aún.</p>
             </Card>
           )}
 

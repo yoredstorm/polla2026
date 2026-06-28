@@ -247,3 +247,132 @@ async def test_close_groups_advances_with_early_knockout_enrollees(db_session):
 
     pool = await compute_confirmed_prize_pool(db_session, group.id)
     assert pool == Decimal("10")
+
+
+@pytest.mark.asyncio
+async def test_prize_pool_excludes_groups_extras_when_in_knockout(db_session):
+    from app.models.bet import Bet
+
+    user = User(username="extra_pool_user", hashed_password="x")
+    db_session.add(user)
+    await db_session.flush()
+
+    group = await _groups_knockout_polla(db_session, user)
+    group.current_phase_key = "knockout"
+    db_session.add(GroupMember(group_id=group.id, user_id=user.id))
+    db_session.add(
+        GroupPhaseEnrollment(
+            group_id=group.id,
+            user_id=user.id,
+            phase_key="groups",
+            status="confirmed",
+            entry_fee_paid=Decimal("10"),
+        )
+    )
+    db_session.add(
+        GroupPhaseEnrollment(
+            group_id=group.id,
+            user_id=user.id,
+            phase_key="knockout",
+            status="confirmed",
+            entry_fee_paid=Decimal("10"),
+        )
+    )
+    group_fixture = _fixture(910, group_name="Group C", status="finished")
+    db_session.add(group_fixture)
+    await db_session.flush()
+    db_session.add(
+        Bet(
+            user_id=user.id,
+            fixture_id=group_fixture.id,
+            group_id=group.id,
+            predicted_home_score=1,
+            predicted_away_score=0,
+            amount=Decimal("25"),
+            amount_confirmed=True,
+        )
+    )
+    await db_session.flush()
+
+    pool = await compute_confirmed_prize_pool(db_session, group.id)
+    assert pool == Decimal("10")
+
+
+@pytest.mark.asyncio
+async def test_leaderboard_knockout_only_enrolled(db_session):
+    from app.services.group_service import get_group_leaderboard
+
+    paid = User(username="lb_paid", hashed_password="x")
+    unpaid = User(username="lb_unpaid", hashed_password="x")
+    db_session.add_all([paid, unpaid])
+    await db_session.flush()
+
+    group = await _groups_knockout_polla(db_session, paid)
+    db_session.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=paid.id, total_points=0),
+            GroupMember(group_id=group.id, user_id=unpaid.id, total_points=0),
+        ]
+    )
+    for uid in (paid.id, unpaid.id):
+        db_session.add(
+            GroupPhaseEnrollment(
+                group_id=group.id,
+                user_id=uid,
+                phase_key="groups",
+                status="confirmed",
+                entry_fee_paid=Decimal("10"),
+            )
+        )
+    await confirm_phase_enrollment(db_session, group, paid.id, "knockout", paid.id)
+    db_session.add(_fixture(911, group_name="Group D", status="finished"))
+    await db_session.flush()
+
+    await close_phase(db_session, group, "groups")
+    await db_session.refresh(group)
+    assert group.current_phase_key == "knockout"
+
+    board = await get_group_leaderboard(db_session, group.id)
+    assert len(board) == 1
+    assert board[0].user_id == paid.id
+    assert board[0].total_points == 0
+
+
+@pytest.mark.asyncio
+async def test_member_count_is_phase_enrollment_count(db_session):
+    from app.services.group_service import count_phase_enrolled_members
+
+    owner = User(username="count_owner", hashed_password="x")
+    u2 = User(username="count_u2", hashed_password="x")
+    db_session.add_all([owner, u2])
+    await db_session.flush()
+
+    group = await _groups_knockout_polla(db_session, owner)
+    group.current_phase_key = "knockout"
+    db_session.add_all(
+        [
+            GroupMember(group_id=group.id, user_id=owner.id),
+            GroupMember(group_id=group.id, user_id=u2.id),
+        ]
+    )
+    db_session.add(
+        GroupPhaseEnrollment(
+            group_id=group.id,
+            user_id=owner.id,
+            phase_key="knockout",
+            status="confirmed",
+            entry_fee_paid=Decimal("10"),
+        )
+    )
+    db_session.add(
+        GroupPhaseEnrollment(
+            group_id=group.id,
+            user_id=u2.id,
+            phase_key="groups",
+            status="confirmed",
+            entry_fee_paid=Decimal("10"),
+        )
+    )
+    await db_session.flush()
+
+    assert await count_phase_enrolled_members(db_session, group.id, "knockout") == 1
