@@ -3,7 +3,13 @@
 import Link from "next/link";
 import { PageShell } from "@/components/layout/PageShell";
 import { MatchCardSkeleton } from "@/components/ui/Skeleton";
-import { useDiscoverCompetitions, useMyCompetitions } from "@/hooks/useCompetitions";
+import { useAuth } from "@/hooks/useAuth";
+import {
+  useAdminCompetitions,
+  useAdministeredCompetitions,
+  useDiscoverCompetitions,
+  useMyCompetitions,
+} from "@/hooks/useCompetitions";
 import { competitionDashboardPath } from "@/lib/competitionPaths";
 import { cn } from "@/lib/utils";
 
@@ -76,10 +82,21 @@ function CompetitionGrid({
 }
 
 export default function CompetitionsPickerPage() {
+  const { user } = useAuth();
   const { data: mine, isLoading: mineLoading } = useMyCompetitions();
   const { data: discover, isLoading: discoverLoading } = useDiscoverCompetitions();
+  const { data: allComps, isLoading: allLoading } = useAdminCompetitions({
+    enabled: !!user?.is_admin,
+  });
+  const { data: administered, isLoading: administeredLoading } = useAdministeredCompetitions();
 
-  if (mineLoading || discoverLoading) {
+  const isLoading =
+    mineLoading ||
+    discoverLoading ||
+    (user?.is_admin && allLoading) ||
+    administeredLoading;
+
+  if (isLoading) {
     return (
       <PageShell maxWidth="lg">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -104,6 +121,23 @@ export default function CompetitionsPickerPage() {
         items={mine ?? []}
         empty="Aún no te has unido a ninguna competencia. Explora las disponibles abajo."
       />
+      {user?.is_admin && (
+        <CompetitionGrid
+          title="Todas las competencias (plataforma)"
+          items={(allComps ?? []).map((c) => ({
+            ...c,
+            is_member: mine?.some((m) => m.slug === c.slug) ?? false,
+          }))}
+          empty="No hay competencias registradas."
+        />
+      )}
+      {!user?.is_admin && (administered?.length ?? 0) > 0 && (
+        <CompetitionGrid
+          title="Administro"
+          items={administered ?? []}
+          empty=""
+        />
+      )}
       <CompetitionGrid
         title="Descubrir"
         items={(discover ?? []).filter((c) => !c.is_member)}

@@ -1,4 +1,5 @@
 import type { Notification, NotificationPayload } from "@/types/api";
+import { DEFAULT_COMPETITION_SLUG, competitionAdminPath, competitionFixturesPath } from "@/lib/competitionPaths";
 
 const CHALLENGE_TYPES = new Set([
   "challenge_pending",
@@ -17,21 +18,31 @@ const ADMIN_ACTIONABLE = new Set([
 
 export function notificationHref(n: Notification): string | null {
   const p: NotificationPayload = n.payload ?? {};
+  const compSlug =
+    (typeof p.competition_slug === "string" && p.competition_slug) || DEFAULT_COMPETITION_SLUG;
   if (ADMIN_ACTIONABLE.has(n.type)) {
+    if (n.type === "change_request_pending") {
+      return competitionAdminPath(compSlug, "requests");
+    }
+    if (n.type === "entry_pending" || n.type === "extra_bet_pending") {
+      return competitionAdminPath(compSlug, "members");
+    }
     return `/notifications?focus=${n.id}`;
   }
   switch (n.type) {
     case "fixture_finished":
     case "fixture_betting_closed":
-      return p.fixture_id ? `/fixtures/${p.fixture_id}` : "/fixtures#culminados";
+      return p.fixture_id
+        ? competitionFixturesPath(compSlug, p.fixture_id)
+        : competitionFixturesPath(compSlug);
     case "fixture_betting_closed_admin":
     case "fixture_betting_soon_admin":
-      return p.fixture_id ? `/admin/fixtures` : "/admin";
+      return competitionAdminPath(compSlug, "fixtures");
     case "change_request_resolved":
     case "change_request_expired":
       return "/my-bets?tab=pronosticos";
     case "change_request_expired_batch":
-      return "/admin/requests";
+      return competitionAdminPath(compSlug, "requests");
     case "badge_earned":
       return "/dashboard#medallas";
     case "social_follow":

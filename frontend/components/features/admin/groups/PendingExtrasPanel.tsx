@@ -1,13 +1,21 @@
 "use client";
 import { useState } from "react";
-import { usePendingExtras, useConfirmExtra } from "@/hooks/useAdmin";
+import { useScopedConfirmExtra, useScopedPendingExtras } from "@/hooks/admin/useScopedGroupAdmin";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { getApiErrorMessage } from "@/lib/challengeUtils";
 import { useToast } from "@/components/ui/Toast";
 
-export function PendingExtrasPanel({ pollaId, currency }: { pollaId: string; currency: string }) {
-  const { data: extras, isLoading } = usePendingExtras(pollaId);
-  const confirmExtra = useConfirmExtra();
+export function PendingExtrasPanel({
+  pollaId,
+  currency,
+  competitionSlug,
+}: {
+  pollaId: string;
+  currency: string;
+  competitionSlug?: string;
+}) {
+  const { data: extras, isLoading } = useScopedPendingExtras(pollaId, competitionSlug);
+  const confirmExtra = useScopedConfirmExtra(competitionSlug);
   const toast = useToast((s) => s.add);
   const [confirmed, setConfirmed] = useState<Record<string, string>>({});
 

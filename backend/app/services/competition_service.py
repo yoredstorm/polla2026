@@ -192,3 +192,14 @@ async def list_discoverable_competitions(db: AsyncSession) -> list[Competition]:
         .order_by(Competition.name.asc())
     )
     return list(result.scalars().all())
+
+
+async def list_administered_competitions(db: AsyncSession, user_id: uuid.UUID) -> list[Competition]:
+    """Competitions where user is competition_admin (not super_admin bypass)."""
+    result = await db.execute(
+        select(Competition)
+        .join(CompetitionAdmin, CompetitionAdmin.competition_id == Competition.id)
+        .where(CompetitionAdmin.user_id == user_id)
+        .order_by(Competition.name.asc())
+    )
+    return list(result.scalars().unique().all())

@@ -176,3 +176,140 @@ async def test_competition_admin_cannot_import_other_competition(
         files=files,
     )
     assert resp.status_code == 403
+
+
+async def _setup_cups_with_admin(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    *,
+    super_username: str | None = None,
+    comp_admin_username: str | None = None,
+):
+    suffix = uuid.uuid4().hex[:8]
+    super_username = super_username or f"rbac_super_{suffix}"
+    comp_admin_username = comp_admin_username or f"rbac_comp_admin_{suffix}"
+    slug_a = f"cup-a-{suffix}"
+    slug_b = f"cup-b-{suffix}"
+
+    await _register(client, super_username)
+    await _make_super_admin(db_session, super_username)
+    await db_session.commit()
+
+    for slug, name in ((slug_a, "Cup A"), (slug_b, "Cup B")):
+        resp = await client.post(
+            "/api/v1/competitions",
+            json={"slug": slug, "name": name, "status": "open"},
+        )
+        assert resp.status_code == 201, resp.text
+
+    await _register(client, comp_admin_username)
+    comp_admin = (
+        await db_session.execute(select(User).where(User.username == comp_admin_username))
+    ).scalar_one()
+    comp_a = await get_competition_by_slug(db_session, slug_a)
+    assert comp_a is not None
+    db_session.add(
+        CompetitionAdmin(competition_id=comp_a.id, user_id=comp_admin.id, role="owner")
+    )
+    await db_session.commit()
+
+    await client.post(
+        "/api/v1/auth/login",
+        json={"username": comp_admin_username, "password": "MultiComp1!"},
+    )
+    return comp_admin, comp_a, slug_a, slug_b, super_username
+
+
+async def test_competition_admin_scoped_action_queue_cross_competition(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    _, _, slug_a, slug_b, _ = await _setup_cups_with_admin(client, db_session)
+
+    ok = await client.get(f"/api/v1/c/{slug_a}/admin/action-queue")
+    assert ok.status_code == 200
+
+    forbidden = await client.get(f"/api/v1/c/{slug_b}/admin/action-queue")
+    assert forbidden.status_code == 403
+
+
+async def test_competition_admin_forbidden_on_global_admin_and_list_all(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    await _setup_cups_with_admin(client, db_session)
+
+    assert (await client.get("/api/v1/admin/action-queue")).status_code == 403
+    assert (await client.get("/api/v1/competitions")).status_code == 403
+
+
+async def test_competition_admin_administered_list(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    _, _, slug_a, _, _ = await _setup_cups_with_admin(client, db_session)
+
+    resp = await client.get("/api/v1/competitions/administered")
+    assert resp.status_code == 200
+    slugs = [c["slug"] for c in resp.json()]
+    assert slugs == [slug_a]
+
+
+async def test_super_admin_list_all_and_context_bypass(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    _, _, _, slug_b, super_username = await _setup_cups_with_admin(client, db_session)
+
+    await client.post(
+        "/api/v1/auth/login",
+        json={"username": super_username, "password": "MultiComp1!"},
+    )
+
+    all_resp = await client.get("/api/v1/competitions")
+    assert all_resp.status_code == 200
+    slugs = {c["slug"] for c in all_resp.json()}
+    assert slug_b in slugs
+
+    ctx = await client.get(f"/api/v1/c/{slug_b}/context")
+    assert ctx.status_code == 200
+    body = ctx.json()
+    assert body["is_admin"] is True
+    assert body["is_member"] is False
+
+    scoped = await client.get(f"/api/v1/c/{slug_b}/admin/action-queue")
+    assert scoped.status_code == 200
+
+
+async def test_super_admin_assigns_competition_admin(
+    client: AsyncClient,
+    db_session: AsyncSession,
+):
+    new_admin_name = f"rbac_new_admin_{uuid.uuid4().hex[:8]}"
+    _, _, _, slug_b, super_username = await _setup_cups_with_admin(client, db_session)
+
+    await _register(client, new_admin_name)
+    new_admin = (
+        await db_session.execute(select(User).where(User.username == new_admin_name))
+    ).scalar_one()
+    comp_b = await get_competition_by_slug(db_session, slug_b)
+    assert comp_b is not None
+
+    await client.post(
+        "/api/v1/auth/login",
+        json={"username": super_username, "password": "MultiComp1!"},
+    )
+    assign = await client.post(
+        f"/api/v1/competitions/{comp_b.id}/admins",
+        json={"user_id": str(new_admin.id), "role": "co_admin"},
+    )
+    assert assign.status_code == 201
+
+    await client.post(
+        "/api/v1/auth/login",
+        json={"username": new_admin_name, "password": "MultiComp1!"},
+    )
+    ctx = await client.get(f"/api/v1/c/{slug_b}/context")
+    assert ctx.status_code == 200
+    assert ctx.json()["is_admin"] is True
+

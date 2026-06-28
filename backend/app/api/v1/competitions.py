@@ -39,6 +39,7 @@ from pydantic import BaseModel
 from app.services.competition_admin_service import create_competition, competition_member_count
 from app.services.competition_service import (
     competition_branding,
+    list_administered_competitions,
     list_discoverable_competitions,
     list_user_competitions,
     user_is_competition_admin,
@@ -79,6 +80,21 @@ async def list_my_competitions(request: Request, current_user: CurrentUser, db: 
     for comp in comps:
         count = await competition_member_count(db, comp.id)
         out.append(_card(comp, is_member=True, member_count=count))
+    return out
+
+
+@router.get("/administered", response_model=List[CompetitionCardOut])
+@limiter.limit(GLOBAL_RATE_LIMIT)
+async def list_administered_competition_cards(
+    request: Request, current_user: CurrentUser, db: DBSession
+):
+    """Competitions the user administers (competition_admins table)."""
+    comps = await list_administered_competitions(db, current_user.id)
+    out: List[CompetitionCardOut] = []
+    for comp in comps:
+        is_member = await user_is_competition_member(db, current_user.id, comp.id)
+        count = await competition_member_count(db, comp.id)
+        out.append(_card(comp, is_member=is_member, member_count=count))
     return out
 
 

@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { AlertTriangle, Clock, FileCheck, Zap } from "lucide-react";
 import { useAdminActionQueue } from "@/hooks/useAdmin";
+import { useCompetitionAdminActionQueue } from "@/hooks/useCompetitionAdmin";
+import { competitionAdminPath, competitionFixturesPath } from "@/lib/competitionPaths";
 import { FixtureDeadlineCountdown } from "@/components/features/betting/FixtureDeadlineCountdown";
 import { cn } from "@/lib/utils";
 
@@ -11,8 +13,17 @@ function urgencyStyles(urgency: string) {
   return "border-white/10 bg-glass";
 }
 
-export function AdminCommandCenter() {
-  const { data, isLoading } = useAdminActionQueue();
+export function AdminCommandCenter({ competitionSlug }: { competitionSlug?: string }) {
+  const globalQueue = useAdminActionQueue();
+  const scopedQueue = useCompetitionAdminActionQueue(competitionSlug);
+  const { data, isLoading } = competitionSlug ? scopedQueue : globalQueue;
+
+  const adminPath = (segment: string) =>
+    competitionSlug ? competitionAdminPath(competitionSlug, segment) : `/admin/${segment}`;
+  const fixturePublicPath = (fixtureId: string) =>
+    competitionSlug
+      ? competitionFixturesPath(competitionSlug, fixtureId)
+      : `/fixtures/${fixtureId}`;
 
   if (isLoading) {
     return <p className="text-muted text-sm">Cargando centro de mando...</p>;
@@ -32,22 +43,24 @@ export function AdminCommandCenter() {
           <QueueCard
             label="Solicitudes apuesta"
             count={pending.change_requests}
-            href="/admin/requests"
+            href={adminPath("requests")}
           />
-          <QueueCard
-            label="Recuperar clave"
-            count={pending.password_resets}
-            href="/admin/requests?tab=passwords"
-          />
+          {!competitionSlug && (
+            <QueueCard
+              label="Recuperar clave"
+              count={pending.password_resets}
+              href="/admin/requests?tab=passwords"
+            />
+          )}
           <QueueCard
             label="Entradas pendientes"
             count={pending.entries}
-            href={group_id ? `/admin/groups` : "/admin/groups"}
+            href={adminPath("members")}
           />
           <QueueCard
             label="Extras sin confirmar"
             count={pending.extras}
-            href={group_id ? `/admin/groups` : "/admin/groups"}
+            href={adminPath("members")}
           />
         </div>
         {pending.total > 0 && (
@@ -105,13 +118,13 @@ export function AdminCommandCenter() {
                 </div>
                 <div className="flex flex-wrap gap-2 shrink-0">
                   <Link
-                    href={`/admin/fixtures`}
+                    href={adminPath("fixtures")}
                     className="px-3 py-1.5 rounded-lg bg-accent/20 text-accent text-xs font-medium hover:bg-accent/30 transition-colors cursor-pointer focus-ring"
                   >
                     Gestionar
                   </Link>
                   <Link
-                    href={`/fixtures/${fx.id}`}
+                    href={fixturePublicPath(fx.id)}
                     className="px-3 py-1.5 rounded-lg border border-white/10 text-muted text-xs hover:text-white transition-colors cursor-pointer focus-ring"
                   >
                     Ver partido
@@ -154,7 +167,7 @@ export function AdminCommandCenter() {
           </ul>
         )}
         <Link
-          href="/admin/activity"
+          href={adminPath("activity")}
           className="inline-block mt-2 text-xs text-accent hover:underline cursor-pointer"
         >
           Ver actividad completa

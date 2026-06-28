@@ -6,7 +6,7 @@ import { useUnreadCount } from "@/hooks/useNotifications";
 import { useAuth } from "@/hooks/useAuth";
 import { MotionSafe } from "@/components/ui/MotionSafe";
 import { MOTION } from "@/lib/motion";
-import { DEFAULT_COMPETITION_SLUG, competitionPath } from "@/lib/competitionPaths";
+import { DEFAULT_COMPETITION_SLUG, competitionPath, competitionAdminPath } from "@/lib/competitionPaths";
 
 const tabSegments = [
   { segment: "dashboard", label: "Inicio", icon: HomeIcon },
@@ -66,7 +66,12 @@ export function MobileBottomNav() {
   const tabHref = (segment: string, global?: boolean) =>
     global ? `/${segment}` : competitionPath(slug, segment);
 
-  if (pathname.startsWith("/admin") || pathname.startsWith("/login") || pathname.startsWith("/register")) {
+  if (
+    pathname.startsWith("/admin") ||
+    pathname.includes("/admin/") ||
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register")
+  ) {
     return null;
   }
 

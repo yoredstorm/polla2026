@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
-import { usePatchGroup, useUploadPaymentQr } from "@/hooks/useAdmin";
+import { usePatchGroup } from "@/hooks/useAdmin";
+import { useCompetitionPatchPool } from "@/hooks/useCompetitionAdmin";
+import { useScopedUploadPaymentQr } from "@/hooks/admin/useScopedGroupAdmin";
 import { cn } from "@/lib/utils";
 import {
   AdminPaymentSettingsFields,
@@ -9,9 +11,18 @@ import {
 import type { AdminGroupDetail } from "@/types/api";
 import { prizeStructureModeLabel } from "@/lib/prizeStructure";
 
-export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail; onSaved: () => void }) {
+export function PollaSettingsCard({
+  polla,
+  onSaved,
+  competitionSlug,
+}: {
+  polla: AdminGroupDetail;
+  onSaved: () => void;
+  competitionSlug?: string;
+}) {
   const isFullMilestones = (polla.prize_structure_mode ?? "full_milestones") === "full_milestones";
-  const patch = usePatchGroup();
+  const globalPatch = usePatchGroup();
+  const scopedPatch = useCompetitionPatchPool(competitionSlug);
   const [editing, setEditing] = useState(false);
   const [formEntry, setFormEntry] = useState(polla.entry_fee);
   const [formExtra, setFormExtra] = useState(polla.fixed_bet_amount ?? "");
@@ -27,35 +38,37 @@ export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail;
   const [formPaymentContact, setFormPaymentContact] = useState(polla.payment_contact_name ?? "");
   const [formPaymentPhone, setFormPaymentPhone] = useState(polla.payment_phone ?? "");
   const [formQrFile, setFormQrFile] = useState<File | null>(null);
-  const uploadQr = useUploadPaymentQr();
+  const uploadQr = useScopedUploadPaymentQr(competitionSlug);
 
   function save() {
     const extraVal = formExtra ? parseFloat(formExtra) : 0;
-    patch.mutate(
-      {
-        groupId: polla.id,
-        entry_fee: parseFloat(formEntry) || 0,
-        currency: formCurrency,
-        bet_amount_mode: "single_entry",
-        fixed_bet_amount: extraVal,
-        challenge_max_stake: Math.max(1, Math.min(20, parseInt(formMaxStake, 10) || 10)),
-        challenge_daily_limit: Math.max(0, Math.min(99, parseInt(formDailyLimit, 10) || 0)),
-        challenge_tournament_limit: Math.max(0, Math.min(99, parseInt(formTournamentLimit, 10) || 0)),
-        challenges_enabled: formChallengesEnabled,
-        payment_contact_name: formPaymentContact.trim() || undefined,
-        payment_phone: formPaymentPhone.trim() || undefined,
+    const payload = {
+      entry_fee: parseFloat(formEntry) || 0,
+      currency: formCurrency,
+      bet_amount_mode: "single_entry",
+      fixed_bet_amount: extraVal,
+      challenge_max_stake: Math.max(1, Math.min(20, parseInt(formMaxStake, 10) || 10)),
+      challenge_daily_limit: Math.max(0, Math.min(99, parseInt(formDailyLimit, 10) || 0)),
+      challenge_tournament_limit: Math.max(0, Math.min(99, parseInt(formTournamentLimit, 10) || 0)),
+      challenges_enabled: formChallengesEnabled,
+      payment_contact_name: formPaymentContact.trim() || undefined,
+      payment_phone: formPaymentPhone.trim() || undefined,
+    };
+    const handlers = {
+      onSuccess: async () => {
+        if (formQrFile) {
+          await uploadQr.mutateAsync({ groupId: polla.id, file: formQrFile });
+          setFormQrFile(null);
+        }
+        setEditing(false);
+        onSaved();
       },
-      {
-        onSuccess: async () => {
-          if (formQrFile) {
-            await uploadQr.mutateAsync({ groupId: polla.id, file: formQrFile });
-            setFormQrFile(null);
-          }
-          setEditing(false);
-          onSaved();
-        },
-      },
-    );
+    };
+    if (competitionSlug) {
+      scopedPatch.mutate(payload, handlers);
+    } else {
+      globalPatch.mutate({ groupId: polla.id, ...payload }, handlers);
+    }
   }
 
   const currency = polla.currency ?? "PEN";
@@ -85,7 +98,15 @@ export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail;
             className="text-xs px-3 py-1.5 rounded-lg bg-white/5 text-muted hover:text-white hover:bg-white/10 transition-colors">
             {editing ? "Cancelar" : "Editar config."}
           </button>
-          <button onClick={() => patch.mutate({ groupId: polla.id, is_active: !polla.is_active })} disabled={patch.isPending}
+          <button
+            onClick={() => {
+              if (competitionSlug) {
+                scopedPatch.mutate({ is_active: !polla.is_active });
+              } else {
+                globalPatch.mutate({ groupId: polla.id, is_active: !polla.is_active });
+              }
+            }}
+            disabled={globalPatch.isPending || scopedPatch.isPending}
             className={cn("text-xs px-3 py-1.5 rounded-lg transition-colors",
               polla.is_active ? "bg-red-500/10 text-red-400 hover:bg-red-500/20" : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20")}>
             {polla.is_active ? "Desactivar" : "Activar"}
@@ -223,9 +244,9 @@ export function PollaSettingsCard({ polla, onSaved }: { polla: AdminGroupDetail;
             qrFile={formQrFile}
             onQrFileChange={setFormQrFile}
           />
-          <button onClick={save} disabled={patch.isPending}
+          <button onClick={save} disabled={globalPatch.isPending || scopedPatch.isPending}
             className="w-full py-2 rounded-lg bg-accent text-background font-bold text-sm hover:bg-accent-dim disabled:opacity-50 transition-colors">
-            {patch.isPending ? "Guardando..." : "Guardar cambios"}
+            {globalPatch.isPending || scopedPatch.isPending ? "Guardando..." : "Guardar cambios"}
           </button>
         </div>
       )}

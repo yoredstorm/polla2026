@@ -1,13 +1,20 @@
 "use client";
 import { useState } from "react";
-import { useNonMembers, useAddGroupMember } from "@/hooks/useAdmin";
+import { useScopedAddGroupMember, useScopedNonMembers } from "@/hooks/admin/useScopedGroupAdmin";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { AdminProofLightbox } from "@/components/features/payment/AdminProofLightbox";
 import type { AdminNonMember } from "@/types/api";
 
-export function PendingEntriesPanel({ pollaId }: { pollaId: string; currency: string }) {
-  const { data: nonMembers, isLoading } = useNonMembers(pollaId);
-  const addMember = useAddGroupMember();
+export function PendingEntriesPanel({
+  pollaId,
+  competitionSlug,
+}: {
+  pollaId: string;
+  currency: string;
+  competitionSlug?: string;
+}) {
+  const { data: nonMembers, isLoading } = useScopedNonMembers(pollaId, competitionSlug);
+  const addMember = useScopedAddGroupMember(competitionSlug);
   const [success, setSuccess] = useState<Record<string, boolean>>({});
   const [lightboxUser, setLightboxUser] = useState<AdminNonMember | null>(null);
 

@@ -10,6 +10,10 @@ export function competitionDashboardPath(slug: string) {
   return competitionPath(slug, "dashboard");
 }
 
+export function competitionAdminPath(slug: string, segment = "") {
+  return competitionPath(slug, segment ? `admin/${segment.replace(/^\//, "")}` : "admin");
+}
+
 export function competitionFixturesPath(slug: string, fixtureId?: string) {
   return fixtureId
     ? competitionPath(slug, `fixtures/${fixtureId}`)

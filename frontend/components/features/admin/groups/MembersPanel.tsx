@@ -1,18 +1,28 @@
 "use client";
 import { useState } from "react";
 import {
-  useGroupMembers,
-  useAddGroupMember,
-  useRemoveGroupMember,
   useAdminAllUsers,
 } from "@/hooks/useAdmin";
+import {
+  useScopedAddGroupMember,
+  useScopedGroupMembers,
+  useScopedRemoveGroupMember,
+} from "@/hooks/admin/useScopedGroupAdmin";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { getApiErrorMessage } from "@/lib/challengeUtils";
 
-export function MembersPanel({ pollaId, currency }: { pollaId: string; currency: string }) {
-  const { data: members, isLoading } = useGroupMembers(pollaId);
-  const addMember = useAddGroupMember();
-  const removeMember = useRemoveGroupMember();
+export function MembersPanel({
+  pollaId,
+  currency,
+  competitionSlug,
+}: {
+  pollaId: string;
+  currency: string;
+  competitionSlug?: string;
+}) {
+  const { data: members, isLoading } = useScopedGroupMembers(pollaId, competitionSlug);
+  const addMember = useScopedAddGroupMember(competitionSlug);
+  const removeMember = useScopedRemoveGroupMember(competitionSlug);
   const { data: allUsersData } = useAdminAllUsers();
   const allUsers = allUsersData?.data ?? [];
 

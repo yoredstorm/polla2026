@@ -14,7 +14,8 @@ import { HelpTooltip } from "@/components/features/help/HelpTooltip";
 import { MotionSafe } from "@/components/ui/MotionSafe";
 import { exitTransition, MOTION } from "@/lib/motion";
 import type { HelpKey } from "@/lib/systemHelp";
-import { DEFAULT_COMPETITION_SLUG, competitionPath } from "@/lib/competitionPaths";
+import { DEFAULT_COMPETITION_SLUG, competitionPath, competitionAdminPath } from "@/lib/competitionPaths";
+import { useCompetitionContextBySlug } from "@/hooks/useCompetitions";
 
 const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string; segment: string }[] = [
   { href: "/dashboard", label: "Inicio", helpKey: "nav.dashboard", tourId: "nav-dashboard", segment: "dashboard" },
@@ -63,8 +64,10 @@ export function Navbar() {
   const pathname = usePathname();
   const slugMatch = pathname.match(/^\/c\/([^/]+)/);
   const slug = slugMatch?.[1] ?? DEFAULT_COMPETITION_SLUG;
+  const inCompetition = !!slugMatch;
   const navHref = (segment: string) => competitionPath(slug, segment);
   const { user, logout } = useAuth();
+  const { data: compCtx } = useCompetitionContextBySlug(inCompetition ? slug : null);
   const { data: unreadData } = useUnreadCount(!!user);
   const unreadCount = unreadData?.count ?? 0;
   useInactivityTimeout(!!user);
@@ -131,15 +134,28 @@ export function Navbar() {
                   </span>
                 )}
               </Link>
+              {inCompetition && compCtx?.is_admin && (
+                <Link
+                  href={competitionAdminPath(slug)}
+                  className={cn(
+                    "nav-link text-sm cursor-pointer focus-ring rounded-md px-2 py-1",
+                    pathname.startsWith(competitionAdminPath(slug))
+                      ? "text-accent"
+                      : "text-muted hover:text-white",
+                  )}
+                >
+                  Admin
+                </Link>
+              )}
               {user?.is_admin && (
                 <Link
-                  href="/admin"
+                  href="/admin/competitions"
                   className={cn(
                     "nav-link text-sm cursor-pointer focus-ring rounded-md px-2 py-1",
                     pathname.startsWith("/admin") ? "text-accent" : "text-muted hover:text-white",
                   )}
                 >
-                  Admin
+                  Plataforma
                 </Link>
               )}
             </div>

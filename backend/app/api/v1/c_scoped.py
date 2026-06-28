@@ -22,7 +22,11 @@ from app.models.bet import Bet
 from app.schemas.fixture import FixtureOut, fixture_to_out
 from app.schemas.common import PaginatedResponse, PaginationMeta
 from app.schemas.bet import BetOut, BetWithFixtureSummaryOut
-from app.services.competition_service import get_group_for_competition, user_is_competition_member
+from app.services.competition_service import (
+    get_group_for_competition,
+    user_is_competition_admin,
+    user_is_competition_member,
+)
 from app.services.fixture_import_service import parse_csv_fixtures, parse_json_fixtures, parse_xlsx_fixtures
 from app.services.competition_admin_service import competition_member_count
 

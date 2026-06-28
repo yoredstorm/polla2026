@@ -1,12 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAdminPhaseFees, usePatchPhaseFees } from "@/hooks/useAdmin";
+import { useScopedPatchPhaseFees, useScopedPhaseFees } from "@/hooks/admin/useScopedGroupAdmin";
 import type { GroupPhaseFeeRow } from "@/types/api";
 
-export function PhaseFeesPanel({ pollaId, currency }: { pollaId: string; currency: string }) {
-  const { data, isLoading } = useAdminPhaseFees(pollaId);
-  const patch = usePatchPhaseFees();
+export function PhaseFeesPanel({
+  pollaId,
+  currency,
+  competitionSlug,
+}: {
+  pollaId: string;
+  currency: string;
+  competitionSlug?: string;
+}) {
+  const { data, isLoading } = useScopedPhaseFees(pollaId, competitionSlug);
+  const patch = useScopedPatchPhaseFees(competitionSlug);
   const [rows, setRows] = useState<GroupPhaseFeeRow[]>([]);
   const [dirty, setDirty] = useState(false);
 

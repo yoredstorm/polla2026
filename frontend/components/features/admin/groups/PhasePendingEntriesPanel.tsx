@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
-  useAdminPhasePendingEntries,
-  useConfirmPhaseEnrollment,
-  useAddGroupMember,
-} from "@/hooks/useAdmin";
+  useScopedAddGroupMember,
+  useScopedConfirmPhaseEnrollment,
+  useScopedPhasePendingEntries,
+} from "@/hooks/admin/useScopedGroupAdmin";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { Modal } from "@/components/ui/Modal";
 import { getApiBase } from "@/lib/api";
@@ -18,6 +18,7 @@ export function PhasePendingEntriesPanel({
   phaseLabel,
   entryFee,
   confirmLabel,
+  competitionSlug,
 }: {
   pollaId: string;
   currency: string;
@@ -25,10 +26,11 @@ export function PhasePendingEntriesPanel({
   phaseLabel: string;
   entryFee?: string;
   confirmLabel?: string;
+  competitionSlug?: string;
 }) {
-  const { data, refetch } = useAdminPhasePendingEntries(pollaId, phaseKey);
-  const confirm = useConfirmPhaseEnrollment();
-  const addMember = useAddGroupMember();
+  const { data, refetch } = useScopedPhasePendingEntries(pollaId, phaseKey, competitionSlug);
+  const confirm = useScopedConfirmPhaseEnrollment(competitionSlug);
+  const addMember = useScopedAddGroupMember(competitionSlug);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const pending = data?.pending ?? [];
   const feeDisplay =

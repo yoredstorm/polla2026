@@ -1,20 +1,26 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { PageShell } from "@/components/layout/PageShell";
-import { Button } from "@/components/ui/Button";
 import { useCompetitionSlug } from "@/components/providers/CompetitionProvider";
-import { useCompetitionContext } from "@/hooks/useCompetitions";
 import { useToast } from "@/components/ui/Toast";
+import { Button } from "@/components/ui/Button";
+import { FixturesAdminView } from "@/components/features/admin/FixturesAdminView";
 import { getApiBase } from "@/lib/api";
 import { buildApiUrl } from "@/lib/apiBase";
+import { cn } from "@/lib/utils";
 
-export default function CompetitionFixturesImportPage() {
+type Tab = "manage" | "import";
+
+export default function CompetitionAdminFixturesPage() {
   const slug = useCompetitionSlug();
-  const { data: ctx } = useCompetitionContext();
+  const [tab, setTab] = useState<Tab>("manage");
   const toast = useToast((s) => s.add);
   const [file, setFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<{ ok: boolean; count: number; errors: { row: number; message: string }[] } | null>(null);
+  const [preview, setPreview] = useState<{
+    ok: boolean;
+    count: number;
+    errors: { row: number; message: string }[];
+  } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const downloadTemplate = useCallback(async () => {
@@ -52,7 +58,10 @@ export default function CompetitionFixturesImportPage() {
       }
       setPreview(data);
       if (dryRun) {
-        toast(data.ok ? `Vista previa: ${data.count} partidos` : "Hay errores en el archivo", data.ok ? "success" : "error");
+        toast(
+          data.ok ? `Vista previa: ${data.count} partidos` : "Hay errores en el archivo",
+          data.ok ? "success" : "error",
+        );
       } else if (data.ok) {
         toast(`Importados ${data.count} partidos`, "success");
       }
@@ -63,55 +72,72 @@ export default function CompetitionFixturesImportPage() {
     }
   }
 
-  if (ctx && !ctx.is_admin) {
-    return (
-      <PageShell maxWidth="md">
-        <p className="text-muted text-center py-16">No tienes permisos de administrador en esta competencia.</p>
-      </PageShell>
-    );
-  }
-
   return (
-    <PageShell maxWidth="md">
-      <h1 className="font-display text-2xl text-white mb-2">Importar partidos</h1>
-      <p className="text-sm text-muted mb-6">
-        Sube un CSV o JSON con columnas: external_id, date, time, team1, team2, round, ground, group.
-      </p>
-
-      <div className="space-y-4 rounded-xl border border-white/10 bg-glass p-4">
-        <Button type="button" variant="secondary" onClick={() => void downloadTemplate()}>
-          Descargar plantilla CSV
-        </Button>
-
-        <input
-          type="file"
-          accept=".csv,.json"
-          className="block w-full text-sm text-muted file:mr-4 file:rounded-lg file:border-0 file:bg-accent/20 file:px-4 file:py-2 file:text-accent"
-          onChange={(e) => {
-            setFile(e.target.files?.[0] ?? null);
-            setPreview(null);
-          }}
-        />
-
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" disabled={busy || !file} onClick={() => void runImport(true)}>
-            Vista previa (dry-run)
-          </Button>
-          <Button type="button" disabled={busy || !file || !preview?.ok} onClick={() => void runImport(false)}>
-            Confirmar importación
-          </Button>
-        </div>
-
-        {preview && !preview.ok && preview.errors.length > 0 && (
-          <ul className="text-sm text-red-400 space-y-1" role="alert">
-            {preview.errors.map((e) => (
-              <li key={`${e.row}-${e.message}`}>
-                Fila {e.row}: {e.message}
-              </li>
-            ))}
-          </ul>
-        )}
+    <div className="space-y-6">
+      <div className="flex gap-2 border-b border-white/10 pb-2">
+        {(
+          [
+            ["manage", "Gestionar"],
+            ["import", "Importar"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={cn(
+              "px-4 py-2 text-sm rounded-lg transition-colors",
+              tab === id ? "bg-accent/15 text-accent" : "text-muted hover:text-white",
+            )}
+          >
+            {label}
+          </button>
+        ))}
       </div>
-    </PageShell>
+
+      {tab === "manage" ? (
+        <FixturesAdminView competitionSlug={slug} />
+      ) : (
+        <div className="space-y-4 rounded-xl border border-white/10 bg-glass p-4 max-w-lg">
+          <h2 className="font-display text-xl text-white">Importar partidos</h2>
+          <p className="text-sm text-muted">
+            Sube un CSV o JSON con columnas: external_id, date, time, team1, team2, round, ground, group.
+          </p>
+          <Button type="button" variant="secondary" onClick={() => void downloadTemplate()}>
+            Descargar plantilla CSV
+          </Button>
+          <input
+            type="file"
+            accept=".csv,.json"
+            className="block w-full text-sm text-muted file:mr-4 file:rounded-lg file:border-0 file:bg-accent/20 file:px-4 file:py-2 file:text-accent"
+            onChange={(e) => {
+              setFile(e.target.files?.[0] ?? null);
+              setPreview(null);
+            }}
+          />
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" disabled={busy || !file} onClick={() => void runImport(true)}>
+              Vista previa (dry-run)
+            </Button>
+            <Button
+              type="button"
+              disabled={busy || !file || !preview?.ok}
+              onClick={() => void runImport(false)}
+            >
+              Confirmar importación
+            </Button>
+          </div>
+          {preview && !preview.ok && preview.errors.length > 0 && (
+            <ul className="text-sm text-red-400 space-y-1" role="alert">
+              {preview.errors.map((e) => (
+                <li key={`${e.row}-${e.message}`}>
+                  Fila {e.row}: {e.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

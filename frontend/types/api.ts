@@ -534,6 +534,7 @@ export interface NotificationPayload {
   bet_id?: string;
   group_id?: string;
   user_id?: string;
+  competition_slug?: string;
   fixture_id?: string;
   username?: string;
   status?: string;

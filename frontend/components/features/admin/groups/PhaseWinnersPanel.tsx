@@ -1,6 +1,6 @@
 "use client";
 
-import { useAdminPhaseWinners } from "@/hooks/useAdmin";
+import { useScopedPhaseWinners } from "@/hooks/admin/useScopedGroupAdmin";
 import { UserDisplayName } from "@/components/ui/UserDisplayName";
 import { cn } from "@/lib/utils";
 import { Trophy, Clock, CheckCircle2 } from "lucide-react";
@@ -14,11 +14,13 @@ const STATUS_STYLES = {
 export function PhaseWinnersPanel({
   pollaId,
   currency,
+  competitionSlug,
 }: {
   pollaId: string;
   currency: string;
+  competitionSlug?: string;
 }) {
-  const { data, isLoading, isError } = useAdminPhaseWinners(pollaId);
+  const { data, isLoading, isError } = useScopedPhaseWinners(pollaId, competitionSlug);
   const phases = data?.phases ?? [];
 
   if (isLoading) {

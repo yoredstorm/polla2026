@@ -48,18 +48,32 @@ export function useDiscoverCompetitions() {
 
 export function useCompetitionContext() {
   const slug = useCompetitionSlug();
+  return useCompetitionContextBySlug(slug);
+}
+
+export function useCompetitionContextBySlug(slug: string | null | undefined) {
   return useQuery({
     queryKey: ["competition", slug, "context"],
     queryFn: () => api.get<CompetitionContext>(`/c/${slug}/context`),
+    enabled: !!slug,
     staleTime: 10_000,
   });
 }
 
-export function useAdminCompetitions() {
+export function useAdministeredCompetitions() {
+  return useQuery({
+    queryKey: ["competitions", "administered"],
+    queryFn: () => api.get<CompetitionCard[]>("/competitions/administered"),
+    staleTime: 30_000,
+  });
+}
+
+export function useAdminCompetitions(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ["competitions", "admin"],
     queryFn: () => api.get<CompetitionCard[]>("/competitions"),
     staleTime: 10_000,
+    enabled: options?.enabled ?? true,
   });
 }
 
