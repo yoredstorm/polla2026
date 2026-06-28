@@ -612,7 +612,21 @@ async def competition_phase_pending_entries(
     group = await _pool_group(db, comp)
     from app.api.v1.admin import list_phase_pending_entries
 
-    return await list_phase_pending_entries(request, group.id, phase_key, admin, db)
+    return await list_phase_pending_entries(request, group.id, admin, db, phase_key=phase_key)
+
+
+@router.get("/pool/all-phase-pending-entries")
+@limiter.limit(ADMIN_RATE)
+async def competition_all_phase_pending_entries(
+    request: Request,
+    comp: CompetitionAdminContext,
+    admin: CurrentUser,
+    db: DBSession,
+):
+    group = await _pool_group(db, comp)
+    from app.api.v1.admin import list_all_phase_pending_entries_route
+
+    return await list_all_phase_pending_entries_route(request, group.id, admin, db)
 
 
 @router.get("/pool/phase-winners")

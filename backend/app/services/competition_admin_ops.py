@@ -37,7 +37,7 @@ async def build_competition_action_queue(
     group: Group | None,
 ) -> dict:
     from app.core.match_timing import betting_close_at, fixture_deadline_fields
-    from app.services.group_service import count_admin_pending_entries, count_all_phase_pending_entries
+    from app.services.group_service import count_all_phase_pending_entries, count_pending_new_member_entries
 
     now = datetime.now(timezone.utc)
     attention_before = now + timedelta(hours=2)
@@ -61,7 +61,8 @@ async def build_competition_action_queue(
     group_id = None
     if group:
         group_id = str(group.id)
-        pending_entries = await count_admin_pending_entries(db, group)
+        pending_new_entries = await count_pending_new_member_entries(db, group)
+        pending_entries = pending_new_entries
         pending_phase_enrollments = await count_all_phase_pending_entries(db, group)
         pending_extras = (
             await db.execute(

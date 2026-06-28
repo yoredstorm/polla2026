@@ -128,6 +128,25 @@ export function useCompetitionAdminPhaseFees(slug?: string) {
   });
 }
 
+export interface PhasePendingPhaseGroup {
+  phase_key: string;
+  phase_label: string;
+  pending: PhasePendingEntry[];
+}
+
+export function useCompetitionAdminAllPhasePending(slug?: string) {
+  const s = useSlug(slug);
+  return useQuery({
+    queryKey: ["competition-admin", s, "all-phase-pending"],
+    queryFn: () =>
+      api.get<{ phases: PhasePendingPhaseGroup[] }>(
+        `${adminBase(s)}/pool/all-phase-pending-entries`,
+      ),
+    enabled: !!s,
+    staleTime: 10_000,
+  });
+}
+
 export function useCompetitionAdminPhasePendingEntries(phaseKey: string | null, slug?: string) {
   const s = useSlug(slug);
   return useQuery({

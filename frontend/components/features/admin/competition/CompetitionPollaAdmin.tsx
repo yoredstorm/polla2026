@@ -9,7 +9,8 @@ import {
   useCompetitionAdminNonMembers,
   useCompetitionAdminPendingExtras,
   useCompetitionAdminPhaseFees,
-  useCompetitionAdminPhasePendingEntries,
+  useCompetitionAdminAllPhasePending,
+  useCompetitionAdminActionQueue,
 } from "@/hooks/useCompetitionAdmin";
 import { PollaSettingsCard } from "@/components/features/admin/groups/PollaSettingsCard";
 import { PollaBadge } from "@/components/features/admin/groups/PollaBadge";
@@ -19,11 +20,7 @@ import { MembersPanel } from "@/components/features/admin/groups/MembersPanel";
 import { PhaseWinnersPanel } from "@/components/features/admin/groups/PhaseWinnersPanel";
 import { PhaseFeesPanel } from "@/components/features/admin/groups/PhaseFeesPanel";
 import { PhasePendingEntriesPanel } from "@/components/features/admin/groups/PhasePendingEntriesPanel";
-import {
-  phaseWinnersDescription,
-  showsReinscriptionPanel,
-  showsEarlyEnrollmentPanel,
-} from "@/lib/prizeStructure";
+import { phaseWinnersDescription } from "@/lib/prizeStructure";
 import { cn } from "@/lib/utils";
 
 function PendingChip({
@@ -67,6 +64,9 @@ export function CompetitionPollaAdmin() {
   const { data: polla, isLoading, refetch } = useCompetitionAdminPool(slug);
   const { data: nonMembers } = useCompetitionAdminNonMembers(slug);
   const { data: pendingExtras } = useCompetitionAdminPendingExtras(slug);
+  const { data: allPhasePending, refetch: refetchPhasePending } =
+    useCompetitionAdminAllPhasePending(slug);
+  const { data: actionQueue } = useCompetitionAdminActionQueue(slug);
 
   const currency = polla?.currency ?? "PEN";
   const pendingEntryCount = nonMembers?.length ?? 0;
@@ -75,36 +75,15 @@ export function CompetitionPollaAdmin() {
   const currentPhaseFee = phaseFeesData?.fees?.find(
     (f) => f.phase_key === polla?.current_phase_key,
   );
-  const showReinscription = showsReinscriptionPanel(
-    polla?.prize_structure_mode,
-    polla?.current_phase_key,
-  );
-  const showEarlyEnrollment = showsEarlyEnrollmentPanel(
-    polla?.prize_structure_mode,
-    polla?.current_phase_key,
-  );
-  const knockoutPhaseFee = phaseFeesData?.fees?.find((f) => f.phase_key === "knockout");
-  const { data: knockoutPendingData } = useCompetitionAdminPhasePendingEntries("knockout", slug);
-  const knockoutPendingCount = knockoutPendingData?.pending?.length ?? 0;
-  const showKnockoutSection = knockoutPendingCount > 0 || showEarlyEnrollment;
 
-  const reinscriptionPhaseKey = showReinscription && polla?.current_phase_key
-    ? polla.current_phase_key
-    : null;
-  const { data: reinscriptionPendingData } = useCompetitionAdminPhasePendingEntries(
-    reinscriptionPhaseKey,
-    slug,
+  const phaseGroups = allPhasePending?.phases ?? [];
+  const phasePendingCount = useMemo(
+    () => phaseGroups.reduce((sum, g) => sum + g.pending.length, 0),
+    [phaseGroups],
   );
-  const reinscriptionPendingCount = reinscriptionPendingData?.pending?.length ?? 0;
+  const queuePhaseCount = actionQueue?.pending.phase_enrollments ?? 0;
 
-  const totalPending = useMemo(
-    () =>
-      pendingEntryCount +
-      pendingExtraCount +
-      knockoutPendingCount +
-      reinscriptionPendingCount,
-    [pendingEntryCount, pendingExtraCount, knockoutPendingCount, reinscriptionPendingCount],
-  );
+  const totalPending = pendingEntryCount + pendingExtraCount + phasePendingCount;
 
   useEffect(() => {
     const focus = searchParams.get("focus");
@@ -136,6 +115,23 @@ export function CompetitionPollaAdmin() {
         </p>
       </div>
 
+      {queuePhaseCount > 0 && phasePendingCount === 0 && (
+        <div
+          className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100"
+          role="alert"
+        >
+          Hay {queuePhaseCount} inscripción(es) por fase pendientes. Si no aparecen abajo,{" "}
+          <button
+            type="button"
+            className="underline font-medium hover:text-white"
+            onClick={() => void refetchPhasePending()}
+          >
+            recarga la lista
+          </button>
+          .
+        </div>
+      )}
+
       {totalPending > 0 && (
         <section
           className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 sm:p-5"
@@ -158,70 +154,57 @@ export function CompetitionPollaAdmin() {
               href="#pending-extras"
               accent="blue"
             />
-            <PendingChip
-              label="Eliminatorias"
-              count={knockoutPendingCount}
-              href="#phase-knockout"
-              accent="accent"
-            />
-            {reinscriptionPhaseKey && reinscriptionPhaseKey !== "knockout" && (
+            {phaseGroups.map((group) => (
               <PendingChip
-                label={`Reinscripción ${currentPhaseFee?.label ?? reinscriptionPhaseKey}`}
-                count={reinscriptionPendingCount}
-                href={`#phase-${reinscriptionPhaseKey}`}
-                accent="cyan"
+                key={group.phase_key}
+                label={group.phase_label}
+                count={group.pending.length}
+                href={`#phase-${group.phase_key}`}
+                accent={group.phase_key === "knockout" ? "accent" : "cyan"}
               />
-            )}
+            ))}
           </div>
         </section>
       )}
 
       <div className="space-y-6">
-        {showKnockoutSection && (
-          <div
-            id="phase-knockout"
-            className="rounded-2xl border border-accent/30 bg-accent/5 p-6 scroll-mt-24"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="font-display text-lg text-white">
-                {showEarlyEnrollment
-                  ? "Inscripciones anticipadas — Eliminatorias"
-                  : "Inscripciones — Eliminatorias"}
-              </h2>
-              <PollaBadge count={knockoutPendingCount} />
+        {phaseGroups.map((group) => {
+          const fee = phaseFeesData?.fees?.find((f) => f.phase_key === group.phase_key);
+          const isKnockout = group.phase_key === "knockout";
+          return (
+            <div
+              key={group.phase_key}
+              id={`phase-${group.phase_key}`}
+              className={cn(
+                "rounded-2xl border p-6 scroll-mt-24",
+                isKnockout
+                  ? "border-accent/30 bg-accent/5"
+                  : "border-cyan-500/20 bg-cyan-500/5",
+              )}
+            >
+              <div className="flex items-center gap-2 mb-1">
+                <h2 className="font-display text-lg text-white">
+                  Inscripciones por fase — {group.phase_label}
+                </h2>
+                <PollaBadge count={group.pending.length} />
+              </div>
+              <p className="text-xs text-muted mb-4">
+                Confirma el comprobante para activar la inscripción en esta fase.
+              </p>
+              <PhasePendingEntriesPanel
+                pollaId={polla.id}
+                currency={currency}
+                phaseKey={group.phase_key}
+                phaseLabel={group.phase_label}
+                entryFee={fee?.entry_fee}
+                confirmLabel={`Confirmar pago — ${group.phase_label}`}
+                competitionSlug={slug}
+                pendingOverride={group.pending}
+                onAfterConfirm={() => void refetchPhasePending()}
+              />
             </div>
-            <PhasePendingEntriesPanel
-              pollaId={polla.id}
-              currency={currency}
-              phaseKey="knockout"
-              phaseLabel={knockoutPhaseFee?.label ?? "Eliminatorias"}
-              entryFee={knockoutPhaseFee?.entry_fee}
-              confirmLabel="Confirmar pago — Eliminatorias"
-              competitionSlug={slug}
-            />
-          </div>
-        )}
-
-        {showReinscription && polla.current_phase_key && polla.current_phase_key !== "knockout" && (
-          <div
-            id={`phase-${polla.current_phase_key}`}
-            className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-6 scroll-mt-24"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <h2 className="font-display text-lg text-white">
-                Reinscripciones — {currentPhaseFee?.label ?? polla.current_phase_key}
-              </h2>
-              <PollaBadge count={reinscriptionPendingCount} />
-            </div>
-            <PhasePendingEntriesPanel
-              pollaId={polla.id}
-              currency={currency}
-              phaseKey={polla.current_phase_key}
-              phaseLabel={currentPhaseFee?.label ?? polla.current_phase_key}
-              competitionSlug={slug}
-            />
-          </div>
-        )}
+          );
+        })}
 
         <div
           id="pending-entries"

@@ -11,6 +11,8 @@ import { Modal } from "@/components/ui/Modal";
 import { getApiBase } from "@/lib/api";
 import { fetchAuthedImageBlob } from "@/lib/payment";
 
+import type { PhasePendingEntry } from "@/types/api";
+
 export function PhasePendingEntriesPanel({
   pollaId,
   currency,
@@ -19,6 +21,8 @@ export function PhasePendingEntriesPanel({
   entryFee,
   confirmLabel,
   competitionSlug,
+  pendingOverride,
+  onAfterConfirm,
 }: {
   pollaId: string;
   currency: string;
@@ -27,12 +31,18 @@ export function PhasePendingEntriesPanel({
   entryFee?: string;
   confirmLabel?: string;
   competitionSlug?: string;
+  pendingOverride?: PhasePendingEntry[];
+  onAfterConfirm?: () => void;
 }) {
-  const { data, refetch } = useScopedPhasePendingEntries(pollaId, phaseKey, competitionSlug);
+  const { data, refetch } = useScopedPhasePendingEntries(
+    pendingOverride ? null : pollaId,
+    pendingOverride ? "" : phaseKey,
+    competitionSlug,
+  );
   const confirm = useScopedConfirmPhaseEnrollment(competitionSlug);
   const addMember = useScopedAddGroupMember(competitionSlug);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  const pending = data?.pending ?? [];
+  const pending = pendingOverride ?? data?.pending ?? [];
   const feeDisplay =
     entryFee != null && parseFloat(entryFee) > 0
       ? `${currency} ${parseFloat(entryFee).toFixed(2)}`
@@ -46,7 +56,11 @@ export function PhasePendingEntriesPanel({
     } else {
       await confirm.mutateAsync({ groupId: pollaId, userId, phaseKey });
     }
-    refetch();
+    if (pendingOverride) {
+      onAfterConfirm?.();
+    } else {
+      refetch();
+    }
   }
 
   if (pending.length === 0) {

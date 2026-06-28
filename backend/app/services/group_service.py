@@ -111,56 +111,149 @@ async def count_phase_pending_entries(
     phase_key: str,
 ) -> int:
     """Users with phase entry proof awaiting confirmation for a specific phase."""
+    pending = await gather_phase_pending_entries(db, group, phase_key)
+    return len(pending)
+
+
+async def gather_phase_pending_entries(
+    db: AsyncSession,
+    group: Group,
+    phase_key: str,
+) -> list[dict]:
+    """Users with uploaded phase proof awaiting admin confirmation."""
     from app.models.group_phase import GroupPhaseEntryProof
+    from app.services.prize_structure_service import phase_label
+    from app.services.payment_upload_service import phase_entry_proof_data_url
+
+    group_id = group.id
+    pk = phase_key
+    members_q = (
+        select(User, GroupMember, GroupPhaseEntryProof)
+        .join(GroupMember, GroupMember.user_id == User.id)
+        .outerjoin(
+            GroupPhaseEntryProof,
+            and_(
+                GroupPhaseEntryProof.group_id == group_id,
+                GroupPhaseEntryProof.user_id == User.id,
+                GroupPhaseEntryProof.phase_key == pk,
+            ),
+        )
+        .where(GroupMember.group_id == group_id)
+    )
+    rows = (await db.execute(members_q)).all()
+    out: list[dict] = []
+    seen_user_ids: set[uuid.UUID] = set()
+    for user, _member, proof in rows:
+        enr_res = await db.execute(
+            select(GroupPhaseEnrollment).where(
+                and_(
+                    GroupPhaseEnrollment.group_id == group_id,
+                    GroupPhaseEnrollment.user_id == user.id,
+                    GroupPhaseEnrollment.phase_key == pk,
+                )
+            )
+        )
+        enr = enr_res.scalar_one_or_none()
+        if enr and enr.status == "confirmed":
+            continue
+        if not proof:
+            continue
+        seen_user_ids.add(user.id)
+        out.append(
+            {
+                "user_id": str(user.id),
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "phase_key": pk,
+                "phase_label": phase_label(pk, group),
+                "has_proof": True,
+                "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
+                "is_member": True,
+            }
+        )
+
+    if pk == "knockout":
+        member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
+        non_member_q = (
+            select(User, GroupPhaseEntryProof)
+            .join(
+                GroupPhaseEntryProof,
+                and_(
+                    GroupPhaseEntryProof.user_id == User.id,
+                    GroupPhaseEntryProof.group_id == group_id,
+                    GroupPhaseEntryProof.phase_key == pk,
+                ),
+            )
+            .where(User.is_active == True, User.id.not_in(member_ids_q))  # noqa: E712
+        )
+        for user, _proof in (await db.execute(non_member_q)).all():
+            if user.id in seen_user_ids:
+                continue
+            out.append(
+                {
+                    "user_id": str(user.id),
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "phase_key": pk,
+                    "phase_label": phase_label(pk, group),
+                    "has_proof": True,
+                    "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
+                    "is_member": False,
+                }
+            )
+    return out
+
+
+async def list_all_phase_pending_groups(db: AsyncSession, group: Group) -> dict:
+    """All phases that have at least one pending phase enrollment."""
+    from app.services.prize_structure_service import get_effective_phases, phase_label
+
+    phases_out: list[dict] = []
+    for pk in get_effective_phases(group):
+        pending = await gather_phase_pending_entries(db, group, pk)
+        if pending:
+            phases_out.append(
+                {
+                    "phase_key": pk,
+                    "phase_label": phase_label(pk, group),
+                    "pending": pending,
+                }
+            )
+    return {"group_id": str(group.id), "phases": phases_out}
+
+
+async def count_pending_new_member_entries(db: AsyncSession, group: Group) -> int:
+    """Non-members with initial group entry proof only (not phase re-enrollment)."""
+    from app.models.group import GroupEntryProof
 
     gid = group.id
     member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == gid)
-    confirmed_enr = select(GroupPhaseEnrollment.user_id).where(
-        GroupPhaseEnrollment.group_id == gid,
-        GroupPhaseEnrollment.phase_key == phase_key,
-        GroupPhaseEnrollment.status == "confirmed",
-    )
-    phase_proof_users = select(GroupPhaseEntryProof.user_id).where(
-        GroupPhaseEntryProof.group_id == gid,
-        GroupPhaseEntryProof.phase_key == phase_key,
-    )
-    member_count = (
-        await db.execute(
-            select(func.count())
-            .select_from(GroupMember)
-            .where(
-                GroupMember.group_id == gid,
-                GroupMember.user_id.in_(phase_proof_users),
-                GroupMember.user_id.not_in(confirmed_enr),
+    group_proof_ids = select(GroupEntryProof.user_id).where(GroupEntryProof.group_id == gid)
+    return int(
+        (
+            await db.execute(
+                select(func.count())
+                .select_from(User)
+                .where(
+                    User.is_active == True,  # noqa: E712
+                    User.id.not_in(member_ids_q),
+                    User.id.in_(group_proof_ids),
+                )
             )
-        )
-    ).scalar() or 0
-    if phase_key != "knockout":
-        return int(member_count)
-    non_member_count = (
-        await db.execute(
-            select(func.count())
-            .select_from(User)
-            .where(
-                User.is_active == True,  # noqa: E712
-                User.id.not_in(member_ids_q),
-                User.id.in_(phase_proof_users),
-            )
-        )
-    ).scalar() or 0
-    return int(member_count) + int(non_member_count)
+        ).scalar()
+        or 0
+    )
 
 
 async def count_all_phase_pending_entries(db: AsyncSession, group: Group) -> int:
-    """Pending phase enrollments across knockout and current phase (deduped keys)."""
+    """Pending phase enrollments across every effective phase of the pool."""
     from app.services.prize_structure_service import get_effective_phases
 
-    pk = group.current_phase_key or get_effective_phases(group)[0]
-    phase_keys = list(dict.fromkeys([pk, "knockout"]))
     total = 0
-    for phase_key in phase_keys:
-        if phase_key:
-            total += await count_phase_pending_entries(db, group, phase_key)
+    for phase_key in get_effective_phases(group):
+        total += await count_phase_pending_entries(db, group, phase_key)
     return total
 
 

@@ -743,10 +743,14 @@ async def admin_action_queue(request: Request, admin: CurrentAdmin, db: DBSessio
     pending_phase_enrollments = 0
     group_id = None
     if group:
-        from app.services.group_service import count_admin_pending_entries, count_all_phase_pending_entries
+        from app.services.group_service import (
+            count_all_phase_pending_entries,
+            count_pending_new_member_entries,
+        )
 
         group_id = str(group.id)
-        pending_entries = await count_admin_pending_entries(db, group)
+        pending_new_entries = await count_pending_new_member_entries(db, group)
+        pending_entries = pending_new_entries
         pending_phase_enrollments = await count_all_phase_pending_entries(db, group)
         pending_extras = (
             await db.execute(
@@ -1668,91 +1672,31 @@ async def list_phase_pending_entries(
     db: DBSession,
     phase_key: str | None = Query(None),
 ):
-    from app.services.prize_structure_service import get_effective_phases, phase_label
-    from app.services.payment_upload_service import phase_entry_proof_data_url
+    from app.services.prize_structure_service import get_effective_phases
+    from app.services.group_service import gather_phase_pending_entries
 
     group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
     if not group:
         raise HTTPException(status_code=404, detail="Group not found")
     pk = phase_key or group.current_phase_key or get_effective_phases(group)[0]
-
-    members_q = (
-        select(User, GroupMember, GroupPhaseEntryProof)
-        .join(GroupMember, GroupMember.user_id == User.id)
-        .outerjoin(
-            GroupPhaseEntryProof,
-            and_(
-                GroupPhaseEntryProof.group_id == group_id,
-                GroupPhaseEntryProof.user_id == User.id,
-                GroupPhaseEntryProof.phase_key == pk,
-            ),
-        )
-        .where(GroupMember.group_id == group_id)
-    )
-    rows = (await db.execute(members_q)).all()
-    out = []
-    seen_user_ids: set[uuid.UUID] = set()
-    for user, _member, proof in rows:
-        enr_res = await db.execute(
-            select(GroupPhaseEnrollment).where(
-                and_(
-                    GroupPhaseEnrollment.group_id == group_id,
-                    GroupPhaseEnrollment.user_id == user.id,
-                    GroupPhaseEnrollment.phase_key == pk,
-                )
-            )
-        )
-        enr = enr_res.scalar_one_or_none()
-        if enr and enr.status == "confirmed":
-            continue
-        if not proof:
-            continue
-        seen_user_ids.add(user.id)
-        out.append(
-            {
-                "user_id": str(user.id),
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "phase_key": pk,
-                "phase_label": phase_label(pk, group),
-                "has_proof": True,
-                "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
-                "is_member": True,
-            }
-        )
-
-    if pk == "knockout":
-        member_ids_q = select(GroupMember.user_id).where(GroupMember.group_id == group_id)
-        non_member_q = (
-            select(User, GroupPhaseEntryProof)
-            .join(
-                GroupPhaseEntryProof,
-                and_(
-                    GroupPhaseEntryProof.user_id == User.id,
-                    GroupPhaseEntryProof.group_id == group_id,
-                    GroupPhaseEntryProof.phase_key == pk,
-                ),
-            )
-            .where(User.is_active == True, User.id.not_in(member_ids_q))
-        )
-        for user, _proof in (await db.execute(non_member_q)).all():
-            if user.id in seen_user_ids:
-                continue
-            out.append(
-                {
-                    "user_id": str(user.id),
-                    "username": user.username,
-                    "first_name": user.first_name,
-                    "last_name": user.last_name,
-                    "phase_key": pk,
-                    "phase_label": phase_label(pk, group),
-                    "has_proof": True,
-                    "proof_url": phase_entry_proof_data_url(group_id, user.id, pk),
-                    "is_member": False,
-                }
-            )
+    out = await gather_phase_pending_entries(db, group, pk)
     return {"group_id": str(group_id), "phase_key": pk, "pending": out}
+
+
+@router.get("/groups/{group_id}/all-phase-pending-entries")
+@limiter.limit(ADMIN_RATE)
+async def list_all_phase_pending_entries_route(
+    request: Request,
+    group_id: uuid.UUID,
+    admin: CurrentAdmin,
+    db: DBSession,
+):
+    from app.services.group_service import list_all_phase_pending_groups
+
+    group = (await db.execute(select(Group).where(Group.id == group_id))).scalar_one_or_none()
+    if not group:
+        raise HTTPException(status_code=404, detail="Group not found")
+    return await list_all_phase_pending_groups(db, group)
 
 
 @router.get("/groups/{group_id}/phase-entry-proofs/{user_id}")
