@@ -39,7 +39,7 @@ class LiveSyncSettings(Base):
     max_concurrent_polls: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
     failure_threshold: Mapped[int] = mapped_column(Integer, default=6, nullable=False)
     confirm_reads_required: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
-    sync_enabled_globally: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    sync_enabled_globally: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

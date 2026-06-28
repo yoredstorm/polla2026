@@ -19,7 +19,7 @@ DEFAULTS = {
     "max_concurrent_polls": 3,
     "failure_threshold": 6,
     "confirm_reads_required": 2,
-    "sync_enabled_globally": True,
+    "sync_enabled_globally": False,
 }
 
 
