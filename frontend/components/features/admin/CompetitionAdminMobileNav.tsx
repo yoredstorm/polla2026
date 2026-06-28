@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ClipboardList, LayoutDashboard, Megaphone, Trophy, Users } from "lucide-react";
+import { Activity, ClipboardList, LayoutDashboard, RefreshCw, Trophy, Users } from "lucide-react";
 import { useCompetitionSlug } from "@/components/providers/CompetitionProvider";
 import { useCompetitionAdminActionQueue } from "@/hooks/useCompetitionAdmin";
 import { competitionAdminPath } from "@/lib/competitionPaths";
@@ -17,9 +17,9 @@ export function CompetitionAdminMobileNav() {
   const tabs = [
     { href: competitionAdminPath(slug), label: "Inicio", icon: LayoutDashboard, exact: true },
     { href: competitionAdminPath(slug, "fixtures"), label: "Partidos", icon: Trophy, exact: false },
+    { href: competitionAdminPath(slug, "live-sync"), label: "Sync", icon: RefreshCw, exact: false },
     { href: competitionAdminPath(slug, "members"), label: "Miembros", icon: Users, exact: false },
     { href: competitionAdminPath(slug, "requests"), label: "Cola", icon: ClipboardList, exact: false },
-    { href: competitionAdminPath(slug, "marquee"), label: "Promo", icon: Megaphone, exact: false },
     { href: competitionAdminPath(slug, "activity"), label: "Actividad", icon: Activity, exact: false },
   ];
 

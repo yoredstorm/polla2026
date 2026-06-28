@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { Modal } from "@/components/ui/Modal";
 import { formatMatchDate, getStatusLabel, getStatusColor } from "@/lib/utils";
 import { SyncStatusBadge } from "@/components/features/admin/SyncStatusBadge";
+import { competitionAdminPath } from "@/lib/competitionPaths";
 
 // ── Settle Modal ────────────────────────────────────────────────────────────
 function SettleModal({
@@ -334,6 +335,10 @@ export function FixturesAdminView({ competitionSlug }: { competitionSlug?: strin
     selectBettingFilter,
     statuses,
   } = useAdminFixturesPage(competitionSlug);
+  const liveSyncHref = (fixtureId: string) =>
+    competitionSlug
+      ? `${competitionAdminPath(competitionSlug, "live-sync")}?fixture=${fixtureId}`
+      : undefined;
 
   return (
     <div className="space-y-6">
@@ -398,7 +403,12 @@ export function FixturesAdminView({ competitionSlug }: { competitionSlug?: strin
                   <span className={cn("text-[10px] uppercase", getStatusColor(f.status))}>
                     {getStatusLabel(f.status)}
                   </span>
-                  <SyncStatusBadge syncMode={f.sync_mode} fixtureId={f.id} className="ml-1" />
+                  <SyncStatusBadge
+                    syncMode={f.sync_mode}
+                    fixtureId={f.id}
+                    liveSyncHref={liveSyncHref(f.id)}
+                    className="ml-1"
+                  />
                 </div>
                 <p className="text-xs text-muted">{formatMatchDate(f.match_date)}</p>
                 <div className="flex flex-wrap gap-2">
@@ -478,7 +488,11 @@ export function FixturesAdminView({ competitionSlug }: { competitionSlug?: strin
                     <td className={cn("px-4 py-3 text-center text-xs font-medium", getStatusColor(f.status))}>
                       <div className="flex flex-col items-center gap-1">
                         <span>{getStatusLabel(f.status)}</span>
-                        <SyncStatusBadge syncMode={f.sync_mode} fixtureId={f.id} />
+                        <SyncStatusBadge
+                          syncMode={f.sync_mode}
+                          fixtureId={f.id}
+                          liveSyncHref={liveSyncHref(f.id)}
+                        />
                       </div>
                     </td>
                     {/* Betting open badge */}

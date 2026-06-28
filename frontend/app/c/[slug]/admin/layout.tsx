@@ -51,6 +51,7 @@ export default function CompetitionAdminLayout({ children }: { children: React.R
   const adminTabs = [
     { href: competitionAdminPath(slug), label: "Dashboard", badge: 0, exact: true },
     { href: competitionAdminPath(slug, "fixtures"), label: "Partidos", badge: 0, exact: false },
+    { href: competitionAdminPath(slug, "live-sync"), label: "Sync", badge: 0, exact: false },
     { href: competitionAdminPath(slug, "members"), label: "Miembros y pagos", badge: membersBadge, exact: false },
     { href: competitionAdminPath(slug, "requests"), label: "Solicitudes", badge: requestsBadge, exact: false },
     { href: competitionAdminPath(slug, "activity"), label: "Actividad", badge: 0, exact: false },
