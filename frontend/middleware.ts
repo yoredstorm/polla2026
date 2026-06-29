@@ -23,7 +23,7 @@ const LEGACY_OPERATIONAL: Record<string, string> = {
   "/admin/groups": "members",
   "/admin/requests": "requests",
   "/admin/activity": "activity",
-  "/admin/live-sync": "fixtures",
+  "/admin/live-sync": "live-sync",
 };
 
 export async function middleware(request: NextRequest) {

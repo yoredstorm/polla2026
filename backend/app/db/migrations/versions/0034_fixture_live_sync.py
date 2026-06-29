@@ -89,7 +89,7 @@ def upgrade() -> None:
             "sync_enabled_globally",
             sa.Boolean(),
             nullable=False,
-            server_default=sa.text("true"),
+            server_default=sa.text("false"),
         ),
         sa.Column(
             "updated_at",

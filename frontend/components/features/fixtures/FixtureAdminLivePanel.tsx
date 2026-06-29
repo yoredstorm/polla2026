@@ -169,6 +169,18 @@ export function FixtureAdminLivePanel({
     }
   }
 
+  async function setFixtureSyncMode(syncMode: "auto" | "manual") {
+    try {
+      await patchSyncMode.mutateAsync({ fixtureId: fixture.id, sync_mode: syncMode });
+      toast(
+        syncMode === "manual" ? "Sync automático desactivado para este partido" : "Sync automático activado",
+        "success",
+      );
+    } catch {
+      toast("No se pudo cambiar el sync del partido", "error");
+    }
+  }
+
   if (fixture.status === "finished" || fixture.status === "cancelled") {
     return (
       <section className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 mb-6">
@@ -186,31 +198,33 @@ export function FixtureAdminLivePanel({
         className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 mb-6 space-y-4"
         aria-label="Control de partido (admin)"
       >
-        <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <p className="text-xs uppercase tracking-wide text-amber-300/90 font-medium">
             Control admin del partido
           </p>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
             <SyncStatusBadge syncMode={fixture.sync_mode} fixtureId={fixture.id} />
             {fixture.sync_mode === "auto" ? (
               <button
                 type="button"
-                onClick={() =>
-                  patchSyncMode.mutate({ fixtureId: fixture.id, sync_mode: "manual" })
-                }
+                onClick={() => void setFixtureSyncMode("manual")}
                 disabled={patchSyncMode.isPending}
-                className="text-[10px] text-muted hover:text-white underline"
+                className={cn(
+                  "min-h-10 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2",
+                  "text-xs font-bold text-amber-100 hover:bg-amber-500/20 disabled:opacity-60",
+                )}
               >
                 Desactivar sync
               </button>
             ) : (
               <button
                 type="button"
-                onClick={() =>
-                  patchSyncMode.mutate({ fixtureId: fixture.id, sync_mode: "auto" })
-                }
+                onClick={() => void setFixtureSyncMode("auto")}
                 disabled={patchSyncMode.isPending}
-                className="text-[10px] text-accent hover:underline"
+                className={cn(
+                  "min-h-10 rounded-lg border border-accent/40 bg-accent/10 px-3 py-2",
+                  "text-xs font-bold text-accent hover:bg-accent/20 disabled:opacity-60",
+                )}
               >
                 Activar sync auto
               </button>

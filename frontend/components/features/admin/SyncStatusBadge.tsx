@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { DEFAULT_COMPETITION_SLUG, competitionAdminPath } from "@/lib/competitionPaths";
 import { cn } from "@/lib/utils";
 
 export function SyncStatusBadge({
   syncMode,
   fixtureId,
+  liveSyncHref,
   className,
 }: {
   syncMode?: "auto" | "manual" | "failed" | string;
   fixtureId?: string;
+  liveSyncHref?: string;
   className?: string;
 }) {
   const mode = syncMode ?? "auto";
@@ -33,9 +36,13 @@ export function SyncStatusBadge({
   );
 
   if (fixtureId) {
+    const href =
+      liveSyncHref ??
+      `${competitionAdminPath(DEFAULT_COMPETITION_SLUG, "live-sync")}?fixture=${fixtureId}`;
+
     return (
       <Link
-        href={`/admin/live-sync?fixture=${fixtureId}`}
+        href={href}
         className="inline-flex hover:opacity-80"
         title="Ver logs de sync"
       >
