@@ -70,7 +70,7 @@ export default function CompetitionAdminLayout({ children }: { children: React.R
           Volver a la competencia
         </Link>
       </div>
-      <div className="border-b border-white/10 bg-surface/60 -mx-4 px-4 mb-6 rounded-xl overflow-x-auto">
+      <div className="hidden md:block border-b border-white/10 bg-surface/60 -mx-4 px-4 mb-6 rounded-xl overflow-x-auto">
         <div className="flex gap-1 min-w-max">
           {adminTabs.map((tab) => {
             const active = tab.exact ? pathname === tab.href : pathname.startsWith(tab.href);

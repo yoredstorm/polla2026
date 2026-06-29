@@ -156,13 +156,13 @@ export default function LeaderboardPage() {
     isLoading: globalLoading,
     isError: globalError,
     refetch: refetchGlobal,
-  } = useGlobalLeaderboard(page, PAGE_SIZE, sort, 0);
+  } = useGlobalLeaderboard(page, PAGE_SIZE, sort, 1);
   const {
     data: weekly,
     isLoading: weeklyLoading,
     isError: weeklyError,
     refetch: refetchWeekly,
-  } = useWeeklyLeaderboard(page, PAGE_SIZE, sort, 0);
+  } = useWeeklyLeaderboard(page, PAGE_SIZE, sort, 1);
 
   const data = view === "global" ? global : weekly;
   const isLoading = view === "global" ? globalLoading : weeklyLoading;

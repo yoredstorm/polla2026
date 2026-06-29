@@ -54,7 +54,24 @@ export default function CompetitionAdminDashboardPage() {
           <Skeleton className="h-48 w-full" />
         ) : winners && winners.length > 0 ? (
           <div className="rounded-xl border border-white/10 bg-glass backdrop-blur-sm overflow-hidden">
-            <table className="w-full text-sm">
+            <ul className="md:hidden divide-y divide-white/10" role="list">
+              {winners.map((w, i) => (
+                <li key={w.user_id} className="p-4 flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-muted mb-0.5">#{i + 1}</p>
+                    <p className="text-white font-medium">{w.username}</p>
+                  </div>
+                  <div className="text-right text-xs">
+                    <p className="text-accent font-bold text-base">{w.total_points} pts</p>
+                    <p className="text-muted mt-1">
+                      {w.total_bets} ap · <span className="text-emerald-400">{w.correct}✓</span>{" "}
+                      <span className="text-red-400">{w.wrong}✗</span>
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+            <table className="w-full text-sm hidden md:table">
               <thead>
                 <tr className="border-b border-white/10 text-muted text-xs uppercase">
                   <th className="text-left px-4 py-3">#</th>

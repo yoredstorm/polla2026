@@ -15,7 +15,7 @@ import { MotionSafe } from "@/components/ui/MotionSafe";
 import { exitTransition, MOTION } from "@/lib/motion";
 import type { HelpKey } from "@/lib/systemHelp";
 import { DEFAULT_COMPETITION_SLUG, competitionPath, competitionAdminPath } from "@/lib/competitionPaths";
-import { useCompetitionContextBySlug } from "@/hooks/useCompetitions";
+import { useAdministeredCompetitions, useCompetitionContextBySlug } from "@/hooks/useCompetitions";
 
 const navLinks: { href: string; label: string; helpKey: HelpKey; tourId: string; segment: string }[] = [
   { href: "/dashboard", label: "Inicio", helpKey: "nav.dashboard", tourId: "nav-dashboard", segment: "dashboard" },
@@ -68,7 +68,15 @@ export function Navbar() {
   const navHref = (segment: string) => competitionPath(slug, segment);
   const { user, logout } = useAuth();
   const { data: compCtx } = useCompetitionContextBySlug(inCompetition ? slug : null);
+  const { data: administered } = useAdministeredCompetitions();
   const { data: unreadData } = useUnreadCount(!!user);
+  const competitionAdminSlug = inCompetition ? slug : administered?.[0]?.slug;
+  const showCompetitionAdmin = inCompetition
+    ? !!compCtx?.is_admin
+    : (administered?.length ?? 0) > 0;
+  const competitionAdminHref = competitionAdminSlug
+    ? competitionAdminPath(competitionAdminSlug)
+    : null;
   const unreadCount = unreadData?.count ?? 0;
   useInactivityTimeout(!!user);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -189,6 +197,11 @@ export function Navbar() {
                       transition={{ duration: MOTION.duration.fast, ease: MOTION.ease.entrance }}
                       className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-white/10 bg-surface shadow-xl py-1 z-50 origin-top-right"
                     >
+                      {user?.username && (
+                        <p className="md:hidden px-4 py-2 text-xs text-muted border-b border-white/10 truncate">
+                          @{user.username}
+                        </p>
+                      )}
                       <Link
                         href="/profile"
                         onClick={() => setDropdownOpen(false)}
@@ -204,6 +217,29 @@ export function Navbar() {
                         >
                           Mi pagina publica
                         </Link>
+                      )}
+                      {(showCompetitionAdmin || user?.is_admin) && (
+                        <>
+                          <div className="my-1 border-t border-white/10" />
+                          {showCompetitionAdmin && competitionAdminHref && (
+                            <Link
+                              href={competitionAdminHref}
+                              onClick={() => setDropdownOpen(false)}
+                              className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors duration-fast cursor-pointer"
+                            >
+                              Admin
+                            </Link>
+                          )}
+                          {user?.is_admin && (
+                            <Link
+                              href="/admin/competitions"
+                              onClick={() => setDropdownOpen(false)}
+                              className="block px-4 py-2.5 text-sm text-muted hover:text-white hover:bg-white/5 transition-colors duration-fast cursor-pointer"
+                            >
+                              Plataforma
+                            </Link>
+                          )}
+                        </>
                       )}
                       <div className="my-1 border-t border-white/10" />
                       <button

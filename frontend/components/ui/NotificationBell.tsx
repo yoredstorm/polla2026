@@ -19,6 +19,7 @@ import { MotionSafe } from "@/components/ui/MotionSafe";
 import { entranceTransition, exitTransition } from "@/lib/motion";
 import { AnimatedList, AnimatedListItem } from "@/components/ui/AnimatedList";
 import { NotificationItem } from "@/components/features/notifications/NotificationItem";
+import { competitionAdminPath } from "@/lib/competitionPaths";
 
 export function NotificationBell() {
   const { user } = useAuth();
@@ -161,14 +162,25 @@ export function NotificationBell() {
           </div>
 
           {(user.is_admin || administeredSlugs.size > 0) && (
-            <div className="px-4 py-2 border-t border-white/10">
-              <Link
-                href="/admin/requests"
-                onClick={() => setOpen(false)}
-                className="text-xs text-accent hover:underline"
-              >
-                Ver todas las solicitudes
-              </Link>
+            <div className="px-4 py-2 border-t border-white/10 flex flex-col gap-1">
+              {user.is_admin && (
+                <Link
+                  href="/admin/password-resets"
+                  onClick={() => setOpen(false)}
+                  className="text-xs text-accent hover:underline"
+                >
+                  Ver solicitudes de contraseña
+                </Link>
+              )}
+              {administeredSlugs.size > 0 && (
+                <Link
+                  href={competitionAdminPath([...administeredSlugs][0], "requests")}
+                  onClick={() => setOpen(false)}
+                  className="text-xs text-accent hover:underline"
+                >
+                  Ver solicitudes de apuesta
+                </Link>
+              )}
             </div>
           )}
           </MotionSafe>

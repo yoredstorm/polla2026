@@ -1,34 +1,33 @@
 "use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ClipboardList, LayoutDashboard, Trophy } from "lucide-react";
-import { useAdminActionQueue } from "@/hooks/useAdmin";
+import { KeyRound, Trophy, Users } from "lucide-react";
+import { usePendingPasswordResetCount } from "@/hooks/useAdmin";
+import { platformTabs } from "@/lib/platformAdminTabs";
 import { cn } from "@/lib/utils";
 
-const tabs = [
-  { href: "/admin", label: "Inicio", icon: LayoutDashboard, exact: true },
-  { href: "/admin/fixtures", label: "Partidos", icon: Trophy, exact: false },
-  { href: "/admin/requests", label: "Cola", icon: ClipboardList, exact: false },
-  { href: "/admin/activity", label: "Actividad", icon: Activity, exact: false },
-];
+const tabIcons: Record<string, typeof Trophy> = {
+  "/admin/competitions": Trophy,
+  "/admin/users": Users,
+  "/admin/password-resets": KeyRound,
+};
 
 export function AdminMobileNav() {
   const pathname = usePathname();
-  const { data } = useAdminActionQueue();
-  const pendingTotal = data?.pending.total ?? 0;
+  const { data: pwdPending } = usePendingPasswordResetCount();
+  const pwdBadge = pwdPending?.count ?? 0;
 
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden border-t border-white/10 bg-surface/95 backdrop-blur-md safe-area-pb"
-      aria-label="Navegacion administracion"
+      aria-label="Navegacion panel plataforma"
     >
-      <div className="flex justify-around items-stretch h-14 max-w-lg mx-auto">
-        {tabs.map((tab) => {
-          const active = tab.exact
-            ? pathname === tab.href
-            : pathname.startsWith(tab.href);
-          const Icon = tab.icon;
-          const showBadge = tab.href === "/admin/requests" && pendingTotal > 0;
+      <div className="flex justify-around items-stretch h-14">
+        {platformTabs.map((tab) => {
+          const active = pathname.startsWith(tab.href);
+          const Icon = tabIcons[tab.href] ?? Trophy;
+          const showBadge = tab.badgeKey === "password-resets" && pwdBadge > 0;
           return (
             <Link
               key={tab.href}
@@ -42,7 +41,7 @@ export function AdminMobileNav() {
                 <Icon className="w-5 h-5" aria-hidden />
                 {showBadge && (
                   <span className="absolute -top-1 -right-2 min-w-[14px] h-[14px] px-0.5 rounded-full bg-accent text-background text-[9px] font-bold flex items-center justify-center">
-                    {pendingTotal > 9 ? "9+" : pendingTotal}
+                    {pwdBadge > 9 ? "9+" : pwdBadge}
                   </span>
                 )}
               </span>

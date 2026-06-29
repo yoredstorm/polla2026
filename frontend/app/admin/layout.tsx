@@ -5,13 +5,9 @@ import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { usePendingPasswordResetCount } from "@/hooks/useAdmin";
 import { PageShell } from "@/components/layout/PageShell";
+import { AdminMobileNav } from "@/components/features/admin/AdminMobileNav";
+import { platformTabs } from "@/lib/platformAdminTabs";
 import { cn } from "@/lib/utils";
-
-const platformTabs = [
-  { href: "/admin/competitions", label: "Competencias" },
-  { href: "/admin/users", label: "Usuarios" },
-  { href: "/admin/password-resets", label: "Recuperar clave", badgeKey: "password-resets" as const },
-];
 
 const LEGACY_OPERATIONAL_PREFIXES = [
   "/admin/fixtures",
@@ -49,12 +45,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <PageShell maxWidth="xl" withMobileNav={false} mainClassName="py-6 pb-6">
+    <PageShell maxWidth="xl" withMobileNav={false} mainClassName="py-6 pb-20 md:pb-6">
       <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100/90">
         Panel de plataforma (super admin). La operación diaria de cada competencia está en{" "}
         <span className="text-white font-medium">Admin</span> dentro de la competencia.
       </div>
-      <div className="border-b border-white/10 bg-surface/60 -mx-4 px-4 mb-6 rounded-xl overflow-x-auto">
+      <div className="hidden md:block border-b border-white/10 bg-surface/60 -mx-4 px-4 mb-6 rounded-xl overflow-x-auto">
         <div className="flex gap-1 min-w-max">
           {platformTabs.map((tab) => {
             const active = pathname.startsWith(tab.href);
@@ -81,6 +77,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </div>
       {children}
+      <AdminMobileNav />
     </PageShell>
   );
 }

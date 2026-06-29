@@ -94,7 +94,7 @@ def push_url_for_notification(n: Notification) -> str:
     if t in ("entry_confirmed", "extra_confirmed"):
         return "/my-bets"
     if t == "password_reset_pending":
-        return "/admin/requests?tab=passwords"
+        return "/admin/password-resets"
     if t == "password_reset_resolved":
         return "/login"
     if t == "comment_mention" and p.get("fixture_id"):

@@ -46,9 +46,43 @@ export function PhaseFeesPanel({
 
   if (isLoading) return <p className="text-sm text-muted">Cargando montos por hito...</p>;
 
+  const inputClass =
+    "w-full max-w-[8rem] rounded-lg border border-white/15 bg-white/5 px-2 py-2 text-white text-sm";
+
   return (
     <div className="space-y-3">
-      <div className="overflow-x-auto">
+      <ul className="md:hidden space-y-3" role="list">
+        {rows.map((row, i) => (
+          <li key={row.phase_key} className="rounded-xl border border-white/10 p-4 space-y-3">
+            <p className="text-white font-medium">{row.label}</p>
+            <label className="block space-y-1">
+              <span className="text-xs text-muted">Entrada ({currency})</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={row.entry_fee}
+                onChange={(e) => updateRow(i, "entry_fee", e.target.value)}
+                className={inputClass}
+              />
+            </label>
+            <label className="block space-y-1">
+              <span className="text-xs text-muted">Extra / partido</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                value={row.extra_per_match ?? ""}
+                placeholder="—"
+                onChange={(e) => updateRow(i, "extra_per_match", e.target.value)}
+                className={inputClass}
+              />
+            </label>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-muted text-xs uppercase">
@@ -87,11 +121,12 @@ export function PhaseFeesPanel({
           </tbody>
         </table>
       </div>
+
       <button
         type="button"
         disabled={!dirty || patch.isPending}
         onClick={save}
-        className="text-sm px-4 py-2 rounded-lg bg-accent text-black font-medium disabled:opacity-50"
+        className="w-full sm:w-auto text-sm px-4 py-2.5 rounded-lg bg-accent text-black font-medium disabled:opacity-50 min-h-11"
       >
         {patch.isPending ? "Guardando..." : "Guardar montos por hito"}
       </button>
